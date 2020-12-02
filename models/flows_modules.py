@@ -13,23 +13,29 @@ class CouplingLayer(nn.Module):
 
        
 
-    def forward_x(self,x):
-        
+    def forward_x(self,x,e = None):
+        #if e != None then conditional coupling layer
         x1 = x[:,:self.split_index]
         x2 = x[:,self.split_index:]
         
-        y2 = self.coupling_function(x1,x2)
+        if e == None:
+            y2 = self.coupling_function(x1,x2)
+        else:
+            y2 = self.coupling_function(x1,x2,e)
         y = torch.cat((x1,y2),dim=1)
         #Permute 
         y = torch.index_select(y,1,torch.LongTensor([self.permute_list]))
         return y
     
-    def inverse(self,y):
+    def inverse(self,y,e = None):
         #Un-permute 
         y = torch.index_select(y,1,torch.LongTensor([self.permute_list]))
         x1 = y1 = y[:,self.split_index]
         y2 = y[:,self.split_index]
-        x2 = self.coupling_function.inverse(y1,y2)
+        if e==None:
+            x2 = self.coupling_function.inverse(y1,y2)
+        else: 
+            x2 = self.coupling_function.inverse(y1,y2,e)
 
         x = torch.cat((x1,x2),dim=1)
         return x
@@ -41,15 +47,24 @@ class AffineCouplingFunc(nn.Module):
         self.multiply_func = mutiply_func
         self.add_func = add_func
 
-    def forward(self,x1,x2):
-        A = self.add_func(x1)
-        M = self.multiply_func(x1)
+    def forward(self,x1,x2,e=None):
+        #if e != None then conditional coupling function
+        if e == None:
+            A = self.add_func(x1)
+            M = self.multiply_func(x1)
+        else:
+            A = self.add_func(x1,e)
+            M = self.multiply_func(x1,e)
         y2 = x2 * torch.exp(M) + A
        
         return y2
-    def inverse(self,y1,y2):
-        A = self.add_func(x1)
-        M = self.multiply_func(x1)
+    def inverse(self,y1,y2,e=None):
+        if e == None:
+            A = self.add_func(x1)
+            M = self.multiply_func(x1)
+        else:
+            A = self.add_func(x1,e)
+            M = self.multiply_func(x1,e)
         x1 = y1
         x2 = (y2 - A )   / torch.exp(M)
        
@@ -137,7 +152,20 @@ class StraightNet(nn.Module):
         return x
 
 
-        
+class FBlock(nn.Module):
+    def __init__(self,coupling_function,split_index_list,permute_list_list):
+        super().__init__()
+        self.coupling_function = coupling_function
+        self.split_index_list = split_index_list
+        self.permute_list_list = permute_list_list
+    
+    def forward(self,x,e):
+        for index in range(len(self.permute_list_list)):
+            permute_list = self.permute_list_list[index]
+            split_index = self.split_index_list[index]
+
+
+    
 
         
 
