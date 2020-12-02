@@ -61,10 +61,12 @@ class AffineCouplingFunc(nn.Module):
 
 
 class MultiplyNet(nn.Module):
-    def __init__(self,emb_dim,in_dim,n_neurons,n_cond_pre,n_in_pre,n_joint,base_block_type = 'resnet',activation='leaky_relu'):
+    def __init__(self,emb_dim,in_dim,in_dim_total = 3,n_neurons=512,n_cond_pre=2,n_in_pre=1,n_joint=4,base_block_type = 'resnet',activation='leaky_relu'):
         super().__init__()
+
         self.emb_dim = emb_dim #emb dim of e (conditional)
         self.in_dim = in_dim # dimension of the x (x1) not 3 since x is split  
+        self.in_dim_total = in_dim_total # Dimension of pre split x so can calculate dimension of output
         self.n_neurons = n_neurons
         self.n_cond_pre = n_cond_pre
         self.n_in_pre = n_in_pre
@@ -86,8 +88,8 @@ class MultiplyNet(nn.Module):
 
 
         self.joint_layers = nn.Sequential(*[self.base_block(n_neurons,2,self.activation)]*self.n_joint)
-        # Why is output 1 dim here?
-        self.joint_final_layer = nn.Sequential(nn.Linear(self.n_neurons,1),nn.Tanh())
+        # Output should be of dimension x2 so dim(x) - dim(x1)
+        self.joint_final_layer = nn.Sequential(nn.Linear(self.n_neurons,self.in_dim_total-self.in_dim),nn.Tanh())
 
 
 
@@ -108,12 +110,16 @@ class MultiplyNet(nn.Module):
         x_joint = self.joint_final_layer(x_joint)
 
         return x_joint
+
+
+
         
 
         
 
 if __name__ == '__main__':
-    M = MultiplyNet(32,2,532,2,2,2)
+    M = MultiplyNet(32,2)
+    print(M)
     x = torch.randn(2).reshape(1,-1)
     e  = torch.randn(32).reshape(1,-1)
     result =  M(x,e)
