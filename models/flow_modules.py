@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-from nets import ResBlock, activation_func_selector
+from models.nets import ResBlock, activation_func_selector
 
 
 class CouplingLayer(nn.Module):
@@ -152,17 +152,20 @@ class StraightNet(nn.Module):
         return x
 
 
-class FBlock(nn.Module):
-    def __init__(self,coupling_function,split_index_list,permute_list_list):
-        super().__init__()
-        self.coupling_function = coupling_function
-        self.split_index_list = split_index_list
-        self.permute_list_list = permute_list_list
+# class FBlock(nn.Module):
+#     def __init__(self,coupling_layer,split_index_list,permute_list_list):
+#         super().__init__()
+#         self.coupling_layer = self.coupling_layer
+#         self.split_index_list = split_index_list
+#         self.permute_list_list = permute_list_list
+#         coupling_layer_params = zip()
+#         self.layers = [self.coupling_layer(coupling_function,split_index,permute_list) for coupling_function,split_index,permute_list]
     
-    def forward(self,x,e):
-        for index in range(len(self.permute_list_list)):
-            permute_list = self.permute_list_list[index]
-            split_index = self.split_index_list[index]
+#     def forward(self,x,e):
+#         for index in range(len(self.permute_list_list)):
+#             permute_list = self.permute_list_list[index]
+#             split_index = self.split_index_list[index]
+#             x = coupling_
 
 
     
