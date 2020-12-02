@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-
+from nets import ResBlock, activation_func_selector
 
 
 class CouplingLayer(nn.Module):
@@ -37,6 +37,7 @@ class CouplingLayer(nn.Module):
 
 class AffineCouplingFunc(nn.Module):
     def __init__(self,mutiply_func,add_func):
+        super().__init__()
         self.multiply_func = mutiply_func
         self.add_func = add_func
 
@@ -44,30 +45,78 @@ class AffineCouplingFunc(nn.Module):
         A = self.add_func(x1)
         M = self.multiply_func(x1)
         y2 = x2 * torch.exp(M) + A
-        ldet = 
+       
         return y2
     def inverse(self,y1,y2):
         A = self.add_func(x1)
         M = self.multiply_func(x1)
         x1 = y1
-        x2 = (y2 - A )   / torch.exp(M))
-        ldet = M.sum()
-        return x2 , ldet 
+        x2 = (y2 - A )   / torch.exp(M)
+       
+        return x2 
 
 
 
 
 
 
-class MultiplyNet(torch.nn):
-    def __init__(self,conditional,in_dim,emb_dim,n_neurons):
-        self.conditional = conditional 
-        self.in_dim = in_dim
-        self.emb_dim = emb_dim
+class MultiplyNet(nn.Module):
+    def __init__(self,emb_dim,in_dim,n_neurons,n_cond_pre,n_in_pre,n_joint,base_block_type = 'resnet',activation='leaky_relu'):
+        super().__init__()
+        self.emb_dim = emb_dim #emb dim of e (conditional)
+        self.in_dim = in_dim # dimension of the x (x1) not 3 since x is split  
         self.n_neurons = n_neurons
+        self.n_cond_pre = n_cond_pre
+        self.n_in_pre = n_in_pre
+        self.n_joint = n_joint
+        self.base_block_type = base_block_type
+        self.activation = 'leaky_relu'
+        self.activation_func = activation_func_selector(self.activation)
+
+        if  self.base_block_type == 'resnet':
+            self.base_block = ResBlock
+        #Inital layers take input size accordingly and then feed it into layers of premade block, n_neurons is halved since this is 
+        # before the conditional and input are concatonated
+
+        self.cond_initial_layer = nn.Sequential(nn.Linear(self.emb_dim,self.n_neurons//2),self.activation_func)
+        self.cond_pre_layers = nn.Sequential(*[self.base_block(self.n_neurons//2,2,self.activation)]*self.n_cond_pre)
+
+        self.in_initial_layer = nn.Sequential(nn.Linear(self.in_dim,self.n_neurons//2),self.activation_func)
+        self.in_pre_layers = nn.Sequential(*[self.base_block(self.n_neurons//2,2,self.activation)]*self.n_in_pre)
+
+
+        self.joint_layers = nn.Sequential(*[self.base_block(n_neurons,2,self.activation)]*self.n_joint)
+        # Why is output 1 dim here?
+        self.joint_final_layer = nn.Sequential(nn.Linear(self.n_neurons,1),nn.Tanh())
+
+
+
+    def forward(self,x,e):
+        # x is the split input and e is the conditioner
+        e = self.cond_initial_layer(e)
+        e = self.in_pre_layers(e)
+
+        x = self.in_initial_layer(x)
+        x = self.in_pre_layers(x)
+
+        
+        x_joint = torch.cat((x,e),dim=1)
+
+
+        x_joint = self.joint_layers(x_joint)
+
+        x_joint = self.joint_final_layer(x_joint)
+
+        return x_joint
         
 
+        
 
+if __name__ == '__main__':
+    M = MultiplyNet(32,2,532,2,2,2)
+    x = torch.randn(2).reshape(1,-1)
+    e  = torch.randn(32).reshape(1,-1)
+    result =  M(x,e)
 
 
 
