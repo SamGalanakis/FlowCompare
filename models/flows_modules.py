@@ -60,7 +60,7 @@ class AffineCouplingFunc(nn.Module):
 
 
 
-class MultiplyNet(nn.Module):
+class ConditionalNet(nn.Module):
     def __init__(self,emb_dim,in_dim,in_dim_total = 3,n_neurons=512,n_cond_pre=2,n_in_pre=1,n_joint=4,base_block_type = 'resnet',activation='leaky_relu'):
         super().__init__()
 
@@ -72,7 +72,7 @@ class MultiplyNet(nn.Module):
         self.n_in_pre = n_in_pre
         self.n_joint = n_joint
         self.base_block_type = base_block_type
-        self.activation = 'leaky_relu'
+        self.activation = activation
         self.activation_func = activation_func_selector(self.activation)
 
         if  self.base_block_type == 'resnet':
@@ -112,17 +112,45 @@ class MultiplyNet(nn.Module):
         return x_joint
 
 
+class StraightNet(nn.Module):
+    def __init__(self,input_dim,n_neurons=512,n_blocks=4,base_block_type = 'resnet',activation='leaky_relu'):
+        super().__init__()
+        self.input_dim = input_dim #in and out are same dim
+        self.n_neurons = n_neurons
+        self.n_blocks = n_blocks
+        self.base_block_type = base_block_type
+        self.activation = activation
+        self.activation_func = activation_func_selector(self.activation)
+
+        if  self.base_block_type == 'resnet':
+            self.base_block = ResBlock
+
+       
+        self.in_layer = nn.Sequential(nn.Linear(self.input_dim,self.n_neurons),nn.Tanh())
+        self.middle_layers = nn.Sequential(*[self.base_block(n_neurons,2,self.activation)]*self.n_blocks)
+        self.final_layer =  nn.Sequential(nn.Linear(self.n_neurons, self.input_dim),nn.Tanh())
+        
+    def forward(self,x):
+        x = self.in_layer(x)
+        x= self.middle_layers(x)
+        x= self.final_layer(x)
+        return x
+
 
         
 
         
 
 if __name__ == '__main__':
-    M = MultiplyNet(32,2)
-    print(M)
+    F = ConditionalNet(32,2)
+    G = StraightNet(32)
+    print(F)
+    print(G)
     x = torch.randn(2).reshape(1,-1)
     e  = torch.randn(32).reshape(1,-1)
-    result =  M(x,e)
+    result_straight = G(e)
+    result_cond  =  F(x,e)
+    
 
 
 
