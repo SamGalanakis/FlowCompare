@@ -34,7 +34,7 @@ synsetid_to_cate = {
 }
 cate_to_synsetid = {v: k for k, v in synsetid_to_cate.items()}
 
-
+ # modified to ignore root_emb_dir
 class Uniform15KPC(Dataset):
     def __init__(self, root_dir, root_embs_dir, subdirs, tr_sample_size=10000,
                  te_sample_size=10000, split='train', scale=1.,
@@ -75,9 +75,9 @@ class Uniform15KPC(Dataset):
                 obj_fname = os.path.join(root_dir, subd, mid + ".npy")
                 try:
                     point_cloud = np.load(obj_fname)  # (15k, 3)
-                    w_vector = np.load(
-                        os.path.join(root_embs_dir, subd, mid + "_emb.npy")
-                    )
+                    # w_vector = np.load(
+                    #     os.path.join(root_embs_dir, subd, mid + "_emb.npy")
+                    # )
                 except:
                     continue
 
@@ -85,19 +85,19 @@ class Uniform15KPC(Dataset):
                 self.all_points.append(point_cloud[np.newaxis, ...])
                 self.cate_idx_lst.append(cate_idx)
                 self.all_cate_mids.append((subd, mid))
-                self.all_ws.append(w_vector)
+                #self.all_ws.append(w_vector)
 
         # Shuffle the index deterministically (based on the number of examples)
         self.shuffle_idx = list(range(len(self.all_points)))
         random.Random(38383).shuffle(self.shuffle_idx)
         self.cate_idx_lst = [self.cate_idx_lst[i] for i in self.shuffle_idx]
         self.all_points = [self.all_points[i] for i in self.shuffle_idx]
-        self.all_ws = [self.all_ws[i] for i in self.shuffle_idx]
+        # self.all_ws = [self.all_ws[i] for i in self.shuffle_idx]
         self.all_cate_mids = [self.all_cate_mids[i] for i in self.shuffle_idx]
 
         # Normalization
         self.all_points = np.concatenate(self.all_points)  # (N, 15000, 3)
-        self.all_ws = np.stack(self.all_ws, axis=0)  # (N, 32)
+        #self.all_ws = np.stack(self.all_ws, axis=0)  # (N, 32)
         self.normalize_per_shape = normalize_per_shape
         self.normalize_std_per_axis = normalize_std_per_axis
         if all_points_mean is not None and all_points_std is not None:  # using loaded dataset stats
@@ -166,8 +166,8 @@ class Uniform15KPC(Dataset):
         cate_idx = self.cate_idx_lst[idx]
         sid, mid = self.all_cate_mids[idx]
 
-        w = torch.from_numpy(self.all_ws[idx]).float()
-
+        #w = torch.from_numpy(self.all_ws[idx]).float()
+        w = 'removed'
         return {
             'idx': idx,
             'train_points': tr_out,

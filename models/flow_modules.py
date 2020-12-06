@@ -128,9 +128,9 @@ class ConditionalNet(nn.Module):
 
 
 class StraightNet(nn.Module):
-    def __init__(self,input_dim,n_neurons=512,n_blocks=4,base_block_type = 'resnet',activation='leaky_relu'):
+    def __init__(self,in_dim,n_neurons=512,n_blocks=4,base_block_type = 'resnet',activation='leaky_relu'):
         super().__init__()
-        self.input_dim = input_dim #in and out are same dim
+        self.in_dim = in_dim #in and out are same dim
         self.n_neurons = n_neurons
         self.n_blocks = n_blocks
         self.base_block_type = base_block_type
@@ -141,9 +141,9 @@ class StraightNet(nn.Module):
             self.base_block = ResBlock
 
        
-        self.in_layer = nn.Sequential(nn.Linear(self.input_dim,self.n_neurons),nn.Tanh())
+        self.in_layer = nn.Sequential(nn.Linear(self.in_dim,self.n_neurons),nn.Tanh())
         self.middle_layers = nn.Sequential(*[self.base_block(n_neurons,2,self.activation)]*self.n_blocks)
-        self.final_layer =  nn.Sequential(nn.Linear(self.n_neurons, self.input_dim),nn.Tanh())
+        self.final_layer =  nn.Sequential(nn.Linear(self.n_neurons, self.in_dim),nn.Tanh())
         
     def forward(self,x):
         x = self.in_layer(x)
