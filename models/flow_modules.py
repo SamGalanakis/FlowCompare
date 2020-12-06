@@ -5,27 +5,29 @@ from models.nets import ResBlock, activation_func_selector
 
 
 class CouplingLayer(nn.Module):
-    def __init__(self,coupling_function,split_index,permute_list):
+    def __init__(self,coupling_function,split_index,permute_tensor):
         super().__init__()
         self.coupling_function  = coupling_function
         self.split_index = split_index
-        self.permute_list = permute_list
+        self.permute_tensor = permute_tensor
 
        
 
-    def forward_x(self,x,e = None):
+    def forward(self,x,e = None):
         #if e != None then conditional coupling layer
-        x1 = x[:,:self.split_index]
-        x2 = x[:,self.split_index:]
+        #split LAST dimension according to split index
+        x1 = x[...,:self.split_index]
+        x2 = x[...,self.split_index:]
         
         if e == None:
-            y2 = self.coupling_function(x1,x2)
+            y2, ldetJ = self.coupling_function(x1,x2)
         else:
-            y2 = self.coupling_function(x1,x2,e)
-        y = torch.cat((x1,y2),dim=1)
+            y2 , ldetJ = self.coupling_function(x1,x2,e)
+        #change this back ? the dim
+        y = torch.cat((x1,y2),dim=-1)
         #Permute 
-        y = torch.index_select(y,1,torch.LongTensor([self.permute_list]))
-        return y
+        y = torch.index_select(y,-1,self.permute_tensor.squeeze())
+        return y , ldetJ
     
     def inverse(self,y,e = None):
         #Un-permute 
@@ -56,8 +58,8 @@ class AffineCouplingFunc(nn.Module):
             A = self.add_func(x1,e)
             M = self.multiply_func(x1,e)
         y2 = x2 * torch.exp(M) + A
-       
-        return y2
+        ldetJ = torch.sum(M, dim=1).view(-1, 1)
+        return y2, ldetJ
     def inverse(self,y1,y2,e=None):
         if e == None:
             A = self.add_func(x1)
@@ -116,8 +118,9 @@ class ConditionalNet(nn.Module):
         x = self.in_initial_layer(x)
         x = self.in_pre_layers(x)
 
-        
-        x_joint = torch.cat((x,e),dim=1)
+
+        # change dim back?
+        x_joint = torch.cat((x,e),dim=-1)
 
 
         x_joint = self.joint_layers(x_joint)
