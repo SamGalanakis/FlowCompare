@@ -4,8 +4,9 @@ from torch import distributions
 from torch.optim import Adam, lr_scheduler
 from torch.utils.data import DataLoader
 import numpy as np
+import os
 from tqdm import tqdm
-
+import wandb
 from models.flow_modules import (
     CouplingLayer,
     AffineCouplingFunc,
@@ -20,33 +21,53 @@ from data.datasets_pointflow import (
     ShapeNet15kPointClouds,
     CIFDatasetDecoratorMultiObject,
 )
-n_f= 10
-n_f_k = 3
-n_g = 3
-n_g_k=2
-n_epochs = 100
-batch_size = 2
-x_noise = 0.0001
-random_dataloader = True
+
+config_path = "config//config_train.yaml"
+print(f"Loading config from {config_path}")
+wandb.init(project="pointflowchange",config = config_path)
+
+
+
+
+
+n_f= wandb.config['n_f'] # should be 10
+n_f_k = wandb.config['n_f_k']
+data_root_dir = wandb.config['data_root_dir']
+save_model_path = wandb.config['save_model_path']
+n_g = wandb.config['n_g']
+n_g_k= wandb.config['n_g_k']
+n_epochs = wandb.config['n_epochs']
+sample_size = wandb.config['sample_size']
+batch_size = wandb.config['batch_size']
+x_noise = wandb.config['x_noise']
+random_dataloader = wandb.config['random_dataloader']
+emb_dim =  wandb.config['emb_dim']
+categories = wandb.config['categories']
+lr= wandb.config['lr']
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+print(f'Using device {device}')
+
+
 prior_z = distributions.MultivariateNormal(
     torch.zeros(3), torch.eye(3)
 )
-emb_dim = 32
+
 prior_e = distributions.MultivariateNormal(
     torch.zeros(emb_dim), torch.eye(emb_dim)
 )
 
 cloud_pointflow = ShapeNet15kPointClouds(
-    tr_sample_size=2048,
-    te_sample_size=2048,
-    root_dir='data\\ShapeNetCore.v2.PC15k',
+    tr_sample_size=sample_size,
+    te_sample_size=sample_size,
+    root_dir= data_root_dir,
   
     normalize_per_shape=False,
     normalize_std_per_axis=False,
     split="train",
     scale=1.0,
-    categories=["airplane"],
+    categories=categories,
     random_subsample=True,
 )
 
@@ -54,9 +75,9 @@ cloud_pointflow = ShapeNet15kPointClouds(
 
 if random_dataloader:
         cloud_pointflow = CIFDatasetDecoratorMultiObject(
-            cloud_pointflow, 2048
+            cloud_pointflow, sample_size
         )
-        batch_size = 2 #  original 50, down for mem
+        batch_size = batch_size 
 dataloader_pointflow = DataLoader(
     cloud_pointflow, batch_size=batch_size, shuffle=True
 )
@@ -115,20 +136,22 @@ all_params = []
 for model_part in model_dict.values():
     #Send to device before passing to optimizer
     model_part.to(device)
+    #Add model to watch list
+    wandb.watch(model_part)
     model_part.train()
     all_params += model_part.parameters()
-optimizer = Adam(all_params,lr=1e-4)
+optimizer = Adam(all_params,lr=lr)
 lambda_func_scheduler = lambda x: 0.8**(x//10)
 scheduler = lr_scheduler.LambdaLR(optimizer,lambda_func_scheduler)
+
 for epoch in tqdm(range(n_epochs)):
     loss_acc_z = 0
     loss_acc_e = 0
 
     optimizer.zero_grad()
     for index, batch in enumerate(tqdm(dataloader_pointflow)):
-
         
-
+    
         # The sampling that goes through pointnet
         embs_tr_batch = batch["train_points"].to(device)
 
@@ -141,25 +164,15 @@ for epoch in tqdm(range(n_epochs)):
         #Store before reshaping
         num_points_per_object = tr_batch.shape[1]
         #Squashing each shape into one dimension
-       # tr_batch = tr_batch.to(device).reshape((-1, 3)) #get back to this
+        tr_batch = tr_batch.to(device).reshape((-1, 3)) #get back to this
         
                 
 
         #Pass through pointnet
         w = pointnet(embs_tr_batch)
-        w = w.unsqueeze(dim=1)
-        w = w.expand([w.shape[0],num_points_per_object,w.shape[-1]])
+        w = w.unsqueeze(dim=1).expand([w.shape[0],num_points_per_object,w.shape[-1]]).reshape(-1,w.shape[-1])
 
-        #Expand/repeat the embedding w so that each point has its own
-        # w_iter = w
-        # w_iter = (
-        #     w_iter.unsqueeze(dim=1)
-        #     .expand(
-        #         [w_iter.shape[0], num_points_per_object, w_iter.shape[-1]]
-        #     )
-        #     .reshape((-1, w_iter.shape[-1]))
-        # )
-            
+
         #Pass pointnet embedding through g flow and keep track of determinant
         e_ldetJ = 0
         e = w
@@ -173,6 +186,8 @@ for epoch in tqdm(range(n_epochs)):
         z = tr_batch
         for f_block in f_blocks:
             for f_layer in f_block:
+                
+               
                 z, inter_z_ldetJ = f_layer(z,e)
                 z_ldetJ += inter_z_ldetJ
         
@@ -188,7 +203,18 @@ for epoch in tqdm(range(n_epochs)):
         loss = loss_e + loss_z
         loss_acc_z += loss_z.item()
         loss_acc_e += loss_e.item()
-
+        wandb.log({'loss': loss, 'loss_z': loss_z,'loss_e': loss_e})
         loss.backward()
-        # Adjust lr according to epoch
-        scheduler.step()
+        optimizer.step()
+    # Adjust lr according to epoch
+    scheduler.step()
+    if epoch // 10 == 0:
+        
+        save_state_dict = {key:val.state_dict() for key,val in model_dict.items()}
+        save_state_dict['optimizer'] = optimizer.state_dict()
+        save_state_dict['scheduler'] = optimizer.state_dict()
+        save_model_path = save_model_path+ f"_{epoch}_" +wandb.run.name+".pt"
+        print(f"Saving model to {save_model_path}")
+        torch.save(save_state_dict,save_model_path)
+    #wandb.save(save_model_path) # File seems to be too big for autosave
+    
