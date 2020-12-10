@@ -14,6 +14,9 @@ def loss_fun_ret(z, z_ldetJ, prior_z):
     ll_z = prior_z.log_prob(z.cpu()).to(z.device) + z_ldetJ
     return -torch.mean(ll_z)
 
+#straight loss:
+
+
 
 
 def view_cloud(points,rgb_array=False):

@@ -122,7 +122,7 @@ class ConditionalNet(nn.Module):
         # change dim back?
         x_joint = torch.cat((x,e),dim=-1)
 
-
+        
         x_joint = self.joint_layers(x_joint)
 
         x_joint = self.joint_final_layer(x_joint)
