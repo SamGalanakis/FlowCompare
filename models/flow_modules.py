@@ -9,8 +9,11 @@ class CouplingLayer(nn.Module):
         super().__init__()
         self.coupling_function  = coupling_function
         self.split_index = split_index
-        self.permute_tensor = permute_tensor
+        
+        self.permute_tensor = permute_tensor.squeeze()
 
+        self.inv_permute_tensor = torch.LongTensor([self.permute_tensor.tolist().index(x) for x in range(len(self.permute_tensor))]).squeeze()
+        self.inv_permute_tensor = self.inv_permute_tensor.to(self.permute_tensor.device) 
        
 
     def forward(self,x,e = None):
@@ -26,20 +29,20 @@ class CouplingLayer(nn.Module):
         #change this back ? the dim
         y = torch.cat((x1,y2),dim=-1)
         #Permute 
-        y = torch.index_select(y,-1,self.permute_tensor.squeeze())
+        y = torch.index_select(y,-1,self.permute_tensor)
         return y , ldetJ
     
     def inverse(self,y,e = None):
         #Un-permute 
-        y = torch.index_select(y,1,torch.LongTensor([self.permute_list]))
-        x1 = y1 = y[:,self.split_index]
-        y2 = y[:,self.split_index]
+        y = torch.index_select(y,-1,self.inv_permute_tensor)
+        x1 = y1 = y[...,:self.split_index]
+        y2 = y[...,self.split_index:]
         if e==None:
             x2 = self.coupling_function.inverse(y1,y2)
         else: 
             x2 = self.coupling_function.inverse(y1,y2,e)
 
-        x = torch.cat((x1,x2),dim=1)
+        x = torch.cat((x1,x2),dim=-1)
         return x
 
 
@@ -62,14 +65,14 @@ class AffineCouplingFunc(nn.Module):
         return y2, ldetJ
     def inverse(self,y1,y2,e=None):
         if e == None:
-            A = self.add_func(x1)
-            M = self.multiply_func(x1)
+            A = self.add_func(y1)
+            M = self.multiply_func(y1)
         else:
-            A = self.add_func(x1,e)
-            M = self.multiply_func(x1,e)
+            A = self.add_func(y1,e)
+            M = self.multiply_func(y1,e)
         x1 = y1
         x2 = (y2 - A )   / torch.exp(M)
-       
+
         return x2 
 
 

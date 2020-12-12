@@ -22,7 +22,7 @@ from data.datasets_pointflow import (
     CIFDatasetDecoratorMultiObject,
 )
 
-config_path = "config//config_train.yaml"
+config_path = "config//config_straight_with_pointnet.yaml"
 print(f"Loading config from {config_path}")
 wandb.init(project="pointflowchange",config = config_path)
 
@@ -151,7 +151,6 @@ for epoch in tqdm(range(n_epochs)):
     optimizer.zero_grad()
     for index, batch in enumerate(tqdm(dataloader_pointflow)):
         
-        batch = cloud_pointflow[5]
     
         # The sampling that goes through pointnet
         embs_tr_batch = batch["train_points"].to(device)

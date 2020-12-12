@@ -14,7 +14,7 @@ def loss_fun_ret(z, z_ldetJ, prior_z):
     ll_z = prior_z.log_prob(z.cpu()).to(z.device) + z_ldetJ
     return -torch.mean(ll_z)
 
-#straight loss:
+
 
 
 
@@ -31,9 +31,11 @@ def view_cloud(points,rgb_array=False):
     settings.ytitle = 'green axis'
     settings.ztitle = 'blue*alpha axis'
 
-    
+    points = points.reshape(-1,3)
 
     if not rgb_array:
+        if isinstance(points,torch.Tensor):
+            points= points.cpu()
         RGB = np.zeros_like(points) + 0
     Alpha = np.ones_like(RGB[:,0])*255
     RGBA = np.c_[RGB, Alpha]  # concatenate
