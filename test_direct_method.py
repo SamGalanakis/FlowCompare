@@ -48,43 +48,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'Using device {device}')
 
 
+
 prior_z = distributions.MultivariateNormal(
     torch.zeros(3), torch.eye(3)
 )
-
-
-
-cloud_pointflow = ShapeNet15kPointClouds(
-    tr_sample_size=sample_size,
-    te_sample_size=sample_size,
-    root_dir= data_root_dir,
-  
-    normalize_per_shape=False,
-    normalize_std_per_axis=False,
-    split="train",
-    scale=1.0,
-    categories=categories,
-    random_subsample=True,
-)
-
-
-
-if random_dataloader:
-        cloud_pointflow = CIFDatasetDecoratorMultiObject(
-            cloud_pointflow, sample_size
-        )
-        batch_size = batch_size 
-dataloader_pointflow = DataLoader(
-    cloud_pointflow, batch_size=batch_size, shuffle=True
-)
-
-
-# Prepare models
-
-
-
-
-
 
 
 # for g
@@ -113,62 +80,26 @@ for i, g_block in enumerate(g_blocks):
 
 
 all_params = []
-for model_part in model_dict.values():
+#Get parameters from file and assign them
+saved_model_dict = torch.load("save\straight_299_laced-durian-118.pt")
+for model_name, model_part in model_dict.items():
     #Send to device before passing to optimizer
     model_part.to(device)
+    model_part.load_state_dict(saved_model_dict[model_name])
     #Add model to watch list
     wandb.watch(model_part)
-    model_part.train()
+    model_part.eval()
     all_params += model_part.parameters()
-optimizer = Adam(all_params,lr=lr)
+# optimizer = Adam(all_params,lr=lr)
 
-scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.8)
+# scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.8)
 
-base_item = cloud_pointflow[5]
-sample_1 = torch.from_numpy(base_item['points_to_decode'])
-sample_2 = base_item['test_points']
-sample_3 = base_item['train_points']
-batch = torch.stack((sample_1,sample_2,sample_3))   
-for epoch in tqdm(range(n_epochs)):
-    loss_acc_z = 0
+
     
-
-    optimizer.zero_grad()
-    #Add noise to tr_batch:
-    batch = batch.to(device) + x_noise * torch.rand(batch.shape).to(device)
-
-
-
-    x = batch
-    #Pass pointcloud through g flow conditioned and keep track of determinant
-    ldetJ=0
-    for g_block in g_blocks:
-        for g_layer in g_block:
-            x, inter_ldetJ = g_layer(x)
-            ldetJ += inter_ldetJ
-    z = x
-    loss = loss_fun_ret(z,ldetJ,prior_z)
-    
-    wandb.log({'loss':loss.item()})
-    loss.backward()
-    optimizer.step()
-    scheduler.step()
-    # Adjust lr according to epoch
-    
-   
-
-
-#Save model
-save_state_dict = {key:val.state_dict() for key,val in model_dict.items()}
-save_state_dict['optimizer'] = optimizer.state_dict()
-save_state_dict['scheduler'] = optimizer.state_dict()
-save_model_path = save_model_path+ f"_{epoch}_" +wandb.run.name+".pt"
-print(f"Saving model to {save_model_path}")
-torch.save(save_state_dict,save_model_path)
 
 #Test
 with torch.no_grad():
-    x = prior_z.sample(sample_shape = (1,sample_size*10))
+    x = prior_z.sample(sample_shape = (1,sample_size//5))
     x = x.to(device)
     for g_block in g_blocks[::-1]:
         for g_layer in g_block[::-1]:

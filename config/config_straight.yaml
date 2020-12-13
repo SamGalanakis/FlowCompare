@@ -1,7 +1,7 @@
 
 n_g:
   desc: Number of g blocks
-  value: 8
+  value: 9
 n_g_k:
   desc: Number of g subblocks 
   value: 3
@@ -10,7 +10,7 @@ x_noise:
   value: 0.0001
 n_epochs:
   desc: Number of epochs to train for
-  value: 3000
+  value: 300
 random_dataloader:
   desc: Use random dataloader
   value: True
@@ -28,7 +28,7 @@ batch_size:
   value: 1 # Should be 50 ?
 lr:
   desc: Initial learning rate for optimizer
-  value: 0.0001
+  value: 0.0001 # Original 0.0001
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/straight
