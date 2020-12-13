@@ -83,7 +83,7 @@ dataloader_pointflow = DataLoader(
 
 
 
-pointnet = PointnetEncoder(emb_dim,input_dim=3).to(device)
+
 
 
 
@@ -91,14 +91,14 @@ pointnet = PointnetEncoder(emb_dim,input_dim=3).to(device)
 g_blocks = [[] for x in range(n_g)]
 
 g_permute_list_list = [[2,0,1]]*n_g
-g_split_index_list = [1]*len(g_permute_list_list)
+g_split_index_list = [2]*len(g_permute_list_list)
 
 for i in range(n_g):
     for j in range(n_g_k):
         split_index = g_split_index_list[j]
         permute_tensor = torch.LongTensor([g_permute_list_list[j] ]).to(device)        
-        mutiply_func = StraightNet(in_dim = split_index)
-        add_func  = StraightNet(split_index)
+        mutiply_func = StraightNet(in_dim = split_index,out_dim=3-split_index)
+        add_func  = StraightNet(in_dim = split_index,out_dim=3-split_index)
         coupling_func = AffineCouplingFunc(mutiply_func,add_func)
         coupling_layer = CouplingLayer(coupling_func,split_index,permute_tensor)
         g_blocks[i].append(coupling_layer) 
@@ -106,7 +106,7 @@ for i in range(n_g):
      
    
 
-model_dict = {pointnet}
+model_dict = {}
 for i, g_block in enumerate(g_blocks):
      for k in range(len(g_block)):
         model_dict[f'g_block_{i}_{k}'] = g_block[k]

@@ -61,7 +61,7 @@ class AffineCouplingFunc(nn.Module):
             A = self.add_func(x1,e)
             M = self.multiply_func(x1,e)
         y2 = x2 * torch.exp(M) + A
-        ldetJ = torch.sum(M, dim=1).view(-1, 1)
+        ldetJ = torch.sum(M, dim=-1)
         return y2, ldetJ
     def inverse(self,y1,y2,e=None):
         if e == None:
@@ -81,12 +81,12 @@ class AffineCouplingFunc(nn.Module):
 
 
 class ConditionalNet(nn.Module):
-    def __init__(self,emb_dim,in_dim,in_dim_total = 3,n_neurons=512,n_cond_pre=2,n_in_pre=1,n_joint=4,base_block_type = 'resnet',activation='leaky_relu'):
+    def __init__(self,emb_dim,in_dim,out_dim,n_neurons=512,n_cond_pre=2,n_in_pre=1,n_joint=4,base_block_type = 'resnet',activation='leaky_relu'):
         super().__init__()
 
         self.emb_dim = emb_dim #emb dim of e (conditional)
         self.in_dim = in_dim # dimension of the x (x1) not 3 since x is split  
-        self.in_dim_total = in_dim_total # Dimension of pre split x so can calculate dimension of output
+        self.out_dim = out_dim # Dimension of pre split x so can calculate dimension of output
         self.n_neurons = n_neurons
         self.n_cond_pre = n_cond_pre
         self.n_in_pre = n_in_pre
@@ -109,7 +109,7 @@ class ConditionalNet(nn.Module):
 
         self.joint_layers = nn.Sequential(*[self.base_block(n_neurons,2,self.activation)]*self.n_joint)
         # Output should be of dimension x2 so dim(x) - dim(x1)
-        self.joint_final_layer = nn.Sequential(nn.Linear(self.n_neurons,self.in_dim_total-self.in_dim),nn.Tanh())
+        self.joint_final_layer = nn.Sequential(nn.Linear(self.n_neurons,self.out_dim),nn.Tanh())
 
 
 
@@ -134,9 +134,10 @@ class ConditionalNet(nn.Module):
 
 
 class StraightNet(nn.Module):
-    def __init__(self,in_dim,n_neurons=512,n_blocks=4,base_block_type = 'resnet',activation='leaky_relu'):
+    def __init__(self,in_dim,out_dim,n_neurons=512,n_blocks=4,base_block_type = 'resnet',activation='leaky_relu'):
         super().__init__()
-        self.in_dim = in_dim #in and out are same dim
+        self.in_dim = in_dim 
+        self.out_dim  = out_dim
         self.n_neurons = n_neurons
         self.n_blocks = n_blocks
         self.base_block_type = base_block_type
@@ -149,7 +150,7 @@ class StraightNet(nn.Module):
        
         self.in_layer = nn.Sequential(nn.Linear(self.in_dim,self.n_neurons),nn.Tanh())
         self.middle_layers = nn.Sequential(*[self.base_block(n_neurons,2,self.activation)]*self.n_blocks)
-        self.final_layer =  nn.Sequential(nn.Linear(self.n_neurons, self.in_dim),nn.Tanh())
+        self.final_layer =  nn.Sequential(nn.Linear(self.n_neurons, self.out_dim),nn.Tanh())
         
     def forward(self,x):
         x = self.in_layer(x)
@@ -158,20 +159,6 @@ class StraightNet(nn.Module):
         return x
 
 
-# class FBlock(nn.Module):
-#     def __init__(self,coupling_layer,split_index_list,permute_list_list):
-#         super().__init__()
-#         self.coupling_layer = self.coupling_layer
-#         self.split_index_list = split_index_list
-#         self.permute_list_list = permute_list_list
-#         coupling_layer_params = zip()
-#         self.layers = [self.coupling_layer(coupling_function,split_index,permute_list) for coupling_function,split_index,permute_list]
-    
-#     def forward(self,x,e):
-#         for index in range(len(self.permute_list_list)):
-#             permute_list = self.permute_list_list[index]
-#             split_index = self.split_index_list[index]
-#             x = coupling_
 
 
     

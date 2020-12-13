@@ -94,7 +94,7 @@ pointnet = PointnetEncoder(emb_dim,input_dim=3).to(device)
 # for f
 f_blocks = [[] for x in range(n_f)]
 f_permute_list_list = [[2,0,1]]*n_f_k
-f_split_index_list = [1]*len(f_permute_list_list)
+f_split_index_list = [2]*len(f_permute_list_list)
 
 for i in range(n_f):
     for j in range(n_f_k):
@@ -151,7 +151,7 @@ for epoch in tqdm(range(n_epochs)):
     optimizer.zero_grad()
     for index, batch in enumerate(tqdm(dataloader_pointflow)):
         
-        batch = cloud_pointflow[5]
+        
     
         # The sampling that goes through pointnet
         embs_tr_batch = batch["train_points"].to(device)
