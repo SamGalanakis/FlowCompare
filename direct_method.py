@@ -7,6 +7,7 @@ import numpy as np
 import os
 from tqdm import tqdm
 import wandb
+import torchvision
 from models.flow_modules import (
     CouplingLayer,
     AffineCouplingFunc,
@@ -14,7 +15,14 @@ from models.flow_modules import (
     StraightNet,
 )
 
-from utils import loss_fun , loss_fun_ret, view_cloud
+from utils import (
+    random_subsample,
+    loss_fun , 
+    loss_fun_ret, 
+    view_cloud,
+    extract_area,
+    load_las
+)
 
 from data.datasets_pointflow import (
     CIFDatasetDecorator,
@@ -54,29 +62,29 @@ prior_z = distributions.MultivariateNormal(
 
 
 
-cloud_pointflow = ShapeNet15kPointClouds(
-    tr_sample_size=sample_size,
-    te_sample_size=sample_size,
-    root_dir= data_root_dir,
+# cloud_pointflow = ShapeNet15kPointClouds(
+#     tr_sample_size=sample_size,
+#     te_sample_size=sample_size,
+#     root_dir= data_root_dir,
   
-    normalize_per_shape=False,
-    normalize_std_per_axis=False,
-    split="train",
-    scale=1.0,
-    categories=categories,
-    random_subsample=True,
-)
+#     normalize_per_shape=False,
+#     normalize_std_per_axis=False,
+#     split="train",
+#     scale=1.0,
+#     categories=categories,
+#     random_subsample=True,
+# )
 
 
 
-if random_dataloader:
-        cloud_pointflow = CIFDatasetDecoratorMultiObject(
-            cloud_pointflow, sample_size
-        )
-        batch_size = batch_size 
-dataloader_pointflow = DataLoader(
-    cloud_pointflow, batch_size=batch_size, shuffle=True
-)
+# if random_dataloader:
+#         cloud_pointflow = CIFDatasetDecoratorMultiObject(
+#             cloud_pointflow, sample_size
+#         )
+#         batch_size = batch_size 
+# dataloader_pointflow = DataLoader(
+#     cloud_pointflow, batch_size=batch_size, shuffle=True
+# )
 
 
 # Prepare models
@@ -124,11 +132,21 @@ optimizer = Adam(all_params,lr=lr)
 
 scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.8)
 
-base_item = cloud_pointflow[5]
-sample_1 = torch.from_numpy(base_item['points_to_decode'])
-sample_2 = base_item['test_points']
-sample_3 = base_item['train_points']
-batch = torch.stack((sample_1,sample_2,sample_3))   
+# base_item = cloud_pointflow[5]
+# sample_1 = torch.from_numpy(base_item['points_to_decode'])
+# sample_2 = base_item['test_points']
+# sample_3 = base_item['train_points']
+# batch = torch.stack((sample_1,sample_2,sample_3))   
+
+points = load_las("D:/data/cycloData/2016/0_5D4KVPBP.las")
+
+sign_point = np.array([86967.46,439138.8])
+norm_tranform = torchvision.transforms.Normalize(0,1)
+points = extract_area(points,sign_point,1.5,'cylinder')
+normtransf = torchvision.transforms.Lambda(lambda x: (x - x.mean(axis=0)) / x.std(axis=0))
+norm_stand = torchvision.transforms.Lambda ( lambda x: (x - x.min(axis=0).values) / (x.max(axis=0).values - x.min(axis=0).values)     )
+samples = [norm_stand(torch.from_numpy(random_subsample(points,1500)[:,:3])) for x in range(4)]
+batch = torch.stack(samples).float()
 for epoch in tqdm(range(n_epochs)):
     loss_acc_z = 0
     
