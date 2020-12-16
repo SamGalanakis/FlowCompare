@@ -139,7 +139,7 @@ norm_tranform = torchvision.transforms.Normalize(0,1)
 points = extract_area(points,sign_point,1.5,'cylinder')
 normtransf = torchvision.transforms.Lambda(lambda x: (x - x.mean(axis=0)) / x.std(axis=0))
 norm_stand = torchvision.transforms.Lambda ( lambda x: (x - x.min(axis=0).values) / (x.max(axis=0).values - x.min(axis=0).values)     )
-samples = [norm_stand(torch.from_numpy(random_subsample(points,1500)[:,:3])) for x in range(4)]
+samples = [norm_stand(torch.from_numpy(random_subsample(points,sample_size)[:,:3])) for x in range(4)]
 batch = torch.stack(samples).float()
 batch = batch.to(device)
 for epoch in tqdm(range(n_epochs)):
@@ -173,8 +173,8 @@ for epoch in tqdm(range(n_epochs)):
             
             z, inter_z_ldetJ = f_layer(z,e)
             z_ldetJ += inter_z_ldetJ
-    
-    
+    #Undo expanding
+    e = e[:,0,:]
     loss_z, loss_e = loss_fun(
             z,
             z_ldetJ,
@@ -189,15 +189,15 @@ for epoch in tqdm(range(n_epochs)):
     wandb.log({'loss': loss, 'loss_z': loss_z,'loss_e': loss_e})
     loss.backward()
     optimizer.step()
-# Adjust lr according to epoch
-scheduler.step()
-    # if epoch // 10 == 0:
+    # Adjust lr according to epoch
+    scheduler.step()
+    if (epoch % 50 == 0) & (epoch>0):
         
-    #     save_state_dict = {key:val.state_dict() for key,val in model_dict.items()}
-    #     save_state_dict['optimizer'] = optimizer.state_dict()
-    #     save_state_dict['scheduler'] = optimizer.state_dict()
-    #     save_model_path = save_model_path+ f"_{epoch}_" +wandb.run.name+".pt"
-    #     print(f"Saving model to {save_model_path}")
-    #     torch.save(save_state_dict,save_model_path)
-    #wandb.save(save_model_path) # File seems to be too big for autosave
+        save_state_dict = {key:val.state_dict() for key,val in model_dict.items()}
+        save_state_dict['optimizer'] = optimizer.state_dict()
+        save_state_dict['scheduler'] = optimizer.state_dict()
+        path_to_save_to = save_model_path+ f"_{epoch}_" +wandb.run.name+".pt"
+        print(f"Saving model to {path_to_save_to}")
+        torch.save(save_state_dict,path_to_save_to)
+        #wandb.save(save_model_path) # File seems to be too big for autosave
     

@@ -16,7 +16,7 @@ x_noise:
   value: 0.0001
 n_epochs:
   desc: Number of epochs to train for
-  value: 1
+  value: 3000
 random_dataloader:
   desc: Use random dataloader
   value: True
@@ -25,7 +25,7 @@ emb_dim:
   value: 32
 sample_size:
   desc: Number of points sampled from clouds
-  value: 2048
+  value: 1000
 categories:
   desc: Categories to use for shapenet
   value: ['airplane']
@@ -40,7 +40,7 @@ lr:
   value: 0.0001
 save_model_path:
   desc: Where to save models (before wandb upload)
-  value: save/
+  value: save/straight_with_pointnet/
 
 
 

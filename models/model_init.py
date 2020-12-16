@@ -13,6 +13,7 @@ from models.flow_modules import (
     ConditionalNet,
     StraightNet,
 )
+from models.point_encoders import PointnetEncoder
 
 from utils import loss_fun , loss_fun_ret, view_cloud
 
