@@ -13,7 +13,7 @@ from models.flow_modules import (
     ConditionalNet,
     StraightNet,
 )
-from models.point_encoders import PointnetEncoder
+from models.point_encoders import PointnetEncoder, PointnetEncoderNoBatch
 
 from utils import loss_fun , loss_fun_ret, view_cloud
 
@@ -108,7 +108,7 @@ def model_init(config_path,model_path,model_type,test=True):
         torch.zeros(emb_dim), torch.eye(emb_dim)
         )
 
-        pointnet = PointnetEncoder(emb_dim,input_dim=3).to(device)
+        pointnet = PointnetEncoderNoBatch(emb_dim,input_dim=3).to(device)
 
     
         # for f

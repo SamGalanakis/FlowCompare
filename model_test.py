@@ -53,14 +53,15 @@ class ModelSampler:
             # )
             pointnet = self.model_dict['pointnet']
             #pointnet.train() #batchnorm issues?
-          
+
+
             g_layers = sorted([key for key in self.model_dict.keys() if "g_block" in key])
             g_layers = [self.model_dict[key] for key in g_layers]
 
             f_layers = sorted([key for key in self.model_dict.keys() if "f_block" in key])
             f_layers = [self.model_dict[key] for key in f_layers]
 
-            def sample(model_condition,self=self,sample_size=10000,view=True):
+            def sample(model_condition,self=self,sample_size=1000,view=True):
                 with torch.no_grad():
                     x = prior_z.sample(sample_shape = (1,sample_size))
                     x = x.to(self.device)
@@ -90,7 +91,7 @@ class ModelSampler:
 if __name__ == '__main__':
     config_path = "config\config_straight_with_pointnet.yaml"
     model_type = 'straight_with_pointnet'
-    model_path = "save\straight_with_pointnet\_1100_swift-cloud-193.pt"
+    model_path = "save\straight_with_pointnet\_250_stellar-resonance-195.pt"
     sample_size = 10000
     model_sampler = ModelSampler(config_path,model_path,model_type)
 
