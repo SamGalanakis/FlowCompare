@@ -57,11 +57,11 @@ def compare_clouds(extraction_1,extraction_2,class_labels):
     points1 = extraction_1[:,:3]
     
     points2 = extraction_2[:,:3]
-    points2[:,0]+=5
+    points2[:,0]+=10
     axes = plt.axes(projection='3d')
-    axes.scatter(points1[:,0], points1[:,1], points1[:,2], c = rgb1/255, s=1)
+    axes.scatter(points1[:,0], points1[:,1], points1[:,2], c = rgb1/255, s=0.1)
 
-    axes.scatter(points2[:,0], points2[:,1], points2[:,2], c = rgb2/255, s=1)
+    axes.scatter(points2[:,0], points2[:,1], points2[:,2], c = rgb2/255, s=0.1)
     plt.axis('off')
     
     props = ItemProperties(labelcolor='black', bgcolor='yellow',
@@ -119,7 +119,7 @@ def grid_split(points,grid_size,center = False,clearance = 30000):
     return grid_list
 
 def random_subsample(points,n_samples):
-    random_indices = np.random.choice(points.shape[0],n_samples, replace=False)
+    random_indices = np.random.choice(points.shape[0],n_samples, replace=True)
     points = points[random_indices,:]
     
     return points

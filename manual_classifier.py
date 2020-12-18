@@ -26,6 +26,8 @@ def manual_classifier(
     centers = []
     for index, row in point_list_df.iterrows():
         center = np.array([row['x'],row['y']])
+        points1 = points1[points1[:,2]>0.43]
+        points2 = points2[points2[:,2]>0.43]
         extraction_1 = random_subsample(extract_area(points1,center,clearance,shape),sample_size)
         extraction_2 = random_subsample(extract_area(points2,center,clearance,shape),sample_size)
         change_classification = compare_clouds(extraction_1,extraction_2,class_labels)
@@ -37,11 +39,11 @@ def manual_classifier(
 if __name__ == "__main__":
     dir_1 = "D:/data/cycloData/2016/"
     dir_2 = "D:/data/cycloData/2020/"
-    class_labels = ['nochange','removed','change']
+    class_labels = ['nochange','removed',"added",'change',"color_change"]
     point_list_dir = "D:/data/cycloData/point_lists/2016-2020/"
     classified_dir = "D:/data/cycloData/point_lists_classified/2016-2020/"
     point_list_files = [os.path.join(point_list_dir,f) for f in os.listdir(point_list_dir) if os.path.isfile(os.path.join(point_list_dir, f))]
-
+    sample_Size = 10000
     point_list_dfs = [pd.read_csv(x,header=None) for x in point_list_files]
     for x in point_list_dfs:
         x.columns = ['name',"x","y","z"]
@@ -51,7 +53,7 @@ if __name__ == "__main__":
     files_dir_2 = sorted(files_dir_2,key=lambda x: int(os.path.basename(x).split("_")[0]))
     
     for point_list_df, file_1, file_2 in zip(point_list_dfs,files_dir_1,files_dir_2):
-        point_list_df_returned = manual_classifier(point_list_df,file_1,file_2,clearance=5,class_labels=class_labels)
+        point_list_df_returned = manual_classifier(point_list_df,file_1,file_2,clearance=5,class_labels=class_labels,sample_size=sample_Size)
         number_start = os.path.basename(file_1).split("_")[0]
         image_id_1 = os.path.basename(file_1).split("_")[1].split(".")[0]
         image_id_2 = os.path.basename(file_2).split("_")[1].split(".")[0]
