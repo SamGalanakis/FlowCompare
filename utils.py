@@ -84,6 +84,8 @@ def compare_clouds(extraction_1,extraction_2,class_labels):
 
     menu = Menu(plt.gcf(), menuitems)
     plt.show()
+    
+
     return class_to_return
 
 

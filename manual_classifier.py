@@ -52,6 +52,11 @@ if __name__ == "__main__":
     
     for point_list_df, file_1, file_2 in zip(point_list_dfs,files_dir_1,files_dir_2):
         point_list_df_returned = manual_classifier(point_list_df,file_1,file_2,clearance=5,class_labels=class_labels)
+        number_start = os.path.basename(file_1).split("_")[0]
+        image_id_1 = os.path.basename(file_1).split("_")[1].split(".")[0]
+        image_id_2 = os.path.basename(file_2).split("_")[1].split(".")[0]
+        final_save_path = os.path.join(classified_dir,f"{number_start}_{image_id_1}_{image_id_2}.csv")
+        point_list_df_returned.to_csv(final_save_path)
 
 
 
