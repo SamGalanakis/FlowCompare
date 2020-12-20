@@ -6,7 +6,7 @@ import pylas
 from laspy.file import File
 from pyntcloud import PyntCloud
 import pandas as pd
-
+import plotly.graph_objects as go
 from matplotlib import widgets
 from mpl_toolkits import mplot3d
 import matplotlib as mpl
@@ -48,6 +48,43 @@ def load_las(path):
     
     return points
 
+def view_cloud_plotly(points,rgb,fig=None,point_size=2,show=True,axes=False):
+    
+    rgb = np.rint(np.divide(rgb,rgb.max(axis=0))*255).astype(np.uint8)
+    if fig==None:
+        fig = go.Figure()
+    fig.add_scatter3d(
+        x=points[:,0], 
+        y=points[:,1], 
+        z=points[:,2], 
+        marker=dict(
+        size=point_size,
+        color=rgb,  
+        opacity=1
+    ), 
+        opacity=1, 
+        mode='markers',
+        
+    )
+
+
+    if not axes:
+            fig.update_layout(
+            scene=dict(
+            xaxis=dict(showticklabels=False,visible= False),
+            yaxis=dict(showticklabels=False,visible= False),
+            zaxis=dict(showticklabels=False, visible= False),
+            )
+)
+
+    if show:
+        fig.show()
+    return fig
+    
+  
+    
+
+
 
 def compare_clouds(extraction_1,extraction_2,class_labels):
     rgb1 =     np.rint(np.divide(extraction_1[:,3:],extraction_1[:,3:].max(axis=0))*255).astype(np.uint8)
@@ -60,8 +97,11 @@ def compare_clouds(extraction_1,extraction_2,class_labels):
     points2[:,0]+=10
     axes = plt.axes(projection='3d')
     axes.scatter(points1[:,0], points1[:,1], points1[:,2], c = rgb1/255, s=0.1)
+    #Add time labels avove
+    axes.text(x=points1[:,0].mean(),y=points1[:,1].mean(),z=points1[:,2].max()+0.1,s="t1")
 
     axes.scatter(points2[:,0], points2[:,1], points2[:,2], c = rgb2/255, s=0.1)
+    axes.text(x=points2[:,0].mean(),y=points2[:,1].mean(),z=points2[:,2].max()+0.1,s="t2")
     plt.axis('off')
     
     props = ItemProperties(labelcolor='black', bgcolor='yellow',
@@ -330,7 +370,8 @@ if __name__ == "__main__":
     
     sign_point = np.array([86967.46,439138.8])
     points = extract_area(points,sign_point,1.5,'cylinder')
-    points = random_subsample(points,3000)
+    points = random_subsample(points,20000)
+    view_cloud_plotly(points[:,0:3],points[:,3:])
     class_return = compare_clouds(points[:,0:3],points[:,3:],['change','nochange'])
     print(class_return)
     view_cloud(points[:,:3],points[:,3:],subsample = False)

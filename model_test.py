@@ -89,9 +89,9 @@ class ModelSampler:
 
 
 if __name__ == '__main__':
-    config_path = "config\config_straight_with_pointnet.yaml"
-    model_type = 'straight_with_pointnet'
-    model_path = "save\straight_with_pointnet\_250_stellar-resonance-195.pt"
+    config_path = "config\config_straight.yaml"
+    model_type = 'straight'
+    model_path = "save\straight_999_fragrant-darkness-163.pt"
     sample_size = 10000
     model_sampler = ModelSampler(config_path,model_path,model_type)
 
@@ -104,6 +104,7 @@ if __name__ == '__main__':
     norm_stand = torchvision.transforms.Lambda ( lambda x: (x - x.min(axis=0).values) / (x.max(axis=0).values - x.min(axis=0).values)     )
     samples = [norm_stand(torch.from_numpy(random_subsample(points,1000)[:,:3])) for x in range(4)]
     batch = torch.stack(samples).float()
-    model_sampler.sample(model_condition=samples[0].float())
+    #model_sampler.sample(model_condition=samples[0].float())
+    model_sampler.sample()
     
     

@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+
 from utils import (
 load_las,
 compare_clouds,
@@ -37,6 +38,62 @@ def manual_classifier(
     return point_list_df
 
 if __name__ == "__main__":
+
+    import numpy as np
+    import plotly.graph_objects as go
+
+    my_data = np.random.rand(20000,3)  # toy 3D points
+    marker_data = go.Scatter3d(
+        x=my_data[:,0], 
+        y=my_data[:,1], 
+        z=my_data[:,2], 
+        marker=dict(
+        size=12,
+        color=np.zeros_like(my_data),  # set color to an array/list of desired values   # choose a colorscale
+        opacity=0.8
+    ), 
+        opacity=0.8, 
+        mode='markers'
+    )
+    fig=go.Figure(data=marker_data)
+    fig.update_layout(
+    updatemenus=[
+        dict(
+            buttons=list([
+                dict(
+                    args=["type", "surface"],
+                    label="3D Surface",
+                    method="restyle"
+                ),
+                dict(
+                    args=["type", "heatmap"],
+                    label="Heatmap",
+                    method="restyle"
+                )
+            ]),
+            direction="down",
+            pad={"r": 10, "t": 10},
+            showactive=True,
+            x=0.1,
+            xanchor="left",
+            y=1.1,
+            yanchor="top"
+        ),
+    ]
+)
+
+    
+    fig.show()
+
+
+
+
+
+
+
+
+
+    #################
     dir_1 = "D:/data/cycloData/2016/"
     dir_2 = "D:/data/cycloData/2020/"
     class_labels = ['nochange','removed',"added",'change',"color_change"]
@@ -53,7 +110,7 @@ if __name__ == "__main__":
     files_dir_2 = sorted(files_dir_2,key=lambda x: int(os.path.basename(x).split("_")[0]))
     
     for point_list_df, file_1, file_2 in zip(point_list_dfs,files_dir_1,files_dir_2):
-        point_list_df_returned = manual_classifier(point_list_df,file_1,file_2,clearance=5,class_labels=class_labels,sample_size=sample_Size)
+        point_list_df_returned = manual_classifier(point_list_df,file_1,file_2,clearance=2,class_labels=class_labels,sample_size=sample_Size)
         number_start = os.path.basename(file_1).split("_")[0]
         image_id_1 = os.path.basename(file_1).split("_")[1].split(".")[0]
         image_id_2 = os.path.basename(file_2).split("_")[1].split(".")[0]
