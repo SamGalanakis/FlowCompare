@@ -33,7 +33,7 @@ files_dir_2 = [os.path.join(dir_2,f) for f in os.listdir(dir_2) if os.path.isfil
 files_dir_1 = sorted(files_dir_1,key=lambda x: int(os.path.basename(x).split("_")[0]))
 files_dir_2 = sorted(files_dir_2,key=lambda x: int(os.path.basename(x).split("_")[0]))
 
-
+classified_point_list_files = [os.path.join(classified_dir,f) for f in os.listdir(classified_dir) if os.path.isfile(os.path.join(classified_dir, f))]
 
 
 
@@ -67,8 +67,10 @@ drop_options_scene = [{'label':key,'value':key} for key in range(len(point_list_
 
 current_classifications = {}
 
-
-
+for classified_point_list_file in classified_point_list_files:
+    classified_point_list_df = pd.read_csv(classified_point_list_file)
+    scene_number = int(os.path.basename(classified_point_list_file).split('_')[0])
+    current_classifications[scene_number] = classified_point_list_df['classification'].tolist()
 
 app.layout = html.Div([
 dcc.Dropdown(id= 'scene_number',
@@ -171,22 +173,7 @@ def point_changer(point_number):
     fig_1 = current_figure_tuples[current_point_number][0]
     fig_2 = current_figure_tuples[current_point_number][1]
     classification_of_new_points = current_classifications[current_scene_number][current_point_number]
-    new_graph_row = html.Div([
-    dcc.Dropdown(id= 'classification',
-    options=drop_options_classifiation,
-    multi=False,
-    value = current_classifications[current_scene_number][current_point_number],
-    style ={'width':'30%'}),
-
-    html.Div([
-    html.H3('Time 1'),
-    dcc.Graph(id='g1', figure=current_figure_tuples[current_point_number][0])
-    ], className="six columns"),
-
-    html.Div([
-    html.H3('Time 2'),
-    dcc.Graph(id='g2', figure=current_figure_tuples[current_point_number][1])
-    ], className="six columns")])
+   
     
     return fig_1,fig_2,classification_of_new_points
 
