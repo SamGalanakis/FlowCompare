@@ -152,7 +152,10 @@ def scene_changer(scene_number):
 
 
 @app.callback(
-    Output(component_id='specific_point', component_property='children'),
+    # Output(component_id='specific_point', component_property='children'),
+    Output(component_id='g1', component_property='figure'),
+    Output(component_id='g2', component_property='figure'),
+    Output(component_id='classification', component_property='value'),
     Input(component_id='point_number', component_property='value'),prevent_initial_call=True
 )
 
@@ -165,7 +168,9 @@ def point_changer(point_number):
     global drop_options_classifiation
     current_point_number = int(point_number)
      
-
+    fig_1 = current_figure_tuples[current_point_number][0]
+    fig_2 = current_figure_tuples[current_point_number][1]
+    classification_of_new_points = current_classifications[current_scene_number][current_point_number]
     new_graph_row = html.Div([
     dcc.Dropdown(id= 'classification',
     options=drop_options_classifiation,
@@ -183,7 +188,7 @@ def point_changer(point_number):
     dcc.Graph(id='g2', figure=current_figure_tuples[current_point_number][1])
     ], className="six columns")])
     
-    return new_graph_row
+    return fig_1,fig_2,classification_of_new_points
 
 
 
