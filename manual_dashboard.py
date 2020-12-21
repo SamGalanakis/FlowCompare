@@ -5,6 +5,8 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
+from datetime import datetime
+import sys
 
 from utils import (
 load_las,
@@ -17,7 +19,7 @@ view_cloud_plotly
 
 dir_1 = "D:/data/cycloData/2016/"
 dir_2 = "D:/data/cycloData/2020/"
-class_labels = ['nochange','removed',"added",'change',"color_change"]
+class_labels = ['nochange','removed',"added",'change',"color_change","unfit"]
 point_list_dir = "D:/data/cycloData/point_lists/2016-2020/"
 classified_dir = "D:/data/cycloData/point_lists_classified/2016-2020/"
 clearance = 3
@@ -63,7 +65,7 @@ app = dash.Dash(__name__,external_stylesheets=external_stylesheets,suppress_call
 drop_options_scene = [{'label':key,'value':key} for key in range(len(point_list_dfs))]
 
 
-
+current_classifications = {}
 
 
 
@@ -73,14 +75,18 @@ dcc.Dropdown(id= 'scene_number',
 options=drop_options_scene,
 multi=False,
 value = '0',
-style ={'width':'40%'}),
+style ={'width':'20%'}),
 html.Div(id='once_chosen_scene_div'),
+
+html.Div(id='placeholder', style={"display":"none"}),
+html.Div(id="placeholder2", style={"display":"none"}),
+
 
 ])
 
 @app.callback(
     Output(component_id='once_chosen_scene_div', component_property='children'),
-    Input(component_id='scene_number', component_property='value')
+    Input(component_id='scene_number', component_property='value'),prevent_initial_call=True
 )
 
 
@@ -89,38 +95,47 @@ def scene_changer(scene_number):
     global clearance
     global current_figure_tuples
     global n_points
+    global current_classifications 
+    global current_point_number
+    global current_scene_number
+    global drop_options_classifiation
+
+    #Start at first point for all scenes
+    current_point_number=0
+    current_scene_number = i =  int(scene_number)
     
-    i = int(scene_number)
     n_points = point_list_dfs[i].shape[0]
+
+    if not scene_number in current_classifications.keys():
+        current_classifications[i] = ['UNSET']*n_points
+
+    
     #Update plot list
     current_figure_tuples = create_plots(point_list_dfs[i],files_dir_1[i],files_dir_2[i],sample_size=sample_size,clearance=clearance)
 
 
-    n_points_now = point_list_dfs[i].shape[0]
+    
     drop_options_classifiation = [{'label':key,'value':key} for key in class_labels]
     drop_options_point_number = [{'label':key,'value':key} for key in range(point_list_dfs[i].shape[0])]
     
     once_chosen_scene_div = html.Div([
 
+    html.Button("Save scene", id="savebtn",n_clicks=0),
     dcc.Dropdown(id= 'point_number',
     options=drop_options_point_number,
     multi=False,
     value = '0',
-    style ={'width':'40%'}),
+    style ={'width':'20%'}),
 
-
+    html.Div(id='specific_point',children=[html.Div([
     dcc.Dropdown(id= 'classification',
     options=drop_options_classifiation,
     multi=False,
-    value = 'nochange',
-    style ={'width':'40%'}),
-
-    # dcc.Graph(id='graph1',figure=current_figure_tuples[0][0]),
-    # dcc.Graph(id='graph2',figure=current_figure_tuples[0][1]),
+    value = current_classifications[i][current_point_number],
+    style ={'width':'30%'}),
 
 
-    html.Div(id='graph_row',
-        children=[html.Div([
+        
             html.H3('Time 1'),
             dcc.Graph(id='g1', figure=current_figure_tuples[0][0])
         ], className="six columns"),
@@ -137,35 +152,77 @@ def scene_changer(scene_number):
 
 
 @app.callback(
-    Output(component_id='graph_row', component_property='children'),
-    Input(component_id='point_number', component_property='value')
+    Output(component_id='specific_point', component_property='children'),
+    Input(component_id='point_number', component_property='value'),prevent_initial_call=True
 )
 
 
 def point_changer(point_number):
 
 
+    global current_point_number
+    global current_scene_number
+    global drop_options_classifiation
+    current_point_number = int(point_number)
+     
 
-    point_number = int(point_number)
-
-
-    new_graph_row =  html.Div([
-
+    new_graph_row = html.Div([
+    dcc.Dropdown(id= 'classification',
+    options=drop_options_classifiation,
+    multi=False,
+    value = current_classifications[current_scene_number][current_point_number],
+    style ={'width':'30%'}),
 
     html.Div([
     html.H3('Time 1'),
-    dcc.Graph(id='g1', figure=current_figure_tuples[point_number][0])
+    dcc.Graph(id='g1', figure=current_figure_tuples[current_point_number][0])
     ], className="six columns"),
 
     html.Div([
     html.H3('Time 2'),
-    dcc.Graph(id='g2', figure=current_figure_tuples[point_number][1])
-    ], className="six columns")
-
-
-    ])
+    dcc.Graph(id='g2', figure=current_figure_tuples[current_point_number][1])
+    ], className="six columns")])
     
     return new_graph_row
+
+
+
+@app.callback(
+    Output(component_id='placeholder', component_property='children'),
+    Input(component_id='classification', component_property='value'),prevent_initial_call=True)
+
+
+def classification_changer(input):
+    global current_classifications
+    global current_point_number
+    global current_scene_number
+    print(f"Changing classification of scene {current_scene_number} point {current_point_number}")
+    current_classifications[current_scene_number][current_point_number] = input
+
+
+
+@app.callback(
+    Output(component_id='placeholder2', component_property='children'),
+    Input(component_id='savebtn', component_property='n_clicks'),prevent_initial_call=True
+)
+
+def saver(input):
+    global current_classifications
+    global current_point_number
+    global current_scene_number
+
+    point_list_df = point_list_dfs[current_scene_number].copy()
+    point_list_df['classification'] = current_classifications[current_scene_number]
+    number_start = current_scene_number
+    file_1 = files_dir_1[current_scene_number]
+    file_2 = files_dir_1[current_scene_number]
+    image_id_1 = os.path.basename(file_1).split("_")[1].split(".")[0]
+    image_id_2 = os.path.basename(file_2).split("_")[1].split(".")[0]
+    final_save_path = os.path.join(classified_dir,f"{number_start}_{image_id_1}_{image_id_2}.csv")
+    point_list_df.to_csv(final_save_path)
+    print("Saving file!")
+    
+    
 
 app.run_server(debug=True)
 
