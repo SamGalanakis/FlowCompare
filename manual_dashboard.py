@@ -23,10 +23,14 @@ class_labels = ['nochange','removed',"added",'change',"color_change","unfit"]
 point_list_dir = "D:/data/cycloData/point_lists/2016-2020/"
 classified_dir = "D:/data/cycloData/point_lists_classified/2016-2020/"
 clearance = 3
+point_size = 1.5
 point_list_files = [os.path.join(point_list_dir,f) for f in os.listdir(point_list_dir) if os.path.isfile(os.path.join(point_list_dir, f))]
-sample_size = 50000
+scene_numbers = [int(os.path.basename(x).split('.')[0]) for x in point_list_files]
+sample_size = 100000
 point_list_dfs = [pd.read_csv(x,header=None) for x in point_list_files]
-for x in point_list_dfs:
+
+point_list_dfs = {scene_num:pd.read_csv(path,header=None) for scene_num,path in zip(scene_numbers,point_list_files)}
+for x in point_list_dfs.values():
     x.columns = ['name',"x","y","z"]
 files_dir_1 = [os.path.join(dir_1,f) for f in os.listdir(dir_1) if os.path.isfile(os.path.join(dir_1, f)) and f.split(".")[-1]=='las']
 files_dir_2 = [os.path.join(dir_2,f) for f in os.listdir(dir_2) if os.path.isfile(os.path.join(dir_2, f))and f.split(".")[-1]=='las']
@@ -35,7 +39,7 @@ files_dir_2 = sorted(files_dir_2,key=lambda x: int(os.path.basename(x).split("_"
 
 classified_point_list_files = [os.path.join(classified_dir,f) for f in os.listdir(classified_dir) if os.path.isfile(os.path.join(classified_dir, f))]
 
-
+classified_point_list_files = {int(os.path.basename(x).split("_")[0]):x for x in classified_point_list_files}
 
 
 def create_plots(point_list_df,file_1,file_2,sample_size=2048,clearance=2,shape='cylinder'):
@@ -49,8 +53,8 @@ def create_plots(point_list_df,file_1,file_2,sample_size=2048,clearance=2,shape=
         # points2 = points2[points2[:,2]>0.43]
         extraction_1 = random_subsample(extract_area(points1,center,clearance,shape),sample_size)
         extraction_2 = random_subsample(extract_area(points2,center,clearance,shape),sample_size)
-        fig_1 = view_cloud_plotly(extraction_1[:,:3],extraction_1[:,3:],show=False)
-        fig_2 = view_cloud_plotly(extraction_2[:,:3],extraction_2[:,3:],show=False)
+        fig_1 = view_cloud_plotly(extraction_1[:,:3],extraction_1[:,3:],show=False,point_size=point_size)
+        fig_2 = view_cloud_plotly(extraction_2[:,:3],extraction_2[:,3:],show=False,point_size=point_size)
         current_figure_tuples.append((fig_1,fig_2))
     return current_figure_tuples
 
@@ -62,14 +66,14 @@ external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = dash.Dash(__name__,external_stylesheets=external_stylesheets,suppress_callback_exceptions = True) 
 
 
-drop_options_scene = [{'label':key,'value':key} for key in range(len(point_list_dfs))]
+drop_options_scene = [{'label':key,'value':key} for key in scene_numbers]
 
 
 current_classifications = {}
 
-for classified_point_list_file in classified_point_list_files:
+for scene_number,classified_point_list_file in classified_point_list_files.items():
     classified_point_list_df = pd.read_csv(classified_point_list_file)
-    scene_number = int(os.path.basename(classified_point_list_file).split('_')[0])
+
     current_classifications[scene_number] = classified_point_list_df['classification'].tolist()
 
 app.layout = html.Div([
