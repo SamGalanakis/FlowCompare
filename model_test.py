@@ -9,7 +9,8 @@ from utils import (
     loss_fun_ret, 
     view_cloud,
     extract_area,
-    load_las
+    load_las,
+    view_cloud_plotly
 )
 
 
@@ -34,14 +35,15 @@ class ModelSampler:
             
             def sample(self=self,sample_size=2000,view=True):
                 with torch.no_grad():
-                    x = prior_z.sample(sample_shape = (1,sample_size//5))
+                    x = prior_z.sample(sample_shape = (1,sample_size))
                     x = x.to(self.device)
                     
                     
                     for g_layer in g_layers[::-1]:
                         x = g_layer.inverse(x)
                 if view:
-                    view_cloud(x)
+                    x= x.cpu().numpy().squeeze()
+                    view_cloud_plotly(x,rgb= np.zeros_like(x))
             self.sample = sample
         elif model_type == "straight_with_pointnet":
             prior_z = distributions.MultivariateNormal(
@@ -91,19 +93,19 @@ class ModelSampler:
 if __name__ == '__main__':
     config_path = "config\config_straight.yaml"
     model_type = 'straight'
-    model_path = "save\straight_999_fragrant-darkness-163.pt"
+    model_path = "save\straight_199_valiant-oath-238.pt_398_valiant-oath-238.pt_597_valiant-oath-238.pt_796_valiant-oath-238.pt_995_valiant-oath-238.pt"
     sample_size = 10000
     model_sampler = ModelSampler(config_path,model_path,model_type)
 
 
-    points = load_las("D:/data/cycloData/2016/0_5D4KVPBP.las")
-    sign_point = np.array([86967.46,439138.8])
-    norm_tranform = torchvision.transforms.Normalize(0,1)
-    points = extract_area(points,sign_point,1.5,'cylinder')
-    normtransf = torchvision.transforms.Lambda(lambda x: (x - x.mean(axis=0)) / x.std(axis=0))
-    norm_stand = torchvision.transforms.Lambda ( lambda x: (x - x.min(axis=0).values) / (x.max(axis=0).values - x.min(axis=0).values)     )
-    samples = [norm_stand(torch.from_numpy(random_subsample(points,1000)[:,:3])) for x in range(4)]
-    batch = torch.stack(samples).float()
+    # points = load_las("D:/data/cycloData/2016/0_5D4KVPBP.las")
+    # sign_point = np.array([86967.46,439138.8])
+    # norm_tranform = torchvision.transforms.Normalize(0,1)
+    # points = extract_area(points,sign_point,1.5,'cylinder')
+    # normtransf = torchvision.transforms.Lambda(lambda x: (x - x.mean(axis=0)) / x.std(axis=0))
+    # norm_stand = torchvision.transforms.Lambda ( lambda x: (x - x.min(axis=0).values) / (x.max(axis=0).values - x.min(axis=0).values)     )
+    # samples = [norm_stand(torch.from_numpy(random_subsample(points,1000)[:,:3])) for x in range(4)]
+    # batch = torch.stack(samples).float()
     #model_sampler.sample(model_condition=samples[0].float())
     model_sampler.sample()
     

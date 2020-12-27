@@ -16,6 +16,7 @@ import matplotlib.mathtext as mathtext
 import matplotlib.pyplot as plt
 import matplotlib.artist as artist
 import matplotlib.image as image
+from scipy.spatial.transform import Rotation 
 #Losses from original repo
 def loss_fun(z, z_ldetJ, prior_z, e, e_ldetJ, prior_e):
     ll_z = prior_z.log_prob(z.cpu()).to(z.device) + z_ldetJ
@@ -48,9 +49,11 @@ def load_las(path):
     
     return points
 
-def view_cloud_plotly(points,rgb,fig=None,point_size=2,show=True,axes=False):
-    
-    rgb = np.rint(np.divide(rgb,rgb.max(axis=0))*255).astype(np.uint8)
+def view_cloud_plotly(points,rgb=None,fig=None,point_size=2,show=True,axes=False,show_scale=False,colorscale=None):
+    if not isinstance(rgb,np.ndarray):
+        rgb = np.zeros_like(points)
+    else:
+        rgb = np.rint(np.divide(rgb,rgb.max(axis=0))*255).astype(np.uint8)
     if fig==None:
         fig = go.Figure()
     fig.add_scatter3d(
@@ -60,8 +63,11 @@ def view_cloud_plotly(points,rgb,fig=None,point_size=2,show=True,axes=False):
         marker=dict(
         size=point_size,
         color=rgb,  
+        colorscale=colorscale,
+        showscale=show_scale,
         opacity=1
     ), 
+        
         opacity=1, 
         mode='markers',
         
@@ -163,203 +169,16 @@ def random_subsample(points,n_samples):
     points = points[random_indices,:]
     
     return points
-def view_cloud(points,rgb_array=False,subsample=False):
-    """Colorize a large cloud of 1M points by passing
-    colors and transparencies in the format (R,G,B,A)
-    """
 
-   
 
-    settings.renderPointsAsSpheres = False
-    settings.pointSmoothing = False
-    settings.xtitle = 'x axis'
-    settings.ytitle = 'y axis'
-    settings.ztitle = 'z axis'
+def rotate_mat(points,x,y,z):
+    rx = Rotation.from_euler('x', x, degrees=True)
+    ry = Rotation.from_euler('y', y, degrees=True)
+    rz = Rotation.from_euler('z', z, degrees=True)
+    full_rot = (rx*ry*rz).as_matrix()
+    return (np.matmul(full_rot,points.T)).T
 
     
-    
-    points = points.reshape(-1,3)
-
-
-    if isinstance(points,torch.Tensor):
-        points= points.cpu().numpy()
-    if subsample:
-        random_indices = np.random.choice(points.shape[0],subsample, replace=False)
-        points = points[random_indices,:]
-        rgb_array = rgb_array[random_indices,:]
-
-    if  isinstance(rgb_array,bool):    
-        RGB = np.zeros_like(points) + 0
-        Alpha = np.ones_like(RGB[:,0])*255
-        
-    else: 
-        RGB =     np.rint(np.divide(rgb_array,rgb_array[:,:3].max(axis=0))*255).astype(np.uint8)
-        if rgb_array.shape[0]==4:
-            Alpha = rgb_array[:,-1]
-        else:
-            Alpha = np.ones_like(RGB[:,0])*255
-
-    RGBA = np.c_[RGB, Alpha]  # concatenate
-        
-
-    
-    
-
-    # passing c in format (R,G,B,A) is ~50x faster
-    points = Points(points, r=2, c=RGBA) #fast
-    #pts = Points(pts, r=2, c=pts, alpha=pts[:, 2]) #slow
-
-
-    show(points, __doc__, axes=True)
-
-
-class ItemProperties:
-    def __init__(self, fontsize=14, labelcolor='black', bgcolor='yellow',
-                 alpha=1.0):
-        self.fontsize = fontsize
-        self.labelcolor = labelcolor
-        self.bgcolor = bgcolor
-        self.alpha = alpha
-
-        self.labelcolor_rgb = colors.to_rgba(labelcolor)[:3]
-        self.bgcolor_rgb = colors.to_rgba(bgcolor)[:3]
-
-
-class MenuItem(artist.Artist):
-    parser = mathtext.MathTextParser("Bitmap")
-    padx = 5
-    pady = 5
-
-    def __init__(self, fig, labelstr, props=None, hoverprops=None,
-                 on_select=None):
-        artist.Artist.__init__(self)
-
-        self.set_figure(fig)
-        self.labelstr = labelstr
-
-        if props is None:
-            props = ItemProperties()
-
-        if hoverprops is None:
-            hoverprops = ItemProperties()
-
-        self.props = props
-        self.hoverprops = hoverprops
-
-        self.on_select = on_select
-
-        x, self.depth = self.parser.to_mask(
-            labelstr, fontsize=props.fontsize, dpi=fig.dpi)
-
-        if props.fontsize != hoverprops.fontsize:
-            raise NotImplementedError(
-                'support for different font sizes not implemented')
-
-        self.labelwidth = x.shape[1]
-        self.labelheight = x.shape[0]
-
-        self.labelArray = np.zeros((x.shape[0], x.shape[1], 4))
-        self.labelArray[:, :, -1] = x/255.
-
-        self.label = image.FigureImage(fig, origin='upper')
-        self.label.set_array(self.labelArray)
-
-        # we'll update these later
-        self.rect = patches.Rectangle((0, 0), 1, 1)
-
-        self.set_hover_props(False)
-
-        fig.canvas.mpl_connect('button_release_event', self.check_select)
-
-    def check_select(self, event):
-        over, junk = self.rect.contains(event)
-        if not over:
-            return
-
-        if self.on_select is not None:
-            self.on_select(self)
-
-    def set_extent(self, x, y, w, h):
-        
-        self.rect.set_x(x)
-        self.rect.set_y(y)
-        self.rect.set_width(w)
-        self.rect.set_height(h)
-
-        self.label.ox = x + self.padx
-        self.label.oy = y - self.depth + self.pady/2.
-
-        self.hover = False
-
-    def draw(self, renderer):
-        self.rect.draw(renderer)
-        self.label.draw(renderer)
-
-    def set_hover_props(self, b):
-        if b:
-            props = self.hoverprops
-        else:
-            props = self.props
-
-        r, g, b = props.labelcolor_rgb
-        self.labelArray[:, :, 0] = r
-        self.labelArray[:, :, 1] = g
-        self.labelArray[:, :, 2] = b
-        self.label.set_array(self.labelArray)
-        self.rect.set(facecolor=props.bgcolor, alpha=props.alpha)
-
-    def set_hover(self, event):
-        """
-        Update the hover status of event and return whether it was changed.
-        """
-        b, junk = self.rect.contains(event)
-
-        changed = (b != self.hover)
-
-        if changed:
-            self.set_hover_props(b)
-
-        self.hover = b
-        return changed
-
-
-class Menu:
-    def __init__(self, fig, menuitems):
-        self.figure = fig
-        fig.suppressComposite = True
-
-        self.menuitems = menuitems
-        self.numitems = len(menuitems)
-
-        maxw = max(item.labelwidth for item in menuitems)
-        maxh = max(item.labelheight for item in menuitems)
-
-        x0 = 100
-        y0 = 400
-
-        width = maxw + 2*MenuItem.padx
-        height = maxh + MenuItem.pady
-
-        for item in menuitems:
-            left = x0
-            bottom = y0 - maxh - MenuItem.pady
-
-            item.set_extent(left, bottom, width, height)
-
-            fig.artists.append(item)
-            y0 -= maxh + MenuItem.pady
-
-        fig.canvas.mpl_connect('motion_notify_event', self.on_move)
-
-    def on_move(self, event):
-        draw = False
-        for item in self.menuitems:
-            draw = item.set_hover(event)
-            if draw:
-                self.figure.canvas.draw()
-                break
-
-
 
 if __name__ == "__main__":
     points = load_las("D:/data/cycloData/2016/0_5D4KVPBP.las")

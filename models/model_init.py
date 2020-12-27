@@ -15,12 +15,12 @@ from models.flow_modules import (
 )
 from models.point_encoders import PointnetEncoder, PointnetEncoderNoBatch
 
-from utils import loss_fun , loss_fun_ret, view_cloud
+from utils import loss_fun , loss_fun_ret
 
 
 
 
-def model_init(config_path,model_path,model_type,test=True):
+def model_init(config_path,model_path=None,model_type='straight',test=True):
     
     #Load config
     print(f"Loading config from {config_path}")
@@ -157,20 +157,22 @@ def model_init(config_path,model_path,model_type,test=True):
 
 
     #Load model parts from saved dict in same way for all model_types
-    all_params = []
-    #Get parameters from file and assign them
-    saved_model_dict = torch.load(model_path)
-    for model_name, model_part in model_dict.items():
-        #Send to device before passing to optimizer
-        model_part.to(device)
-        model_part.load_state_dict(saved_model_dict[model_name])
-        #Add model to watch list
-        
-        if test:
-            model_part.eval()
-        else:
-            wandb.watch(model_part)
-            all_params += model_part.parameters()
+    #Only if model path given
+    if model_path !=None:
+        all_params = []
+        #Get parameters from file and assign them
+        saved_model_dict = torch.load(model_path)
+        for model_name, model_part in model_dict.items():
+            #Send to device before passing to optimizer
+            model_part.to(device)
+            model_part.load_state_dict(saved_model_dict[model_name])
+            #Add model to watch list
+            
+            if test:
+                model_part.eval()
+            else:
+                wandb.watch(model_part)
+                all_params += model_part.parameters()
             
 
 
