@@ -7,7 +7,6 @@ from utils import (
     random_subsample,
     loss_fun , 
     loss_fun_ret, 
-    view_cloud,
     extract_area,
     load_las,
     view_cloud_plotly
@@ -36,6 +35,7 @@ class ModelSampler:
             def sample(self=self,sample_size=2000,view=True):
                 with torch.no_grad():
                     x = prior_z.sample(sample_shape = (1,sample_size))
+                    log_probs = torch.exp(prior_z.log_prob(x.squeeze())).numpy()
                     x = x.to(self.device)
                     
                     
@@ -43,7 +43,7 @@ class ModelSampler:
                         x = g_layer.inverse(x)
                 if view:
                     x= x.cpu().numpy().squeeze()
-                    view_cloud_plotly(x,rgb= np.zeros_like(x))
+                    view_cloud_plotly(x,rgb= log_probs,colorscale="Hot")
             self.sample = sample
         elif model_type == "straight_with_pointnet":
             prior_z = distributions.MultivariateNormal(

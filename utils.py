@@ -165,8 +165,16 @@ def grid_split(points,grid_size,center = False,clearance = 30000):
     return grid_list
 
 def random_subsample(points,n_samples):
-    random_indices = np.random.choice(points.shape[0],n_samples, replace=True)
-    points = points[random_indices,:]
+    if points.shape[0]==0:
+        print('No points found at this center replacing with dummy')
+        points = np.zeros((1,points.shape[1]))
+    #No point sampling if already 
+    if n_samples < points.shape[0]:
+        random_indices = np.random.choice(points.shape[0],n_samples, replace=False)
+        points = points[random_indices,:]
+    
+    
+    
     
     return points
 
