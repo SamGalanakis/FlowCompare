@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from models.nets import ResBlock, activation_func_selector
-
+import torch.autograd.profiler as profiler
 
 class CouplingLayer(nn.Module):
     def __init__(self,coupling_function,split_index,permute_tensor):
@@ -19,17 +19,20 @@ class CouplingLayer(nn.Module):
     def forward(self,x,e = None):
         #if e != None then conditional coupling layer
         #split LAST dimension according to split index
-        x1 = x[...,:self.split_index]
-        x2 = x[...,self.split_index:]
+        with profiler.record_function("INITIAL SPLIT"):
+            x1 = x[...,:self.split_index]
+            x2 = x[...,self.split_index:]
         
         if e == None:
             y2, ldetJ = self.coupling_function(x1,x2)
         else:
             y2 , ldetJ = self.coupling_function(x1,x2,e)
         #change this back ? the dim
-        y = torch.cat((x1,y2),dim=-1)
+        with profiler.record_function("CONCAT"):
+            y = torch.cat((x1,y2),dim=-1)
         #Permute 
-        y = torch.index_select(y,-1,self.permute_tensor)
+        with profiler.record_function("Index Select"):
+            y = torch.index_select(y,-1,self.permute_tensor)
         return y , ldetJ
     
     def inverse(self,y,e = None):

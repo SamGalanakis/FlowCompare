@@ -39,7 +39,7 @@ prior_z = torch.distributions.MultivariateNormal(
     torch.zeros(3), torch.eye(3)
 )
 x= prior_z.sample(sample_shape=(1,100000))
-view_cloud_plotly(x.squeeze().numpy(),torch.exp(prior_z.log_prob(x)).numpy()[0],show_scale=True)
+view_cloud_plotly(x.squeeze().numpy(),torch.exp(prior_z.log_prob(x)).numpy()[0],show_scale=True,colorscale='Hot')
 model_dict = model_init(config_path,test=True)
 
 all_params = []
@@ -64,52 +64,55 @@ dataset = make_swiss_roll(n_samples=100000, noise=0.001, random_state=None)
 dataset = torch.from_numpy(dataset[0]).float().to(device)
 
 batch_size=100
-for epoch in tqdm(range(n_epochs)):
-    ind = epoch % dataset.shape[0]
-    batch = dataset[ind*batch_size:(ind+1)*batch_size,:].unsqueeze(0)
-    
-    
-    loss_acc_z = 0
-    
+with torch.autograd.profiler.profile(use_cuda=True) as prof:
+  
 
-    optimizer.zero_grad()
-    #Add noise to tr_batch:
-    batch = batch.to(device) #+ x_noise * torch.rand(batch.shape).to(device)
+    for epoch in tqdm(range(n_epochs)):
+        ind = epoch % dataset.shape[0]
+        batch = dataset[ind*batch_size:(ind+1)*batch_size,:].unsqueeze(0)
+        
+        
+        loss_acc_z = 0
+        
 
-
-
-    x = batch
-    #Pass pointcloud through g flow conditioned and keep track of determinant
-    ldetJ=0
-
-    for g_layer in g_layers:
-        x, inter_ldetJ = g_layer(x)
-        ldetJ += inter_ldetJ
-    z = x
-    loss = loss_fun_ret(z,ldetJ,prior_z)
-    
+        optimizer.zero_grad()
+        #Add noise to tr_batch:
+        batch = batch.to(device) #+ x_noise * torch.rand(batch.shape).to(device)
 
 
 
-    wandb.log({'loss':loss.item()})
-    loss.backward()
-    optimizer.step()
+        x = batch
+        #Pass pointcloud through g flow conditioned and keep track of determinant
+        ldetJ=0
+
+        for g_layer in g_layers:
+            x, inter_ldetJ = g_layer(x)
+            ldetJ += inter_ldetJ
+        z = x
+        loss = loss_fun_ret(z,ldetJ,prior_z)
+        
 
 
-    if (epoch % 199 == 0) & (epoch !=0):
-        with torch.no_grad():
-            x = prior_z.sample(sample_shape = (1,sample_size*10))
-            rgb  = torch.exp(prior_z.log_prob(x.squeeze())).numpy()
-            x = x.to(device)
-            for g_layer in g_layers[::-1]:
-                x = g_layer.inverse(x)
-            x = x.cpu().squeeze()
-            view_cloud_plotly(x.numpy(),rgb,show_scale=True)
-        #Save model
-        save_state_dict = {key:val.state_dict() for key,val in model_dict.items()}
-        save_state_dict['optimizer'] = optimizer.state_dict()
-        save_state_dict['scheduler'] = optimizer.state_dict()
-        final_save_path = save_model_path+ f"_{epoch}_" +wandb.run.name+".pt"
-        print(f"Saving model to {final_save_path}")
-        torch.save(save_state_dict,final_save_path)
-    
+
+        wandb.log({'loss':loss.item()})
+        loss.backward()
+        optimizer.step()
+
+
+        if (epoch % 199 == 0) & (epoch !=0):
+            with torch.no_grad():
+                x = prior_z.sample(sample_shape = (1,sample_size*10))
+                rgb  = torch.exp(prior_z.log_prob(x.squeeze())).numpy()
+                x = x.to(device)
+                for g_layer in g_layers[::-1]:
+                    x = g_layer.inverse(x)
+                x = x.cpu().squeeze()
+                view_cloud_plotly(x.numpy(),rgb,show_scale=True,colorscale='Hot')
+            #Save model
+            save_state_dict = {key:val.state_dict() for key,val in model_dict.items()}
+            save_state_dict['optimizer'] = optimizer.state_dict()
+            save_state_dict['scheduler'] = optimizer.state_dict()
+            final_save_path = save_model_path+ f"_{epoch}_" +wandb.run.name+".pt"
+            print(f"Saving model to {final_save_path}")
+            torch.save(save_state_dict,final_save_path)
+print(prof)

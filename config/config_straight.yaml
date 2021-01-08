@@ -10,7 +10,7 @@ x_noise:
   value: 0.0001
 n_epochs:
   desc: Number of epochs to train for
-  value: 2000
+  value: 10
 random_dataloader:
   desc: Use random dataloader
   value: True

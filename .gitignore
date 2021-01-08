@@ -3,7 +3,7 @@
 data/ShapeNetCore.v2.PC15k/
 save/
 wandb/
-
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
