@@ -100,7 +100,7 @@ def extract_area(full_cloud,center,clearance,shape= 'cylinder'):
         mask = np.linalg.norm(full_cloud[:,:2]-center,axis=1) <  clearance
     return full_cloud[mask]
 
-def grid_split(points,grid_size,center = False,clearance = 30000):
+def grid_split(points,grid_size,center = False,clearance = 20):
     if not center:
         center = points[:,:2].mean(axis=0)
     #points = points[np.linalg.norm((points[:,:2]-center),axis=1)<clearance]
@@ -143,15 +143,5 @@ def rotate_mat(points,x,y,z):
 
 if __name__ == "__main__":
     points = load_las("D:/data/cycloData/2016/0_5D4KVPBP.las")
-    #grid_split(points,5000)
-    #view_cloud(points[:,:3],points[:,3:],subsample = False)
-    #view_cloud(points[:,:3],points[:,3:],subsample = False)
-    #view_cloud(points[:,:3],points[:,3:],subsample = False)
+    grid_split(points,2)
     
-    sign_point = np.array([86967.46,439138.8])
-    points = extract_area(points,sign_point,1.5,'cylinder')
-    points = random_subsample(points,20000)
-    view_cloud_plotly(points[:,0:3],points[:,3:])
-    class_return = compare_clouds(points[:,0:3],points[:,3:],['change','nochange'])
-    print(class_return)
-    view_cloud(points[:,:3],points[:,3:],subsample = False)

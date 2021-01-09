@@ -11,6 +11,8 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from utils import load_las, random_subsample,view_cloud_plotly
 from pyro.nn import DenseNN
 
+
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 n_samples=100
