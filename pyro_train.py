@@ -10,7 +10,7 @@ from sklearn import datasets
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from utils import load_las, random_subsample,view_cloud_plotly
 from pyro.nn import DenseNN
-from visualize_change_map import visualize_change
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 n_samples=100
@@ -22,7 +22,7 @@ scaler.fit(np.concatenate((sign,sign_2),axis=0))
 
 sign_scaled = scaler.transform(sign)
 sign_2_scaled = scaler.transform(sign_2)
-
+view_cloud_plotly(np.concatenate((sign_scaled,sign_2_scaled)),np.concatenate((np.zeros_like(sign_scaled),np.random.rand(sign_scaled.size).reshape(sign_scaled.shape))))
 
 base_dist = dist.Normal(torch.zeros(input_dim).to(device), torch.ones(input_dim).to(device))
 count_bins = 16
@@ -55,7 +55,7 @@ class flow_block:
     def save(self,path):
         torch.save(self,path)
 
-flow_blocks = torch.load('save//pyro_saves//flow_blocks_3000.pcl')
+flow_blocks = [flow_block(input_dim,permutations,count_bins,split_dims,device) for x in range(n_blocks)]
 
 parameters = []
 transformations = []
@@ -67,18 +67,34 @@ for flow_block_instance in flow_blocks:
 flow_dist = dist.TransformedDistribution(base_dist, transformations)
 
 
-rgb1= flow_dist.log_prob(torch.tensor(sign_scaled, dtype=torch.float).to(device)).detach().cpu().numpy()
-rgb2 = flow_dist.log_prob(torch.tensor(sign_2_scaled, dtype=torch.float).to(device)).detach().cpu().numpy()
-visualize_change(sign,sign_2,rgb1,rgb2)
 
 
-# with torch.no_grad():
-#     sample = flow_dist.sample([10000]).cpu()
-#     fixed_sample = scaler.inverse_transform(sample.numpy())
-    
-#     #view_cloud_plotly(fixed_sample[:,0:3],show=True)
-#     rgb  = flow_dist.log_prob(torch.tensor(sign_scaled, dtype=torch.float).to(device)).detach().cpu().numpy()
-#     view_cloud_plotly(sign,rgb,colorscale='Hot',show_scale=True,show=True)
-#     rgb = flow_dist.log_prob(torch.tensor(sign_2_scaled, dtype=torch.float).to(device)).detach().cpu().numpy()
-#     view_cloud_plotly(sign_2,rgb,colorscale='Hot',show_scale=True,show=True)
+steps = 30000
 
+optimizer = torch.optim.Adam(parameters, lr=5e-3)
+
+for step in range(steps+1):
+    X = random_subsample(sign_scaled,n_samples)
+    dataset = torch.tensor(X, dtype=torch.float).to(device)
+    dataset += torch.randn_like(dataset)*0.01
+    optimizer.zero_grad()
+    loss = -flow_dist.log_prob(dataset).mean()
+    loss.backward()
+    optimizer.step()
+    flow_dist.clear_cache()
+
+    if step % 500 == 0:
+        print('step: {}, loss: {}'.format(step, loss.item()))
+        if step>0:
+            with torch.no_grad():
+                sample = flow_dist.sample([10000]).cpu()
+                fixed_sample = scaler.inverse_transform(sample.numpy())
+                
+                view_cloud_plotly(fixed_sample[:,0:3],show=False).write_html(f'save//graphs//sample_{step}.html')
+                rgb  = flow_dist.log_prob(torch.tensor(sign_scaled, dtype=torch.float).to(device)).detach().cpu().numpy()
+                view_cloud_plotly(sign,rgb,colorscale='Hot',show_scale=True,show=False).write_html(f'save//graphs//t1_{step}.html')
+                rgb = flow_dist.log_prob(torch.tensor(sign_2_scaled, dtype=torch.float).to(device)).detach().cpu().numpy()
+                view_cloud_plotly(sign_2,rgb,colorscale='Hot',show_scale=True,show=False).write_html(f'save//graphs//t2_{step}.html')
+            
+            torch.save(flow_blocks,f"save//pyro_saves//flow_blocks_{step}.pcl")
+pass

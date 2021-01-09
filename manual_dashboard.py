@@ -10,10 +10,8 @@ import sys
 
 from utils import (
 load_las,
-compare_clouds,
 extract_area,
 random_subsample,
-compare_clouds,
 view_cloud_plotly
 )
 

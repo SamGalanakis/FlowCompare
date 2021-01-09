@@ -89,53 +89,6 @@ def view_cloud_plotly(points,rgb=None,fig=None,point_size=2,show=True,axes=False
     
   
     
-
-
-
-def compare_clouds(extraction_1,extraction_2,class_labels):
-    rgb1 =     np.rint(np.divide(extraction_1[:,3:],extraction_1[:,3:].max(axis=0))*255).astype(np.uint8)
-    rgb2 =     np.rint(np.divide(extraction_2[:,3:],extraction_2[:,3:].max(axis=0))*255).astype(np.uint8)
-    
-    # class_to_return = None
-    points1 = extraction_1[:,:3]
-    
-    points2 = extraction_2[:,:3]
-    points2[:,0]+=10
-    axes = plt.axes(projection='3d')
-    axes.scatter(points1[:,0], points1[:,1], points1[:,2], c = rgb1/255, s=0.1)
-    #Add time labels avove
-    axes.text(x=points1[:,0].mean(),y=points1[:,1].mean(),z=points1[:,2].max()+0.1,s="t1")
-
-    axes.scatter(points2[:,0], points2[:,1], points2[:,2], c = rgb2/255, s=0.1)
-    axes.text(x=points2[:,0].mean(),y=points2[:,1].mean(),z=points2[:,2].max()+0.1,s="t2")
-    plt.axis('off')
-    
-    props = ItemProperties(labelcolor='black', bgcolor='yellow',
-                        fontsize=10, alpha=0.2)
-    hoverprops = ItemProperties(labelcolor='white', bgcolor='blue',
-                                fontsize=10, alpha=0.2)
-
-    menuitems = []
-
-    def on_select(item):
-        global class_to_return
-        class_to_return = item.labelstr
-        plt.close()
-        print('you selected %s' % item.labelstr)
-    for label in class_labels:
-      
-        item = MenuItem(plt.gcf(), label, props=props, hoverprops=hoverprops,
-                        on_select=on_select)
-        menuitems.append(item)
-
-    menu = Menu(plt.gcf(), menuitems)
-    plt.show()
-    
-
-    return class_to_return
-
-
-    
     
 
 def extract_area(full_cloud,center,clearance,shape= 'cylinder'):
