@@ -18,6 +18,11 @@ def visualize_change(points_t1,points_t2,log_prob_t1,log_prob_t2):
     current_square_index = 0
     drop_options_grid_square = [{'label':key,'value':key} for key in range(n_squares)]
 
+    if points_t1[0].shape[1] ==6:
+        rgb1 = points_t1[current_square_index][:,3:]
+        rgb2 = points_t2[current_square_index][:,:3],points_t2[current_square_index][:,3:]
+    else:
+        rgb1 = rgb2 = None
 
     app.layout = html.Div([
         dcc.Dropdown(id= 'dropdown_grid_square',
@@ -33,8 +38,8 @@ def visualize_change(points_t1,points_t2,log_prob_t1,log_prob_t2):
             value=10,
         ),
         html.Div([
-            dcc.Graph(id='graph_t1', figure=view_cloud_plotly(points_t1[current_square_index][:,:3],points_t1[current_square_index][:,3:],show=False)),
-        dcc.Graph(id='graph_t2', figure=view_cloud_plotly(points_t2[current_square_index][:,:3],points_t2[current_square_index][:,3:],show=False))
+            dcc.Graph(id='graph_t1', figure=view_cloud_plotly(points_t1[current_square_index][:,:3],rgb1,show=False)),
+        dcc.Graph(id='graph_t2', figure=view_cloud_plotly(points_t2[current_square_index][:,:3],rgb2,show=False))
 
 
         ],style={ "columnCount": 2})
@@ -64,8 +69,12 @@ def visualize_change(points_t1,points_t2,log_prob_t1,log_prob_t2):
     def grid_chooser(value):
         global current_square_index 
         current_square_index = value
-        figure_1=view_cloud_plotly(points_t1[current_square_index][:,:3],points_t1[current_square_index][:,3:],show=False)
-        figure_2 = view_cloud_plotly(points_t2[current_square_index][:,:3],points_t2[current_square_index][:,3:],show=False)
+        if points_t1.shape[1] ==6:
+            rgb = points_t1[current_square_index][:,3:]
+        else:
+            rgb = None
+        figure_1=view_cloud_plotly(points_t1[current_square_index][:,:3],rgb,show=False)
+        #figure_2 = view_cloud_plotly(points_t2[current_square_index][:,:3],points_t2[current_square_index][:,3:],show=False)
 
 
         return figure_1

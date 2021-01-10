@@ -8,7 +8,7 @@ import os
 import numpy as np
 from sklearn import datasets
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly
+from utils import load_las, random_subsample,view_cloud_plotly, knn_relator
 from pyro.nn import DenseNN
 from visualize_change_map import visualize_change
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -69,7 +69,7 @@ flow_dist = dist.TransformedDistribution(base_dist, transformations)
 
 rgb1= flow_dist.log_prob(torch.tensor(sign_scaled, dtype=torch.float).to(device)).detach().cpu().numpy()
 rgb2 = flow_dist.log_prob(torch.tensor(sign_2_scaled, dtype=torch.float).to(device)).detach().cpu().numpy()
-visualize_change(sign,sign_2,rgb1,rgb2)
+visualize_change([sign],[sign_2],[rgb1],[rgb2])
 
 
 # with torch.no_grad():

@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib.artist as artist
 import matplotlib.image as image
 from scipy.spatial.transform import Rotation 
+from sklearn.neighbors import NearestNeighbors
 #Losses from original repo
 def loss_fun(z, z_ldetJ, prior_z, e, e_ldetJ, prior_e):
     ll_z = prior_z.log_prob(z.cpu()).to(z.device) + z_ldetJ
@@ -28,7 +29,16 @@ def loss_fun_ret(z, z_ldetJ, prior_z):
     ll_z = prior_z.log_prob(z.cpu()).to(z.device) + z_ldetJ
     return -torch.mean(ll_z)
 
+def knn_relator(points,points_subsampled,feature,n_neighbors=1):
+    nbrs = NearestNeighbors(n_neighbors=n_neighbors, algorithm='ball_tree').fit(points_subsampled)
+    indices = nbrs.kneighbors(points,return_distance=False)
+    feature_original = feature[indices].mean(axis=1)
+        
 
+    
+    return feature_original
+
+    
 
 def load_las(path):
     input_las = File(path, mode='r')
@@ -132,6 +142,7 @@ def random_subsample(points,n_samples):
     return points
 
 
+
 def rotate_mat(points,x,y,z):
     rx = Rotation.from_euler('x', x, degrees=True)
     ry = Rotation.from_euler('y', y, degrees=True)
@@ -142,6 +153,7 @@ def rotate_mat(points,x,y,z):
     
 
 if __name__ == "__main__":
-    points = load_las("D:/data/cycloData/2016/0_5D4KVPBP.las")
+    points = load_las("D:/data/cycloData/2016/0_5D4KVPBP.las")[0:10,:]
+    knn_relator(points,points,np.random.randn(points.shape[0]))
     grid_split(points,2)
     
