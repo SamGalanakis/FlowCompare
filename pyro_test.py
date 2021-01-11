@@ -11,12 +11,16 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from utils import load_las, random_subsample,view_cloud_plotly, knn_relator
 from pyro.nn import DenseNN
 from visualize_change_map import visualize_change
+from flow_fitter import fit_flow
+
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 n_samples=100
 input_dim=3
 sign = load_las("data\sign_1.las")[:,0:3]
 sign_2 = load_las("data\sign_2.las")[:,0:3]
+log_prob_2,log_prob_1 = fit_flow(sign,sign_2)
 scaler = MinMaxScaler()
 scaler.fit(np.concatenate((sign,sign_2),axis=0))
 
@@ -69,6 +73,7 @@ flow_dist = dist.TransformedDistribution(base_dist, transformations)
 
 rgb1= flow_dist.log_prob(torch.tensor(sign_scaled, dtype=torch.float).to(device)).detach().cpu().numpy()
 rgb2 = flow_dist.log_prob(torch.tensor(sign_2_scaled, dtype=torch.float).to(device)).detach().cpu().numpy()
+view_cloud_plotly(sign_2,np.abs(rgb2-rgb1.mean())**2,colorscale='Hot')
 visualize_change([sign],[sign_2],[rgb1],[rgb2])
 
 

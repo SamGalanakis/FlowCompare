@@ -30,9 +30,12 @@ def loss_fun_ret(z, z_ldetJ, prior_z):
     return -torch.mean(ll_z)
 
 def knn_relator(points,points_subsampled,feature,n_neighbors=1):
+    if points.shape[0] == points_subsampled.shape[0]:
+        return feature
     nbrs = NearestNeighbors(n_neighbors=n_neighbors, algorithm='ball_tree').fit(points_subsampled)
     indices = nbrs.kneighbors(points,return_distance=False)
     feature_original = feature[indices].mean(axis=1)
+
         
 
     
@@ -40,7 +43,7 @@ def knn_relator(points,points_subsampled,feature,n_neighbors=1):
 
     
 
-def load_las(path):
+def load_las(path,extra_dim_list=None):
     input_las = File(path, mode='r')
     point_records = input_las.points.copy()
     las_scaleX = input_las.header.scale[0]
@@ -54,8 +57,10 @@ def load_las(path):
     p_X = np.array((point_records['point']['X'] * las_scaleX) + las_offsetX)
     p_Y = np.array((point_records['point']['Y'] * las_scaleY) + las_offsetY)
     p_Z = np.array((point_records['point']['Z'] * las_scaleZ) + las_offsetZ)
-
-    points = np.vstack((p_X,p_Y,p_Z,input_las.red,input_las.green,input_las.blue)).T
+    try:
+        points = np.vstack((p_X,p_Y,p_Z,input_las.red,input_las.green,input_las.blue)).T
+    except:
+        pass
     
     return points
 
@@ -111,19 +116,22 @@ def extract_area(full_cloud,center,clearance,shape= 'cylinder'):
     return full_cloud[mask]
 
 def grid_split(points,grid_size,center = False,clearance = 20):
-    if not center:
+    if not  isinstance(center,bool):
         center = points[:,:2].mean(axis=0)
-    #points = points[np.linalg.norm((points[:,:2]-center),axis=1)<clearance]
+    points = points[:,:3]
     
-    points = extract_area(points,center,clearance,'square')
-    x = np.arange(points[:,0].min(), points[:,0].max(), grid_size)
-    y = np.arange(points[:,1].min(), points[:,1].max(), grid_size)
+    center_x = center[0]
+    center_y= center[1]
+    
+    x = np.arange(center_x-clearance, center_x+clearance, grid_size)
+    y = np.arange(center_y-clearance, center_y+clearance, grid_size)
     grid_list = []
-    for x_val in x[:-1]:
-        for y_val in y[:-1]:
-            mask_x = np.logical_and(points[:,0]>x_val,points[:,0]<x_val+grid_size)
-            mask_y = np.logical_and(points[:,1]>y_val,points[:,1]<y_val+grid_size)
-            tile = points[mask_x & mask_y]
+    for x_val in x:
+        mask_x = np.logical_and(points[:,0]>x_val,points[:,0]<x_val+grid_size)
+        x_strip = points[mask_x]
+        for y_val in y:
+            mask_y = np.logical_and(x_strip[:,1]>y_val,x_strip[:,1]<y_val+grid_size)
+            tile = x_strip[mask_y]
             grid_list.append(tile)
     return grid_list
 

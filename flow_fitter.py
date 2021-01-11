@@ -15,7 +15,7 @@ from pyro.nn import DenseNN
 def fit_flow(points1,points2):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    n_samples=100
+    n_samples=1000
     input_dim=3
     points1 = points1[:,:input_dim]
     points2 = points2[:,:input_dim] 
@@ -23,6 +23,7 @@ def fit_flow(points1,points2):
     scaler.fit(np.concatenate((points1,points2),axis=0))
 
     points1_scaled = scaler.transform(points1)
+    points1_scaled = torch.tensor(points1_scaled, dtype=torch.float).to(device)
     points2_scaled = scaler.transform(points2)
     points2_scaled = torch.tensor(points2_scaled, dtype=torch.float).to(device)
 
@@ -34,7 +35,7 @@ def fit_flow(points1,points2):
     (input_dim - split_dimension) * count_bins]
 
     split_dims = [2]*3
-    patience = 10
+    patience = 1000
     not_improved_count = 0
     n_blocks = 1
     permutations =  [[1,0,2],[2,0,1],[2,1,0]]
@@ -73,19 +74,20 @@ def fit_flow(points1,points2):
 
 
     steps = 3000
-    early_stop_margin=0.01
+    early_stop_margin=0.005
     optimizer = torch.optim.Adam(parameters, lr=5e-3)
     min_loss = torch.tensor(1e+8)
 
 
     for step in range(steps+1):
         X = random_subsample(points1_scaled,n_samples)
-        dataset = torch.tensor(X, dtype=torch.float).to(device)
+        #dataset = torch.tensor(X, dtype=torch.float).to(device)
+        dataset=X
         dataset += torch.randn_like(dataset)*0.01
         optimizer.zero_grad()
         loss = -flow_dist.log_prob(dataset).mean()
         
-
+        
         
        
         last_loss = loss
@@ -96,7 +98,6 @@ def fit_flow(points1,points2):
         if loss< -torch.abs(min_loss)*early_stop_margin + min_loss:
             min_loss = loss
             not_improved_count=0
-            best_log_probs = flow_dist.log_prob(points2_scaled).detach().cpu().numpy()
         else:
             not_improved_count+=1
             if not_improved_count>patience:
@@ -105,8 +106,9 @@ def fit_flow(points1,points2):
         
         
 
-    
-    return best_log_probs
+    log_probs_1 = flow_dist.log_prob(points1_scaled).detach().cpu().numpy()
+    log_probs_2 = flow_dist.log_prob(points2_scaled).detach().cpu().numpy()
+    return  log_probs_1, log_probs_2
 
         
     
