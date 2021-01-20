@@ -8,14 +8,14 @@ import os
 import numpy as np
 from sklearn import datasets
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly
+from utils import load_las, random_subsample,view_cloud_plotly,Early_stop
 from pyro.nn import DenseNN
 
 
 def fit_flow(points1,points2):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    n_samples=1000
+    n_samples=2000 #was 1000
     input_dim=3
     points1 = points1[:,:input_dim]
     points2 = points2[:,:input_dim] 
@@ -35,9 +35,8 @@ def fit_flow(points1,points2):
     (input_dim - split_dimension) * count_bins]
 
     split_dims = [2]*3
-    patience = 1000
-    not_improved_count = 0
-    n_blocks = 1
+    patience = 50
+    n_blocks = 2
     permutations =  [[1,0,2],[2,0,1],[2,1,0]]
 
 
@@ -74,10 +73,10 @@ def fit_flow(points1,points2):
 
 
     steps = 3000
-    early_stop_margin=0.005
-    optimizer = torch.optim.Adam(parameters, lr=5e-3)
-    min_loss = torch.tensor(1e+8)
-
+    early_stop_margin=0.01
+    optimizer = torch.optim.AdamW(parameters, lr=5e-3) #was 5e-3
+    
+    early_stop = Early_stop(patience=patience,min_perc_improvement=torch.tensor(early_stop_margin))
 
     for step in range(steps+1):
         X = random_subsample(points1_scaled,n_samples)
@@ -95,14 +94,13 @@ def fit_flow(points1,points2):
         optimizer.step()
         flow_dist.clear_cache()
 
-        if loss< -torch.abs(min_loss)*early_stop_margin + min_loss:
-            min_loss = loss
-            not_improved_count=0
-        else:
-            not_improved_count+=1
-            if not_improved_count>patience:
-                print(f"Ran out of patience at step: {step}")
-                break
+        stop_training = early_stop.log(loss.detach().cpu())
+
+        if stop_training:
+            print(f"Ran out of patience at step: {step}, Cur_loss: {loss}, Best: {early_stop.best_loss}")
+            
+            break
+
         
         
 

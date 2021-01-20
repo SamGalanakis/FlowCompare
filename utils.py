@@ -116,9 +116,9 @@ def extract_area(full_cloud,center,clearance,shape= 'cylinder'):
     return full_cloud[mask]
 
 def grid_split(points,grid_size,center = False,clearance = 20):
-    if not  isinstance(center,bool):
+    if isinstance(center,bool):
         center = points[:,:2].mean(axis=0)
-    points = points[:,:3]
+    #points = points[:,:3]
     
     center_x = center[0]
     center_y= center[1]
@@ -165,3 +165,33 @@ if __name__ == "__main__":
     knn_relator(points,points,np.random.randn(points.shape[0]))
     grid_split(points,2)
     
+class Early_stop:
+    def __init__(self,patience=50,min_perc_improvement=0):
+        self.patience = patience
+        self.min_perc_improvement = min_perc_improvement
+        self.not_improved = 0
+        self.best_loss = torch.tensor(1e+8)
+        self.last_loss = self.best_loss
+        self.step = -1
+        self.loss_hist = []
+    def log(self,loss):
+        self.loss_hist.append(loss)
+        self.step+=1
+        #Check if improvement by sufficient margin
+        if (torch.abs(self.last_loss-loss) > torch.abs(self.min_perc_improvement*self.last_loss)) & (self.last_loss<loss):
+            self.not_improved = 0
+        else:
+            self.not_improved +=1
+        
+        #Keep track of best loss
+        if loss < self.best_loss:
+            self.best_loss = loss
+        #Set last_loss
+        self.last_loss = loss
+        if self.not_improved > self.patience:
+            stop_training = True
+        else:
+            stop_training = False
+        return stop_training
+
+
