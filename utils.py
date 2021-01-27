@@ -43,7 +43,7 @@ def knn_relator(points,points_subsampled,feature,n_neighbors=1):
 
     
 
-def load_las(path,extra_dim_list=None):
+def load_las(path,extra_dim_list=None,scale_colors = True):
     input_las = File(path, mode='r')
     point_records = input_las.points.copy()
     las_scaleX = input_las.header.scale[0]
@@ -54,11 +54,15 @@ def load_las(path,extra_dim_list=None):
     las_offsetZ = input_las.header.offset[2]
 
     # calculating coordinates
+    if scale_colors:
+        color_div=65536
+    else:
+        color_div=1
     p_X = np.array((point_records['point']['X'] * las_scaleX) + las_offsetX)
     p_Y = np.array((point_records['point']['Y'] * las_scaleY) + las_offsetY)
     p_Z = np.array((point_records['point']['Z'] * las_scaleZ) + las_offsetZ)
     try:
-        points = np.vstack((p_X,p_Y,p_Z,input_las.red,input_las.green,input_las.blue)).T
+        points = np.vstack((p_X,p_Y,p_Z,input_las.red/color_div,input_las.green/color_div,input_las.blue/color_div)).T
     except:
         pass
     
