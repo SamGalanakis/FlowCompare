@@ -14,7 +14,7 @@ class SAModule(torch.nn.Module):
         super(SAModule, self).__init__()
         self.ratio = ratio
         self.r = r
-        self.conv = PointConv(nn)
+        self.conv = PointConv(nn,)
 
     def forward(self, x, pos, batch):
         idx = fps(pos, batch, ratio=self.ratio)
@@ -47,10 +47,12 @@ def MLP(channels, batch_norm=True):
 
 
 class Pointnet2(torch.nn.Module):
-    def __init__(self):
+    def __init__(self,feature_dim):
+        self.feature_dim = feature_dim
         super(Pointnet2, self).__init__()
 
-        self.sa1_module = SAModule(0.5, 0.2, MLP([3, 64, 64, 128]))
+        
+        self.sa1_module = SAModule(0.5, 0.2, MLP([3+feature_dim, 64, 64, 128]))
         self.sa2_module = SAModule(0.25, 0.4, MLP([128 + 3, 128, 128, 256]))
         self.sa3_module = GlobalSAModule(MLP([256 + 3, 256, 512, 1024]))
 
@@ -113,7 +115,7 @@ if __name__ == '__main__':
                              num_workers=6)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = Pointnet2().to(device)
+    model = Pointnet2(feature_dim=0).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     for epoch in range(1, 201):
