@@ -11,116 +11,117 @@ from utils import load_las, random_subsample,view_cloud_plotly,Early_stop,grid_s
 from pyro.nn import DenseNN
 from torch.utils.data import Dataset, DataLoader
 from models.point_encoders import PointnetEncoder
-from itertools import permutations 
+from itertools import permutations, combinations
 from tqdm import tqdm
 from models.pytorch_geometric_pointnet2 import Pointnet2
 from torch_geometric.nn import fps
 from dataloaders.ConditionalDataGrid import ConditionalDataGrid
 dirs = [r'D:\data\cycloData\multi_scan\2018',r'D:\data\cycloData\multi_scan\2020']
 
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def my_collate(batch):
     extract_0 = [item[0] for item in batch]
     extract_1 = [item[1] for item in batch]
     batch_id_0 = [torch.ones(x.shape[0],dtype=torch.long)*index for index,x in enumerate(extract_0)]
     batch_id_1 = [torch.ones(x.shape[0],dtype=torch.long)*index for index,x in enumerate(extract_1)]
-    extract_0 = torch.cat(extract_0)
-    extract_1 = torch.cat(extract_1)
-    batch_id_0 = torch.cat(batch_id_0)
-    batch_id_1 = torch.cat(batch_id_1)
+    extract_0 = torch.cat(extract_0).to(device)
+    extract_1 = torch.stack(extract_1).to(device)
+    batch_id_0 = torch.cat(batch_id_0).to(device)
+    batch_id_1 = torch.cat(batch_id_1).to(device)
     return [extract_0, batch_id_0, extract_1,batch_id_1]
 
-dataset=ConditionalDataGrid(dirs,out_path="save//processed_dataset",preload=True,subsample='random')
+
+sample_size=2000
+grid_square_size = 4
+clearance = 28
+preload=True
+min_points=sample_size
+subsample='random'
+
+dataset=ConditionalDataGrid(dirs,out_path="save//processed_dataset",preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dataloader = DataLoader(dataset,shuffle=True,batch_size=3,num_workers=0,prefetch_factor=2,collate_fn=my_collate)
-Pointnet2 = Pointnet2(feature_dim=3)
 
-for extract_0, batch_id_0, extract_1,batch_id_1 in dataloader:
-    x = extract_0[:,3:]
-    Pointnet2(x,extract_0[:,:3],batch_id_0)
-    pass
+
+# for extract_0, batch_id_0, extract_1,batch_id_1 in dataloader:
+#     x = extract_0[:,3:]
+#     Pointnet2(x,extract_0[:,:3],batch_id_0)
+#     pass
 
 input_dim = 6
 
 base_dist = dist.Normal(torch.zeros(input_dim).to(device), torch.ones(input_dim).to(device))
 count_bins = 16
-param_dims = lambda split_dimension: [(input_dim - split_dimension) * count_bins,
-(input_dim - split_dimension) * count_bins,
-(input_dim - split_dimension) * (count_bins - 1),
-(input_dim - split_dimension) * count_bins]
-
-split_dims = [2]*3
+context_dim= 32
 patience = 50
-n_blocks = 2
-permutations =  [[1,0,2],[2,0,1],[2,1,0]]
+n_layers = 20
+
+Pointnet2 = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim).to(device)
+permutations = [torch.randperm(input_dim) for x in range(n_layers-1)]
 
 
-class conditional_flow_block:
-    def __init__(self,input_dim,permutations,count_bins,split_dims,device):
+class conditional_spline_flow:
+    def __init__(self,input_dim,context_dim,permutations,count_bins,device):
         self.transformations = []
         self.parameters =[]
-        param_dims = lambda split_dimension: [(input_dim - split_dimension) * count_bins,
-        (input_dim - split_dimension) * count_bins,
-        (input_dim - split_dimension) * (count_bins - 1),
-        (input_dim - split_dimension) * count_bins]
-        for i, permutation in enumerate(permutations):
-            hypernet =  DenseNN(split_dims[i], [10*input_dim], param_dims(split_dims[i]))
-            spline = T.ConditionalSpline(input_dim = input_dim, split_dim = split_dims[i] , count_bins=count_bins,nn=hypernet)
+        
+        for i in range(len(permutations)+1):
+            hidden_dims = [128,128]
+            spline = T.conditional_spline(input_dim,context_dim,hidden_dims=hidden_dims,count_bins=count_bins,bound=1.0)
             spline = spline.to(device)
             self.parameters += spline.parameters()
             self.transformations.append(spline)
-            self.transformations.append(T.permute(input_dim,torch.LongTensor(permutations[i]).to(device),dim=-1))
+            if i<len(permutations): #Not try to add to the end
+                self.transformations.append(T.permute(input_dim,torch.LongTensor(permutations[i]).to(device),dim=-1))
     def save(self,path):
         torch.save(self,path)
 
-flow_blocks = [flow_block(input_dim,permutations,count_bins,split_dims,device) for x in range(n_blocks)]
-
-parameters = []
-transformations = []
-for flow_block_instance in flow_blocks:
-    parameters.extend(flow_block_instance.parameters)
-    transformations.extend(flow_block_instance.transformations)
+conditional_flow_layers = conditional_spline_flow(input_dim,context_dim,permutations,count_bins,device)
 
 
-flow_dist = dist.TransformedDistribution(base_dist, transformations)
+parameters = conditional_flow_layers.parameters
+transformations = conditional_flow_layers.transformations
 
 
 
+flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
 
-steps = 3000
+
+
+
+n_epochs = 3000
 early_stop_margin=0.01
 optimizer = torch.optim.AdamW(parameters, lr=5e-3) #was 5e-3
 
 early_stop = Early_stop(patience=patience,min_perc_improvement=torch.tensor(early_stop_margin))
 
-for step in range(steps+1):
-    X = random_subsample(points1_scaled,n_samples)
-    #dataset = torch.tensor(X, dtype=torch.float).to(device)
-    dataset=X
-    dataset += torch.randn_like(dataset)*0.01
-    optimizer.zero_grad()
-    loss = -flow_dist.log_prob(dataset).mean()
+for epoch in range(n_epochs):
+   for batch in tqdm(dataloader):
+       extract_0,enumeration_0,extract_1,enumeration_1 = batch
+       encodings = Pointnet2(extract_0[:,3:],extract_0[:,:3],enumeration_0)
+       loss=0
+       for batch_ind in range(extract_1.shape[0]):
+           encoding = encodings[batch_ind,:]
+           extract_1_points = extract_1[batch_ind,...]
+           loss += -flow_dist.condition(encoding).log_prob(extract_1_points).mean()
     
     
     
     
-    last_loss = loss
-    loss.backward()
-    optimizer.step()
-    flow_dist.clear_cache()
+       last_loss = loss
+       loss.backward()
+       optimizer.step()
+       flow_dist.clear_cache()
+   
+       stop_training = early_stop.log(loss.detach().cpu())
+   
+       if stop_training:
+           print(f"Ran out of patience at step: {step}, Cur_loss: {loss}, Best: {early_stop.best_loss}")
+           
+           break
 
-    stop_training = early_stop.log(loss.detach().cpu())
-
-    if stop_training:
-        print(f"Ran out of patience at step: {step}, Cur_loss: {loss}, Best: {early_stop.best_loss}")
-        
-        break
-
-    
     
 
-log_probs_1 = flow_dist.log_prob(points1_scaled).detach().cpu().numpy()
-log_probs_2 = flow_dist.log_prob(points2_scaled).detach().cpu().numpy()
 
 
     

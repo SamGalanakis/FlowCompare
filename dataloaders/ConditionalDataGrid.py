@@ -47,7 +47,7 @@ class ConditionalDataGrid(Dataset):
 
                 for square_index,extract_list in enumerate(list(zip(*grids))):
                     
-                    extract_list = [torch.from_numpy(x.astype(np.float32)) for x in extract_list if x.shape[0]>self.min_points]
+                    extract_list = [torch.from_numpy(x.astype(np.float32)) for x in extract_list if x.shape[0]>=self.min_points]
                     if len(extract_list)<2:
                         continue
                     extract_id +=1 # Iterate after continue to not skip ints\

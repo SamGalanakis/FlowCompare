@@ -47,18 +47,19 @@ def MLP(channels, batch_norm=True):
 
 
 class Pointnet2(torch.nn.Module):
-    def __init__(self,feature_dim):
+    def __init__(self,feature_dim,out_dim=32):
         self.feature_dim = feature_dim
+        self.out_dim = out_dim
         super(Pointnet2, self).__init__()
 
         
-        self.sa1_module = SAModule(0.5, 0.2, MLP([3+feature_dim, 64, 64, 128]))
+        self.sa1_module = SAModule(0.5, 0.2, MLP([3+self.feature_dim, 64, 64, 128]))
         self.sa2_module = SAModule(0.25, 0.4, MLP([128 + 3, 128, 128, 256]))
         self.sa3_module = GlobalSAModule(MLP([256 + 3, 256, 512, 1024]))
 
         self.lin1 = Lin(1024, 512)
         self.lin2 = Lin(512, 256)
-        self.lin3 = Lin(256, 10)
+        self.lin3 = Lin(256, self.out_dim)
 
     def forward(self, x,pos,batch):
         #sa0_out = (data.x, data.pos, data.batch)
@@ -72,7 +73,7 @@ class Pointnet2(torch.nn.Module):
         x = F.relu(self.lin2(x))
         x = F.dropout(x, p=0.5, training=self.training)
         x = self.lin3(x)
-        return F.log_softmax(x, dim=-1)
+        return x
 
 
     

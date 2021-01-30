@@ -41,7 +41,7 @@ def fit_flow(points1,points2):
 
 
     class flow_block:
-        def __init__(self,input_dim,permutations,count_bins,split_dims,device):
+        def __init__(self,input_dim,permutations,count_bins,split_dims,device,hidden_dims):
             self.transformations = []
             self.parameters =[]
             param_dims = lambda split_dimension: [(input_dim - split_dimension) * count_bins,
@@ -50,6 +50,7 @@ def fit_flow(points1,points2):
             (input_dim - split_dimension) * count_bins]
             for i, permutation in enumerate(permutations):
                 hypernet =  DenseNN(split_dims[i], [10*input_dim], param_dims(split_dims[i]))
+                
                 spline = T.SplineCoupling(input_dim = input_dim, split_dim = split_dims[i] , count_bins=count_bins,hypernet=hypernet)
                 spline = spline.to(device)
                 self.parameters += spline.parameters()
