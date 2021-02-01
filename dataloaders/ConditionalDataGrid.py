@@ -96,7 +96,7 @@ class ConditionalDataGrid(Dataset):
         tensor_1 = relevant_tensors[combination_entry[2]]
 
         overall_max = torch.max(tensor_0[:,:3].max(axis=0)[0],tensor_1[:,:3].max(axis=0)[0])
-        overall_min = torch.max(tensor_0[:,:3].min(axis=0)[0],tensor_1[:,:3].min(axis=0)[0])
+        overall_min = torch.min(tensor_0[:,:3].min(axis=0)[0],tensor_1[:,:3].min(axis=0)[0])
         tensor_0[:,:3] = (tensor_0[:,:3] - overall_min)/(overall_max-overall_min)
         tensor_1[:,:3] = (tensor_1[:,:3] - overall_min)/(overall_max-overall_min)
 
