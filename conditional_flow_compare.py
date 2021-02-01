@@ -122,14 +122,10 @@ def main():
             extract_0 = extract_0.to(device)
             enumeration_0 = enumeration_0.to(device)
             extract_1 = extract_1.to(device)
-            
             encodings = Pointnet2(extract_0[:,3:],extract_0[:,:3],enumeration_0)
-            with torch.cuda.amp.autocast(): #Encoder don't work with this.
-                loss=0
-                for batch_ind in range(extract_1.shape[0]):
-                    encoding = encodings[batch_ind,:]
-                    extract_1_points = extract_1[batch_ind,...]
-                    loss += -flow_dist.condition(encoding).log_prob(extract_1_points).mean()
+            with torch.cuda.amp.autocast():
+                loss = flow_dist.condition(encodings.unsqueeze(-2)).log_prob(extract_1).mean()
+
         
             scaler.scale(loss).backward()
 
