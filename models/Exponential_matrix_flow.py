@@ -107,6 +107,7 @@ class Exponential_matrix_coupling(TransformModule):
             x1, _ = x.split([self.split_dim, x.size(self.dim) - self.split_dim], dim=self.dim)
             w_mat, _ = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
             w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],input_dim-self.split_dim,input_dim-self.split_dim))
+        # Equivalent to : torch.log(torch.abs(torch.det(torch.matrix_exp(w_mat)))) but faster
         return self._trace(w_mat)
 
 
