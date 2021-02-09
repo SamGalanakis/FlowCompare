@@ -1,29 +1,38 @@
-import torch
-import pyro
-import pyro.distributions as dist
-import pyro.distributions.transforms as T
-import matplotlib.pyplot as plt
-import os
-import numpy as np
-from sklearn import datasets
-from utils import load_las, random_subsample,view_cloud_plotly, grid_split, knn_relator
-from pyro.nn import DenseNN
-from visualize_change_map import visualize_change
-from flow_fitter import fit_flow
-from tqdm import tqdm 
-import pandas as pd
-import laspy
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    import torch
+    import pyro
+    import pyro.distributions as dist
+    import pyro.distributions.transforms as T
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import os
+    import numpy as np
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    from utils import load_las, random_subsample,view_cloud_plotly,Early_stop,grid_split
+    from pyro.nn import DenseNN
+    from torch.utils.data import Dataset, DataLoader
+    from models.point_encoders import PointnetEncoder
+    from itertools import permutations, combinations
+    from tqdm import tqdm
+    from models.pytorch_geometric_pointnet2 import Pointnet2
+    from torch_geometric.nn import fps
+    from dataloaders.ConditionalDataGrid import ConditionalDataGrid
+    import wandb
 
-base_name = "double_block"
-#a= load_las(r"save\change_maps\output.las")
+
+
+
+model_id_dict = torch.load()
+model_id_dict = torch.load()
+model_id_dict = torch.load(torch.clip)
+
+
 grid_square_size = 4
-downsample_number = 100000
+
 
 points_1 = load_las(r"D:/data/cycloData/2016/0_5D4KVPBP.las")
 points_2 = load_las(r"D:/data/cycloData/2020/0_WE1NZ71I.las")
 
-clearance = 32
+clearance = 28
 print(f"Starting grid, {(2*clearance/grid_square_size)**2} squares of area {grid_square_size}")
 center = points_1[:,:2].mean(axis=0)
 grid_1 = grid_split(points_1,grid_square_size,clearance= clearance,center = center)
@@ -84,4 +93,3 @@ outfile.z = allz
 
 outfile.close()
 view_cloud_plotly(points_2_for_file,rgb_col,colorscale='Hot')
-#visualize_change(grid_1,grid_2,log_probs_list,log_probs_list)
