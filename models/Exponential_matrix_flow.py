@@ -23,6 +23,7 @@ class Exponential_matrix_coupling(TransformModule):
         self.nn = hypernet
         self.dim = dim
         self.event_dim = -dim
+        self.cached_w_mat = None
 
 
 
@@ -41,7 +42,16 @@ class Exponential_matrix_coupling(TransformModule):
         return y.squeeze(-1)
 
 
+    def _trace(self, M):
+        """
+        Calculates the trace of a matrix and is able to do broadcasting over batch
+        dimensions, unlike `torch.trace`.
 
+        Broadcasting is necessary for the conditional version of the transform,
+        where `self.weights` may have batch dimensions corresponding the batch
+        dimensions of the context variable that was conditioned upon.
+        """
+        return M.diagonal(dim1=-2, dim2=-1).sum(axis=-1)
 
 
 
@@ -60,8 +70,8 @@ class Exponential_matrix_coupling(TransformModule):
         # Now that we can split on an arbitrary dimension, we have do a bit of reshaping...
         w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
         w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],input_dim-self.split_dim,input_dim-self.split_dim))
-       
-     
+        self.cached_w_mat = w_mat
+
        
 
         y1 = x1
@@ -82,7 +92,7 @@ class Exponential_matrix_coupling(TransformModule):
         # Now that we can split on an arbitrary dimension, we have do a bit of reshaping...
         w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
         w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],input_dim-self.split_dim,input_dim-self.split_dim))
-
+        self.cached_w_mat = w_mat
         x2 = self._exp(y2-b_vec,-w_mat)
         return torch.cat([x1, x2], dim=self.dim)
 
@@ -90,15 +100,14 @@ class Exponential_matrix_coupling(TransformModule):
         """
         Calculates the elementwise determinant of the log jacobian
         """
-        x_old, y_old = self._cached_x_y
-        if self._cached_log_scale is not None and x is x_old and y is y_old:
-            log_scale = self._cached_log_scale
+
+        if self.cached_w_mat is not None:
+            w_mat = self.cached_w_mat
         else:
-            x1, x2 = x.split([self.split_dim, x.size(self.dim) - self.split_dim], dim=self.dim)
-            _, log_scale = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
-            log_scale = log_scale.reshape(log_scale.shape[:-1] + x2.shape[-self.event_dim:])
-            log_scale = clamp_preserve_gradients(log_scale, self.log_scale_min_clip, self.log_scale_max_clip)
-        return _sum_rightmost(log_scale, self.event_dim)
+            x1, _ = x.split([self.split_dim, x.size(self.dim) - self.split_dim], dim=self.dim)
+            w_mat, _ = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
+            w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],input_dim-self.split_dim,input_dim-self.split_dim))
+        return self._trace(w_mat)
 
 
 
@@ -181,3 +190,6 @@ if __name__ == '__main__':
     coupling = conditional_exponential_matrix_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=[128,256], split_dim=input_dim//2, dim=-1)
     conditioned_coupling = coupling.condition(context.unsqueeze(-2))
     y = conditioned_coupling._call(x)
+    x_after = conditioned_coupling._inverse(y)
+    print(torch.abs(x_after-x).max())
+    jac = conditioned_coupling.log_abs_det_jacobian(x,y)
