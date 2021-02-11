@@ -69,7 +69,11 @@ def load_las(path,extra_dim_list=None,scale_colors = True):
     return points
 
 def view_cloud_plotly(points,rgb=None,fig=None,point_size=2,show=True,axes=False,show_scale=False,colorscale=None):
-    if not isinstance(rgb,np.ndarray):
+    if  isinstance(points,torch.Tensor):
+        points = points.numpy()
+    if  isinstance(rgb,torch.Tensor):
+        rgb = rgb.numpy()
+    if  rgb is None:
         rgb = np.zeros_like(points)
     else:
         rgb = np.rint(np.divide(rgb,rgb.max(axis=0))*255).astype(np.uint8)
@@ -199,3 +203,41 @@ class Early_stop:
         return stop_training
 
 
+def save_las(pos,path,rgb=None,extra_feature=None,feature_name='Change'):
+    hdr = laspy.header.Header(point_format=2)
+
+    
+    outfile = laspy.file.File(path, mode="w", header=hdr)
+    if not isinstance( extra_feature,type(None)):
+        outfile.define_new_dimension(
+            name=feature_name,
+            data_type=10, # 
+            description = "Change metric"
+        )
+
+        outfile.writer.set_dimension('change',extra_feature)
+
+    allx = pos[:,0] # Four Points
+    ally = pos[:,1]
+    allz = pos[:,2]
+
+
+    xmin = np.floor(np.min(allx))
+    ymin = np.floor(np.min(ally))
+    zmin = np.floor(np.min(allz))
+
+    outfile.header.offset = [xmin,ymin,zmin]
+    outfile.header.scale = [0.001,0.001,0.001]
+
+    outfile.x = allx
+    outfile.y = ally
+    outfile.z = allz
+
+    if not isinstance( rgb,type(None)):
+        outfile.red = rgb[:,0]
+        outfile.green = rgb[:,1]
+        outfile.blue = rgb[:,2]
+        
+
+
+    outfile.close()

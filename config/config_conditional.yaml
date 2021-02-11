@@ -1,16 +1,30 @@
-
 sample_size:
   desc: Max number of points
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
   value: 20
+batchnorm:
+  desc: batchnorm between flow layers
+  value: True
+flow_type:
+  desc: What flow blocks to use
+  value: exponential_coupling
+hidden_dims:
+  desc: linear layers for flow coupling
+  value: [256,256]
+permuter_type:
+  desc: 'How to permute between coupling blocks'
+  value: random_permute
+scaler_type:
+  desc: How to scale after permute
+  value: Sigmoid_scaler
 early_stop_margin:
   desc: early_stop_margin
   value: 0.01
 count_bins:
   desc: bins for spline
-  value: 16
+  value: 64
 input_dim:
   desc: Dimension of pointcloud data
   value: 6
@@ -40,7 +54,7 @@ context_dim:
   value: 32
 batch_size:
   desc: Batch size
-  value: 15
+  value: 20
 lr:
   desc: Initial learning rate for optimizer
   value: 0.0005
@@ -49,7 +63,4 @@ save_model_path:
   value: save/conditional_flow_compare/
 num_workers:
   desc: num_workers
-  value: 0
-
-
-
+  value: 8

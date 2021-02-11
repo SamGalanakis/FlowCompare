@@ -1,4 +1,3 @@
-
 import os.path as osp
 import torch
 import torch.nn.functional as F
@@ -62,17 +61,24 @@ class Pointnet2(torch.nn.Module):
         self.lin3 = Lin(256, self.out_dim)
 
     def forward(self, x,pos,batch):
-        #sa0_out = (data.x, data.pos, data.batch)
         sa1_out = self.sa1_module(x,pos,batch)
+        assert all([not z.isnan().any() for z in sa1_out]), "nan"
         sa2_out = self.sa2_module(*sa1_out)
+        assert all([not z.isnan().any() for z in sa2_out]), "nan"
         sa3_out = self.sa3_module(*sa2_out)
+        assert all([not z.isnan().any() for z in sa3_out]), "nan"
         x, pos, batch = sa3_out
-
+        #print(x.min(),x.max())
         x = F.relu(self.lin1(x))
+        assert not x.isnan().any()
         x = F.dropout(x, p=0.5, training=self.training)
+        assert not x.isnan().any()
         x = F.relu(self.lin2(x))
+        assert not x.isnan().any()
         x = F.dropout(x, p=0.5, training=self.training)
+        assert not x.isnan().any()
         x = self.lin3(x)
+        assert not x.isnan().any()
         return x
 
 
@@ -123,4 +129,3 @@ if __name__ == '__main__':
         train(epoch)
         test_acc = test(test_loader)
         print('Epoch: {:03d}, Test: {:.4f}'.format(epoch, test_acc))
-

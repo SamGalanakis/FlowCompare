@@ -1,5 +1,3 @@
-
-
 def main():
 
 
@@ -7,51 +5,63 @@ def main():
     import pyro
     import pyro.distributions as dist
     import pyro.distributions.transforms as T
-    import matplotlib.pyplot as plt
-    import seaborn as sns
     import os
     import numpy as np
     from sklearn.preprocessing import StandardScaler, MinMaxScaler
     from utils import load_las, random_subsample,view_cloud_plotly,Early_stop,grid_split
     from pyro.nn import DenseNN
     from torch.utils.data import Dataset, DataLoader
-    from models.point_encoders import PointnetEncoder
     from itertools import permutations, combinations
     from tqdm import tqdm
     from models.pytorch_geometric_pointnet2 import Pointnet2
     from torch_geometric.nn import fps
     from dataloaders.ConditionalDataGrid import ConditionalDataGrid
     import wandb
+    import torch.multiprocessing as mp
+    from torch.nn.parallel import DataParallel
+    import torch.distributed as distributed
+    from torch_geometric.nn import DataParallel as geomDataParallel
+    from models.permuters import Full_matrix_combiner,Exponential_combiner
+    from models.scalers import Sigmoid_scaler
+    from models.batchnorm import BatchNorm
+    from torch.autograd import Variable, Function
+    from models.Exponential_matrix_flow import conditional_exponential_matrix_coupling
+    
 
-    dirs = [r'D:\data\cycloData\multi_scan\2018',r'D:\data\cycloData\multi_scan\2020']
+
+    dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = 'cuda:1'
 
-    config_path = "config/config_conditional.yaml"
+    config_path = "src/experimental/cityfusion/tasks/change_detection/change_detection_pipeline/src/config/config_conditional.yaml"
     wandb.init(project="flow_change",config = config_path)
-
-    sample_size= wandb.config['sample_size'] 
-    n_flow_layers = wandb.config['n_flow_layers']
-    early_stop_margin = wandb.config['early_stop_margin']
-    save_model_path = wandb.config['save_model_path']
-    count_bins = wandb.config['count_bins']
-    input_dim = wandb.config['input_dim']
+    config = wandb.config
+    sample_size= config['sample_size'] 
+    n_flow_layers = config['n_flow_layers']
+    early_stop_margin = config['early_stop_margin']
+    hidden_dims = config['hidden_dims']
+    save_model_path = config['save_model_path']
+    count_bins =config['count_bins']
+    input_dim = config['input_dim']
     batch_size = wandb.config['batch_size']
-    grid_square_size = wandb.config['grid_square_size']
-    clearance = wandb.config['clearance']
-    subsample = wandb.config['subsample']
-    patience = wandb.config['patience']
-    preload = wandb.config['preload']
-    min_points = wandb.config['min_points']
-    n_epochs = wandb.config['n_epochs']
-    context_dim = wandb.config['context_dim']
-    lr = wandb.config['lr']
-    num_workers = wandb.config['num_workers']
-
-
+    grid_square_size = config['grid_square_size']
+    clearance = config['clearance']
+    subsample = config['subsample']
+    patience = config['patience']
+    preload = config['preload']
+    min_points = config['min_points']
+    n_epochs = config['n_epochs']
+    context_dim = config['context_dim']
+    lr = config['lr']
+    num_workers = config['num_workers']
+    permuter_type = config['permuter_type']
+    scaler_type = config['scaler_type']
+    flow_type = config['flow_type']
+    batchnorm = config['batchnorm']
 
 
     torch.backends.cudnn.benchmark = True
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
     def my_collate(batch):
         extract_0 = [item[0] for item in batch]
         extract_1 = [item[1] for item in batch]
@@ -61,13 +71,21 @@ def main():
         batch_id_0 = torch.cat(batch_id_0)
         return [extract_0, batch_id_0, extract_1]
 
+  
 
-    dataset=ConditionalDataGrid(dirs,out_path="save//processed_dataset",preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
+
+
+
+
+
+    one_up_path = os.path.dirname(__file__)
+    out_path = os.path.join(one_up_path,"save/processed_dataset")
+    dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
+ 
+
     
-    if num_workers>0:
-        torch.multiprocessing.freeze_support()
-      
-    dataloader = DataLoader(dataset,shuffle=True,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True)
+    shuffle=True
+    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2)
 
 
 
@@ -75,32 +93,84 @@ def main():
     base_dist = dist.Normal(torch.zeros(input_dim).to(device), torch.ones(input_dim).to(device))
 
 
-    Pointnet2 = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim).to(device)
-    permutations = [torch.randperm(input_dim) for x in range(n_flow_layers-1)]
+    
 
 
-    class conditional_spline_flow:
-        def __init__(self,input_dim,context_dim,permutations,count_bins,device):
+
+
+
+        
+    #NEED TO DEAL WITH THE ORDER OF TRANSFORMATIONS AS TRAINING USED THE INVERS!!!
+    class Conditional_flow_layers:
+        def __init__(self,flow,n_flow_layers,input_dim,context_dim,count_bins,device,permuter,scaler,hidden_dims,batchnorm):
             self.transformations = []
             self.parameters =[]
+            self.n_flow_layers = n_flow_layers
+            self.hidden_dims = hidden_dims
+            self.batchnorm = batchnorm
             
-            for i in range(len(permutations)+1):
-                hidden_dims = [128,128]
-                spline = T.conditional_spline(input_dim,context_dim,hidden_dims=hidden_dims,count_bins=count_bins,bound=1.0)
-                spline = spline.to(device)
-                self.parameters += spline.parameters()
-                self.transformations.append(spline)
-                if i<len(permutations): #Not try to add to the end
-                    self.transformations.append(T.permute(input_dim,torch.LongTensor(permutations[i]).to(device),dim=-1))
+            for i in range(n_flow_layers):
+                flow_module = flow().to(device)
+                
+                self.parameters += flow_module.parameters()
+                self.transformations.append(flow_module)
+                
+                if i<(self.n_flow_layers-1): #Don't add at the end
+                    
+                    if self.batchnorm:
+                        bn_layer = BatchNorm(input_dim).to(device)
+                        self.parameters += bn_layer.parameters()
+                        self.transformations.append(bn_layer)
+                    
+                    #self.transformations.append(scaler())
+                    permuter_instance = permuter()
+                    try:
+                        permuter_instance = permuter_instance.to(device)
+                        self.parameters += permuter_instance.parameters()
+                    except:
+                        pass
+                    self.transformations.append(permuter_instance)
+                    
+            self.layer_name_list = [type(x).__name__ for x in self.transformations]
         def save(self,path):
             torch.save(self,path)
 
-    conditional_flow_layers = conditional_spline_flow(input_dim,context_dim,permutations,count_bins,device)
+    if flow_type == 'exponential_coupling':
+        flow = lambda  : conditional_exponential_matrix_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims, split_dim=None, dim=-1,device=device)
+    
+    if permuter_type == 'Exponential_combiner':
+        permuter = lambda : Exponential_combiner(input_dim)
+    elif permuter_type == 'Full_matrix_combiner':
+        permuter = lambda : Full_matrix_combiner(input_dim)
+    elif permuter_type == "random_permute":
+        permuter = lambda : T.Permute(torch.randperm(input_dim, dtype=torch.long).to(device))
+    else:
+        raise Exception(f'Invalid permuter type: {permuter_type}')
 
 
+
+    if scaler_type == 'Sigmoid_scaler':
+        scaler = Sigmoid_scaler
+    
+    
+    conditional_flow_layers = Conditional_flow_layers(flow,n_flow_layers,input_dim,context_dim,count_bins,device,permuter,scaler,hidden_dims,batchnorm)
+
+    
     parameters = conditional_flow_layers.parameters
+
+
+    Pointnet2 = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim)
+    Pointnet2 = Pointnet2.to(device).train()
+    wandb.watch(Pointnet2,log='gradients',log_freq=10)
+
+
     parameters+= Pointnet2.parameters()
     transformations = conditional_flow_layers.transformations
+    
+    for transform in transformations:
+        if isinstance(transform,torch.nn.Module):
+            transform.train()
+            wandb.watch(transform,log='gradients',log_freq=10)
 
 
 
@@ -110,42 +180,44 @@ def main():
     optimizer = torch.optim.AdamW(parameters, lr=lr) 
 
 
-    full_model = {'Encoder':Pointnet2,'transformations':transformations}
+    save_model_path = '/mnt/cm-nas03/synch/students/sam/saved_models'
+    
 
-    scaler = torch.cuda.amp.GradScaler()
+
+    torch.autograd.set_detect_anomaly(False)
     for epoch in range(n_epochs):
         print(f"Starting epoch: {epoch}")
-        for batch in tqdm(dataloader):
+        for batch_ind,batch in enumerate(tqdm(dataloader)):
             
-            optimizer.zero_grad(set_to_none=True)
+            optimizer.zero_grad()
             extract_0,enumeration_0,extract_1 = batch
+            if extract_0.isnan().any() or extract_1.isnan().any():
+                print('Found nan, skipping batch!')
+                continue
+            assert not extract_0.isnan().any(), "Nan in extract_0"
+            assert not extract_1.isnan().any(), "Nan in extract_1"
             extract_0 = extract_0.to(device)
             enumeration_0 = enumeration_0.to(device)
             extract_1 = extract_1.to(device)
             encodings = Pointnet2(extract_0[:,3:],extract_0[:,:3],enumeration_0) 
-            with torch.cuda.amp.autocast():
-                loss = -flow_dist.condition(encodings.unsqueeze(-2)).log_prob(extract_1).mean()
+            assert not encodings.isnan().any(), "Nan in encoder"
+            conditioned = flow_dist.condition(encodings.unsqueeze(-2))
+            loss = -conditioned.log_prob(extract_1).mean()
 
         
-            scaler.scale(loss).backward()
-
-        
-            
            
-            scaler.step(optimizer)
-            scaler.update()
+
+        
+            assert not loss.isnan(), "Nan loss!"
+            loss.backward()
+            #torch.nn.utils.clip_grad_value_(parameters,1.0)
+           
+            optimizer.step()
+           
             flow_dist.clear_cache()
             wandb.log({'loss':loss.item()})
-        torch.save(full_model,os.path.join(save_model_path,f"{epoch}_model_dict.pt"))
+            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
+                save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':Pointnet2.state_dict(),'flow_transformations':transformations}
+                torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
 if __name__ == "__main__":
     main()
-
-       
-            
-        
-
-    
-
-
-
-    

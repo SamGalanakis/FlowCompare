@@ -55,7 +55,7 @@ class ConditionalDataGrid(Dataset):
                         extract_list = [ random_subsample(x,sample_size) for x in extract_list]
                     elif self.subsample=='fps':
                         
-                        extract_list = [ x[fps(x,ratio = self.sample_size/x.shape[0])] if 0<self.sample_size/x.shape[0]<1 else x for x in extract_list]
+                        extract_list = [ x[fps(x.cuda(),ratio = self.sample_size/x.shape[0])] if 0<self.sample_size/x.shape[0]<1 else x for x in extract_list]
 
                     for scan_index,extract in enumerate(extract_list):
                         #save_name = f"{extract_id}_{scene_number}_{square_index}_{scan_index}_scan.npy"
@@ -73,10 +73,18 @@ class ConditionalDataGrid(Dataset):
         self.combinations_list=[]
         for id,path_list in self.extract_id_dict.items():
             index_permutations = list(permutations(range(len(path_list)),2))
+            #Insert all unique permutations
             for perm in index_permutations:
                 unique_combination = list(perm)
                 unique_combination.insert(0,id)
                 self.combinations_list.append(unique_combination)
+            #Also include pairs with themselves
+            for x in range(len(path_list)):
+                self.combinations_list.append([id,x,x])
+
+
+            
+        print('Loaded dataset!')
 
 
     def __len__(self):
