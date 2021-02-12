@@ -19,6 +19,10 @@ import matplotlib.image as image
 from scipy.spatial.transform import Rotation 
 from sklearn.neighbors import NearestNeighbors
 #Losses from original repo
+
+eps = 1e-8
+
+
 def loss_fun(z, z_ldetJ, prior_z, e, e_ldetJ, prior_e):
     ll_z = prior_z.log_prob(z.cpu()).to(z.device) + z_ldetJ
     ll_e = prior_e.log_prob(e.cpu()).to(e.device) + e_ldetJ
@@ -70,6 +74,7 @@ def load_las(path,extra_dim_list=None,scale_colors = True):
 
 def view_cloud_plotly(points,rgb=None,fig=None,point_size=2,show=True,axes=False,show_scale=False,colorscale=None):
     if  isinstance(points,torch.Tensor):
+        points = points.cpu()
         points = points.numpy()
     if  isinstance(rgb,torch.Tensor):
         rgb = rgb.numpy()
@@ -241,3 +246,10 @@ def save_las(pos,path,rgb=None,extra_feature=None,feature_name='Change'):
 
 
     outfile.close()
+
+def co_min_max(tensor_0,tensor_1):
+    overall_max = torch.max(tensor_0[:,:3].max(axis=0)[0],tensor_1[:,:3].max(axis=0)[0])
+    overall_min = torch.min(tensor_0[:,:3].min(axis=0)[0],tensor_1[:,:3].min(axis=0)[0])
+    tensor_0[:,:3] = (tensor_0[:,:3] - overall_min)/(overall_max-overall_min) + eps
+    tensor_1[:,:3] = (tensor_1[:,:3] - overall_min)/((overall_max-overall_min) + eps)
+    return tensor_0,tensor_1

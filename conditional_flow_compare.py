@@ -31,9 +31,9 @@ def main():
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = 'cuda:1'
 
-    config_path = "src/experimental/cityfusion/tasks/change_detection/change_detection_pipeline/src/config/config_conditional.yaml"
+
+    config_path = r"config/config_conditional_light.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     sample_size= config['sample_size'] 
@@ -63,12 +63,14 @@ def main():
     torch.backends.cudnn.benchmark = True
     
     def my_collate(batch):
-        extract_0 = [item[0] for item in batch]
-        extract_1 = [item[1] for item in batch]
+        extract_0 = [item[0][:,:input_dim] for item in batch]
+        extract_1 = [item[1][:,:input_dim] for item in batch]
         batch_id_0 = [torch.ones(x.shape[0],dtype=torch.long)*index for index,x in enumerate(extract_0)]
         extract_0 = torch.cat(extract_0)
         extract_1 = torch.stack(extract_1)
         batch_id_0 = torch.cat(batch_id_0)
+        if (extract_0.isnan().any() or extract_1.isnan().any()).item():
+            print()
         return [extract_0, batch_id_0, extract_1]
 
   
@@ -137,7 +139,12 @@ def main():
 
     if flow_type == 'exponential_coupling':
         flow = lambda  : conditional_exponential_matrix_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims, split_dim=None, dim=-1,device=device)
-    
+    elif flow_type == 'spline_coupling':
+        flow = lambda : T.conditional_spline(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3.0)
+    elif flow_type == 'spline_autoregressive':
+        flow = lambda : T.conditional_spline_autoregressive(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3)
+    else:
+        raise Exception(f'Invalid flow type: {flow_type}')
     if permuter_type == 'Exponential_combiner':
         permuter = lambda : Exponential_combiner(input_dim)
     elif permuter_type == 'Full_matrix_combiner':
@@ -180,7 +187,7 @@ def main():
     optimizer = torch.optim.AdamW(parameters, lr=lr) 
 
 
-    save_model_path = '/mnt/cm-nas03/synch/students/sam/saved_models'
+    save_model_path = r'save/conditional_flow_compare'
     
 
 
@@ -191,11 +198,10 @@ def main():
             
             optimizer.zero_grad()
             extract_0,enumeration_0,extract_1 = batch
-            if extract_0.isnan().any() or extract_1.isnan().any():
+            if (extract_0.isnan().any() or extract_1.isnan().any()).item():
                 print('Found nan, skipping batch!')
                 continue
-            assert not extract_0.isnan().any(), "Nan in extract_0"
-            assert not extract_1.isnan().any(), "Nan in extract_1"
+     
             extract_0 = extract_0.to(device)
             enumeration_0 = enumeration_0.to(device)
             extract_1 = extract_1.to(device)
@@ -210,7 +216,7 @@ def main():
         
             assert not loss.isnan(), "Nan loss!"
             loss.backward()
-            #torch.nn.utils.clip_grad_value_(parameters,1.0)
+            torch.nn.utils.clip_grad_value_(parameters,10)
            
             optimizer.step()
            

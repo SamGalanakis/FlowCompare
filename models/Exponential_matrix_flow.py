@@ -16,7 +16,7 @@ eps = 1e-8
 
 class Exponential_matrix_coupling(TransformModule):
 
-    def __init__(self, split_dim, hypernet,input_dim,device, dim=-1,iterations=8):
+    def __init__(self, split_dim, hypernet,input_dim,scale,shift,rescale,reshift, dim=-1,iterations=8):
         super().__init__(cache_size=1)
         if dim >= 0:
             raise ValueError("'dim' keyword argument must be negative")
@@ -27,10 +27,10 @@ class Exponential_matrix_coupling(TransformModule):
         self.event_dim = -dim
         self.cached_w_mat = None
         self.input_dim = input_dim
-        self.scale = nn.Parameter(torch.ones(1) / 8).to(device)
-        self.shift = nn.Parameter(torch.zeros(1)).to(device)
-        self.rescale = nn.Parameter(torch.ones(1)).to(device)
-        self.reshift = nn.Parameter(torch.zeros(1)).to(device)
+        self.scale = scale
+        self.shift = shift 
+        self.rescale = rescale
+        self.reshift = reshift
 
 
 
@@ -140,10 +140,14 @@ class Conditional_exponential_matrix_coupling(ConditionalTransformModule):
         self.nn = hypernet
         self.input_dim = input_dim
         self.device = device
+        self.scale = nn.Parameter(torch.ones(1) / 8).to(device)
+        self.shift = nn.Parameter(torch.zeros(1)).to(device)
+        self.rescale = nn.Parameter(torch.ones(1)).to(device)
+        self.reshift = nn.Parameter(torch.zeros(1)).to(device)
 
     def condition(self, context):
         cond_nn = partial(self.nn, context=context)
-        return Exponential_matrix_coupling(self.split_dim, cond_nn, input_dim = self.input_dim,device = self.device)
+        return Exponential_matrix_coupling(self.split_dim, cond_nn, input_dim = self.input_dim,scale = self.scale,shift= self.shift,rescale = self.rescale,reshift = self.reshift)
 
 
 
@@ -192,7 +196,8 @@ def conditional_exponential_matrix_coupling(input_dim, context_dim,device, hidde
     nn = ConditionalDenseNN(input_dim = split_dim * extra_dims,
                             context_dim =  context_dim, 
                             hidden_dims = hidden_dims,
-                            param_dims = [(event_shape[dim]-split_dim)**2,event_shape[dim]-split_dim]
+                            param_dims = [(event_shape[dim]-split_dim)**2,event_shape[dim]-split_dim],
+                            nonlinearity= torch.nn.ELU()
                             )
     return Conditional_exponential_matrix_coupling(split_dim, nn,input_dim = input_dim,device = device)
 

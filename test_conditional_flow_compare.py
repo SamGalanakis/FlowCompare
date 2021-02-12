@@ -6,7 +6,7 @@ import pyro.distributions.transforms as T
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,Early_stop,grid_split,knn_relator,save_las,extract_area
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,knn_relator,save_las,extract_area,co_min_max
 from pyro.nn import DenseNN
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
@@ -25,16 +25,18 @@ import laspy
 
 
 
-device = 'cuda:1'
+device = 'cuda'
+
+
 
 def ready_module(transform):
     try:
-        transfrom = transform.to(device) 
+        transform = transform.to(device) 
     except: 
         pass
    
     try:
-        transfrom = transform.eval()
+        transform = transform.train()
     except: 
         pass
     return transform
@@ -42,8 +44,8 @@ def ready_module(transform):
 
 grid_square_size = 4
 context_dim =32
-input_dim = 6
-model_dict_path = "/mnt/cm-nas03/synch/students/sam/saved_models/0_6700_model_dict.pt"
+input_dim = 3
+model_dict_path = r"save\conditional_flow_compare\0_16068_model_dict.pt"
 model_dict = torch.load(model_dict_path)
 transformations = model_dict['flow_transformations']
 transformations = [ready_module(x) for x in transformations]
@@ -55,19 +57,22 @@ Pointnet2 = Pointnet2.to(device)
 base_dist = dist.Normal(torch.zeros(input_dim).to(device), torch.ones(input_dim).to(device))
 flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
 
-points_0 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2016/0_5D4KVPBP.las")
-points_1 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2020/0_WE1NZ71I.las")
+points_0 = load_las(r"D:\data\cycloData\2016\0_5D4KVPBP.las")[:,:input_dim]
+points_1 = load_las(r"D:\data\cycloData\2020\0_WE1NZ71I.las")[:,:input_dim]
 sign_point = np.array([86967.46,439138.8])
-scaler = MinMaxScaler()
+
 sign_0 = extract_area(points_0,sign_point,1.5,'square')
-sign_0 = torch.from_numpy(scaler.fit_transform(sign_0).astype(dtype=np.float32)).to(device)
-scaler = MinMaxScaler()
+sign_0 = torch.from_numpy(sign_0.astype(dtype=np.float32)).to(device)
+
 sign_1 = extract_area(points_1,sign_point,1.5,'square')
-sign_1 =  torch.from_numpy(scaler.fit_transform(sign_1).astype(dtype=np.float32)).to(device)
-#view_cloud_plotly(points[:,:3],points[:,3:])
+sign_1= torch.from_numpy(sign_1.astype(dtype=np.float32)).to(device)
+sign_0, sign_1 = co_min_max(sign_0,sign_1)
 batch_id_0 = torch.zeros(sign_0.shape[0],dtype=torch.long).to(device)
-encoding = Pointnet2(sign_0[:,:3],sign_0[:,3:],batch_id_0)
-samples = flow_dist.condition(encoding.unsqueeze(-2)).sample([2000])
+encoding = Pointnet2(None,sign_0[:,:3],batch_id_0)
+encoded = flow_dist.condition(encoding.unsqueeze(-2))
+samples = encoded.sample([2000]).squeeze()
+samples = random_subsample(samples,10000)
+view_cloud_plotly(samples[:,:3])
 
 clearance = 12
 print(f"Starting grid, {(2*clearance/grid_square_size)**2} squares of area {grid_square_size}")

@@ -3,14 +3,14 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,Early_stop,grid_split
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max
 from torch.utils.data import Dataset, DataLoader
 from itertools import permutations 
 from torch_geometric.nn import fps
 from tqdm import tqdm
 
 
-
+eps = 1e-8
 
 
 
@@ -102,10 +102,5 @@ class ConditionalDataGrid(Dataset):
         relevant_tensors = self.extract_id_dict[combination_entry[0]]
         tensor_0 = relevant_tensors[combination_entry[1]]
         tensor_1 = relevant_tensors[combination_entry[2]]
-
-        overall_max = torch.max(tensor_0[:,:3].max(axis=0)[0],tensor_1[:,:3].max(axis=0)[0])
-        overall_min = torch.min(tensor_0[:,:3].min(axis=0)[0],tensor_1[:,:3].min(axis=0)[0])
-        tensor_0[:,:3] = (tensor_0[:,:3] - overall_min)/(overall_max-overall_min)
-        tensor_1[:,:3] = (tensor_1[:,:3] - overall_min)/(overall_max-overall_min)
-
+        tensor_0[:,:3], tensor_1[:,:3] = co_min_max(tensor_0[:,:3],tensor_1[:,:3])
         return tensor_0,tensor_1
