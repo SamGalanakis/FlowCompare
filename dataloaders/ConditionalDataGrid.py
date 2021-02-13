@@ -49,7 +49,7 @@ class ConditionalDataGrid(Dataset):
                 for square_index,extract_list in enumerate(list(zip(*grids))):
                     
                     extract_list = [torch.from_numpy(x.astype(np.float32)) for x in extract_list if x.shape[0]>=self.min_points]
-                    extract_list = [x for x in extract_list if (x.max()[:,1]-x.min()[:,2])>0.5] #Filter out total flat ground
+                    extract_list = [x for x in extract_list if (x[:,2].max()-x[:,2].min())>0.5] #Filter out total flat ground
                     if len(extract_list)<2:
                         continue
                     extract_id +=1 # Iterate after continue to not skip ints
@@ -60,11 +60,11 @@ class ConditionalDataGrid(Dataset):
                         extract_list = [ x[fps(x.cuda(),ratio = self.sample_size/x.shape[0])] if 0<self.sample_size/x.shape[0]<1 else x for x in extract_list]
 
                     for scan_index,extract in enumerate(extract_list):
-                        #save_name = f"{extract_id}_{scene_number}_{square_index}_{scan_index}_scan.npy"
+                        
                         if not extract_id in self.extract_id_dict:
                             self.extract_id_dict[extract_id]=[]
                         self.extract_id_dict[extract_id].append(extract)
-                        #np.save(os.path.join(self.out_path,save_name),extract,allow_pickle=True)
+                        
             save_path  = os.path.join(self.out_path,self.save_name)
             print(f"Saving to {save_path}!")
             torch.save(self.extract_id_dict,save_path)

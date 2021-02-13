@@ -16,7 +16,7 @@ eps = 1e-8
 
 class Exponential_matrix_coupling(TransformModule):
 
-    def __init__(self, split_dim, hypernet,input_dim,scale,shift,rescale,reshift, dim=-1,iterations=8):
+    def __init__(self, split_dim, hypernet,input_dim,scale,shift,rescale,reshift, dim=-1,iterations=10):
         super().__init__(cache_size=1)
         if dim >= 0:
             raise ValueError("'dim' keyword argument must be negative")

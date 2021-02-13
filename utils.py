@@ -1,10 +1,7 @@
 import torch
-from vedo import show, Points,settings
 import numpy as np
 import time
-import pylas 
 from laspy.file import File
-from pyntcloud import PyntCloud
 import pandas as pd
 import plotly.graph_objects as go
 from matplotlib import widgets

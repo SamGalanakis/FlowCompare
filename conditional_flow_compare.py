@@ -33,7 +33,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-    config_path = r"config/config_conditional_light.yaml"
+    config_path = r"config/config_conditional.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     sample_size= config['sample_size'] 
