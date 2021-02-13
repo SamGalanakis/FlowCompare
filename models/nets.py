@@ -94,4 +94,3 @@ class DenseNN(ConditionalDenseNN):
 
     def forward(self, x):
         return self._forward(x)
-
