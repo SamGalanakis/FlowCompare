@@ -2,38 +2,96 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-def activation_func_selector(activation):
-    return  nn.ModuleDict([
-        ['relu', nn.ReLU(inplace=True)],
-        ['leaky_relu', nn.LeakyReLU(negative_slope=0.1, inplace=True)],
-        ['none', nn.Identity()]
-    ])[activation]
+class ConditionalDenseNN(torch.nn.Module):
 
-
-
-class ResBlock(nn.Module):
-    def __init__(self,n_neurons,n_layers=1,activation='leaky_relu'):
+    def __init__(
+            self,
+            input_dim,
+            context_dim,
+            hidden_dims,
+            param_dims=[1, 1],
+            nonlinearity=torch.nn.ReLU(),
+            residual_connections=True):
         super().__init__()
-        self.n_neurons = n_neurons
-        self.n_layers = n_layers
-        self.activation=activation
-        self.activation_func = activation_func_selector('leaky_relu')
 
-        component_list = [nn.Linear(n_neurons,n_neurons),self.activation_func]*(n_layers-1)
-        component_list.append(nn.Linear(n_neurons,n_neurons))
-        self.linear_layers = nn.Sequential(*component_list)
-        
-        
-    def forward(self,x):
-        x_skip = x
-        x = self.linear_layers(x)
-        x+=x_skip
-        x = self.activation_func(x)
-        return x
+        self.input_dim = input_dim
+        self.context_dim = context_dim
+        self.hidden_dims = hidden_dims
+        self.param_dims = param_dims
+        self.count_params = len(param_dims)
+        self.output_multiplier = sum(param_dims)
+        self.residual_connections = residual_connections
+
+        # Calculate the indices on the output corresponding to each parameter
+        ends = torch.cumsum(torch.tensor(param_dims), dim=0)
+        starts = torch.cat((torch.zeros(1).type_as(ends), ends[:-1]))
+        self.param_slices = [slice(s.item(), e.item()) for s, e in zip(starts, ends)]
+
+        # Create masked layers
+        layers = [torch.nn.Linear(input_dim+context_dim, hidden_dims[0])]
+        for i in range(1, len(hidden_dims)):
+            layers.append(torch.nn.Linear(hidden_dims[i - 1], hidden_dims[i]))
+        layers.append(torch.nn.Linear(hidden_dims[-1], self.output_multiplier))
+
+        self.layers = torch.nn.ModuleList(layers)
+
+        # Save the nonlinearity
+        self.f = nonlinearity
+
+    def forward(self, x, context):
+        # We must be able to broadcast the size of the context over the input
+        context = context.expand(x.size()[:-1]+(context.size(-1),))
+
+        x = torch.cat([context, x], dim=-1)
+        return self._forward(x)
+
+    def _forward(self, x): 
+        h = x
+        residual = None
+        for index, layer in enumerate(self.layers[:-1]):
+            if ((index % 2) != 0) and index>1:
+                h = layer(h)             
+                h = self.f(residual+h)
+            elif index ==0:
+                h = self.f(layer(h))
+            else:
+                residual = h
+                h = self.f(layer(h))
+        h = self.layers[-1](h)
+
+        # Shape the output, squeezing the parameter dimension if all ones
+        if self.output_multiplier == 1:
+            return h
+        else:
+            h = h.reshape(list(x.size()[:-1]) + [self.output_multiplier])
+
+            if self.count_params == 1:
+                return h
+
+            else:
+                return tuple([h[..., s] for s in self.param_slices])
 
 
-if __name__ == '__main__':
-    a = ResBlock(5,2)
-    b = torch.randn(5)
-    a(b)
-    print(a)
+
+class DenseNN(ConditionalDenseNN):
+   
+
+    def __init__(
+            self,
+            input_dim,
+            hidden_dims,
+            param_dims=[1, 1],
+            nonlinearity=torch.nn.ReLU()
+            ,residual_connections=True):
+        super(DenseNN, self).__init__(
+            input_dim,
+            0,
+            hidden_dims,
+            param_dims=param_dims,
+            nonlinearity=nonlinearity,
+            residual_connections=residual_connections
+        )
+
+    def forward(self, x):
+        return self._forward(x)
+

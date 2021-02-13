@@ -10,7 +10,7 @@ from pyro.distributions.conditional import ConditionalTransformModule
 from pyro.distributions.torch_transform import TransformModule
 from pyro.distributions.transforms.utils import clamp_preserve_gradients
 from pyro.distributions.util import copy_docs_from
-from pyro.nn import ConditionalDenseNN, DenseNN
+from nets import ConditionalDenseNN, DenseNN
 
 eps = 1e-8
 

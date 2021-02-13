@@ -9,11 +9,11 @@ def main():
     import numpy as np
     from sklearn.preprocessing import StandardScaler, MinMaxScaler
     from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,PointTester
-    from pyro.nn import DenseNN
     from torch.utils.data import Dataset, DataLoader
     from itertools import permutations, combinations
     from tqdm import tqdm
     from models.pytorch_geometric_pointnet2 import Pointnet2
+    from models.nets import ConditionalDenseNN, DenseNN
     from torch_geometric.nn import fps
     from dataloaders.ConditionalDataGrid import ConditionalDataGrid
     import wandb
@@ -26,7 +26,7 @@ def main():
     from models.batchnorm import BatchNorm
     from torch.autograd import Variable, Function
     from models.Exponential_matrix_flow import conditional_exponential_matrix_coupling
-   
+    
 
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
