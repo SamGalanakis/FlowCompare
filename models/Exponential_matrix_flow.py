@@ -5,14 +5,15 @@ import torch
 from torch import nn
 from torch.distributions import constraints
 from torch.distributions.utils import _sum_rightmost
-
+import sys
 from pyro.distributions.conditional import ConditionalTransformModule
 from pyro.distributions.torch_transform import TransformModule
 from pyro.distributions.transforms.utils import clamp_preserve_gradients
 from pyro.distributions.util import copy_docs_from
-from nets import ConditionalDenseNN, DenseNN
+sys.path.append(".")
+from models.nets import ConditionalDenseNN, DenseNN
 
-eps = 1e-8
+eps = 1.2e-07
 
 class Exponential_matrix_coupling(TransformModule):
 

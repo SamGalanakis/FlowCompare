@@ -69,8 +69,6 @@ def main():
         extract_0 = torch.cat(extract_0)
         extract_1 = torch.stack(extract_1)
         batch_id_0 = torch.cat(batch_id_0)
-        if (extract_0.isnan().any() or extract_1.isnan().any()).item():
-            print()
         return [extract_0, batch_id_0, extract_1]
 
   
@@ -83,9 +81,8 @@ def main():
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,"save/processed_dataset")
     dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
- 
-    for x in range(len(dataset)):
-        dataset[x]
+    dataset[51]
+    
     
     shuffle=True
     dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2)

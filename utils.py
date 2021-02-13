@@ -17,7 +17,7 @@ from scipy.spatial.transform import Rotation
 from sklearn.neighbors import NearestNeighbors
 #Losses from original repo
 
-eps = 1e-8
+eps = 1.2e-07
 
 
 def loss_fun(z, z_ldetJ, prior_z, e, e_ldetJ, prior_e):
@@ -247,8 +247,9 @@ def save_las(pos,path,rgb=None,extra_feature=None,feature_name='Change'):
 def co_min_max(tensor_0,tensor_1):
     overall_max = torch.max(tensor_0[:,:3].max(axis=0)[0],tensor_1[:,:3].max(axis=0)[0])
     overall_min = torch.min(tensor_0[:,:3].min(axis=0)[0],tensor_1[:,:3].min(axis=0)[0])
-    tensor_0[:,:3] = (tensor_0[:,:3] - overall_min)/(overall_max-overall_min) + eps
-    tensor_1[:,:3] = (tensor_1[:,:3] - overall_min)/((overall_max-overall_min) + eps)
+    denominator = overall_max-overall_min  + eps
+    tensor_0[:,:3] = (tensor_0[:,:3] - overall_min)/denominator
+    tensor_1[:,:3] = (tensor_1[:,:3] - overall_min)/denominator
 
     if (tensor_0.isnan().any() or tensor_1.isnan().any()).item():
             raise Exception("")
