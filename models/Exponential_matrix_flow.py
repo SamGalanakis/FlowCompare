@@ -151,7 +151,7 @@ class Conditional_exponential_matrix_coupling(ConditionalTransformModule):
 
 
 
-def exponential_matrix_coupling(input_dim, hidden_dims=None, split_dim=None, dim=-1, **kwargs):
+def exponential_matrix_coupling(input_dim,device, hidden_dims=None, split_dim=None, dim=-1, **kwargs):
 
     if not isinstance(input_dim, int):
         if len(input_dim) != -dim:
@@ -172,7 +172,11 @@ def exponential_matrix_coupling(input_dim, hidden_dims=None, split_dim=None, dim
                        hidden_dims,
                        [(event_shape[dim] - split_dim) * extra_dims,
                         (event_shape[dim] - split_dim) * extra_dims])
-    return Exponential_matrix_coupling(split_dim, hypernet, dim=dim, input_dim=input_dim)
+    scale = nn.Parameter(torch.ones(1) / 8).to(device)
+    shift = nn.Parameter(torch.zeros(1)).to(device)
+    rescale = nn.Parameter(torch.ones(1)).to(device)
+    reshift = nn.Parameter(torch.zeros(1)).to(device)
+    return Exponential_matrix_coupling(split_dim, hypernet, dim=dim, input_dim=input_dim,scale = scale,shift= shift,rescale = rescale,reshift = reshift)
 
 
 

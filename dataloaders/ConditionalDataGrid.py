@@ -44,13 +44,15 @@ class ConditionalDataGrid(Dataset):
                 full_clouds = [load_las(path) for path in path_list]
                 center = full_clouds[0][:,:2].mean(axis=0)
                 grids = [grid_split(cloud,self.grid_square_size,center=center,clearance = self.clearance) for cloud in full_clouds]
+                
 
                 for square_index,extract_list in enumerate(list(zip(*grids))):
                     
                     extract_list = [torch.from_numpy(x.astype(np.float32)) for x in extract_list if x.shape[0]>=self.min_points]
+                    extract_list = [x for x in extract_list if (x.max()[:,1]-x.min()[:,2])>0.5] #Filter out total flat ground
                     if len(extract_list)<2:
                         continue
-                    extract_id +=1 # Iterate after continue to not skip ints\
+                    extract_id +=1 # Iterate after continue to not skip ints
                     if self.subsample=='random':
                         extract_list = [ random_subsample(x,sample_size) for x in extract_list]
                     elif self.subsample=='fps':
@@ -102,5 +104,8 @@ class ConditionalDataGrid(Dataset):
         relevant_tensors = self.extract_id_dict[combination_entry[0]]
         tensor_0 = relevant_tensors[combination_entry[1]]
         tensor_1 = relevant_tensors[combination_entry[2]]
+        if (tensor_0.isnan().any() or tensor_1.isnan().any()).item():
+            raise Exception("")
         tensor_0[:,:3], tensor_1[:,:3] = co_min_max(tensor_0[:,:3],tensor_1[:,:3])
+        
         return tensor_0,tensor_1

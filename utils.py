@@ -252,4 +252,32 @@ def co_min_max(tensor_0,tensor_1):
     overall_min = torch.min(tensor_0[:,:3].min(axis=0)[0],tensor_1[:,:3].min(axis=0)[0])
     tensor_0[:,:3] = (tensor_0[:,:3] - overall_min)/(overall_max-overall_min) + eps
     tensor_1[:,:3] = (tensor_1[:,:3] - overall_min)/((overall_max-overall_min) + eps)
+
+    if (tensor_0.isnan().any() or tensor_1.isnan().any()).item():
+            raise Exception("")
+
+
     return tensor_0,tensor_1
+
+class PointTester:
+    def __init__(self,points_0,points_1,save_path,device,samples=10000):
+        self.points_0 = points_0
+        self.points_1 = points_1
+        self.batch_id_0 = torch.zeros(points_0.shape[0],dtype=torch.long).to(device)
+        self.save_path = save_path
+        self.samples= samples
+        self.device = device
+
+        
+
+    def generate_sample(self,encoder,flow,file_name,show=False):
+        if self.points_0.shape[-1]==3:
+            features = None
+        else:
+            features = self.points_0[:,3:]
+        with torch.no_grad():
+            encoding = encoder(features,self.points_0[:,:3],self.batch_id_0)
+            encoded = flow.condition(encoding.unsqueeze(-2))
+            samples = encoded.sample([self.samples]).squeeze()
+        fig = view_cloud_plotly(samples[:,:3],show = show)
+        fig.write_html(os.path.join(self.save_path,file_name))

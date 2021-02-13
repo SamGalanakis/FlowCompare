@@ -8,7 +8,7 @@ def main():
     import os
     import numpy as np
     from sklearn.preprocessing import StandardScaler, MinMaxScaler
-    from utils import load_las, random_subsample,view_cloud_plotly,Early_stop,grid_split
+    from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,PointTester
     from pyro.nn import DenseNN
     from torch.utils.data import Dataset, DataLoader
     from itertools import permutations, combinations
@@ -26,7 +26,7 @@ def main():
     from models.batchnorm import BatchNorm
     from torch.autograd import Variable, Function
     from models.Exponential_matrix_flow import conditional_exponential_matrix_coupling
-    
+   
 
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
@@ -84,7 +84,8 @@ def main():
     out_path = os.path.join(one_up_path,"save/processed_dataset")
     dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
  
-
+    for x in range(len(dataset)):
+        dataset[x]
     
     shuffle=True
     dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2)
@@ -166,12 +167,12 @@ def main():
     parameters = conditional_flow_layers.parameters
 
 
-    Pointnet2 = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim)
-    Pointnet2 = Pointnet2.to(device).train()
-    wandb.watch(Pointnet2,log='gradients',log_freq=10)
+    pointnet2 = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim)
+    pointnet2 = pointnet2.to(device).train()
+    wandb.watch(pointnet2,log='gradients',log_freq=10)
 
 
-    parameters+= Pointnet2.parameters()
+    parameters+= pointnet2.parameters()
     transformations = conditional_flow_layers.transformations
     
     for transform in transformations:
@@ -191,6 +192,25 @@ def main():
     
 
 
+    points_0 = load_las(r"D:\data\cycloData\2016\0_5D4KVPBP.las")[:,:input_dim]
+    points_1 = load_las(r"D:\data\cycloData\2020\0_WE1NZ71I.las")[:,:input_dim]
+    sign_point = np.array([86967.46,439138.8])
+
+    sign_0 = extract_area(points_0,sign_point,1.5,'square')
+    sign_0 = torch.from_numpy(sign_0.astype(dtype=np.float32)).to(device)
+
+    sign_1 = extract_area(points_1,sign_point,1.5,'square')
+    sign_1= torch.from_numpy(sign_1.astype(dtype=np.float32)).to(device)
+    sign_0, sign_1 = co_min_max(sign_0,sign_1)
+
+
+    point_tester = PointTester(sign_0,sign_1,r"save/test_samples",device,samples=3000)
+
+
+
+
+
+
     torch.autograd.set_detect_anomaly(False)
     for epoch in range(n_epochs):
         print(f"Starting epoch: {epoch}")
@@ -205,7 +225,7 @@ def main():
             extract_0 = extract_0.to(device)
             enumeration_0 = enumeration_0.to(device)
             extract_1 = extract_1.to(device)
-            encodings = Pointnet2(extract_0[:,3:],extract_0[:,:3],enumeration_0) 
+            encodings = pointnet2(extract_0[:,3:],extract_0[:,:3],enumeration_0) 
             assert not encodings.isnan().any(), "Nan in encoder"
             conditioned = flow_dist.condition(encodings.unsqueeze(-2))
             loss = -conditioned.log_prob(extract_1).mean()
@@ -224,6 +244,7 @@ def main():
             wandb.log({'loss':loss.item()})
             if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
                 save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':Pointnet2.state_dict(),'flow_transformations':transformations}
+                point_tester.generate_sample(pointnet2,flow_dist,f"sample_{batch_ind}.html",show=False)
                 torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
 if __name__ == "__main__":
     main()

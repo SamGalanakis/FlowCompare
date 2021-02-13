@@ -6,7 +6,7 @@ import pyro.distributions.transforms as T
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,knn_relator,save_las,extract_area,co_min_max
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,knn_relator,save_las,extract_area,co_min_max,PointTester
 from pyro.nn import DenseNN
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
@@ -51,11 +51,15 @@ transformations = model_dict['flow_transformations']
 transformations = [ready_module(x) for x in transformations]
 
 
-Pointnet2 = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim).eval()
-Pointnet2.load_state_dict(model_dict['encoder_dict'])
-Pointnet2 = Pointnet2.to(device)
+pointnet2 = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim).eval()
+pointnet2.load_state_dict(model_dict['encoder_dict'])
+pointnet2 = pointnet2.to(device)
 base_dist = dist.Normal(torch.zeros(input_dim).to(device), torch.ones(input_dim).to(device))
 flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
+
+
+
+
 
 points_0 = load_las(r"D:\data\cycloData\2016\0_5D4KVPBP.las")[:,:input_dim]
 points_1 = load_las(r"D:\data\cycloData\2020\0_WE1NZ71I.las")[:,:input_dim]
@@ -67,13 +71,12 @@ sign_0 = torch.from_numpy(sign_0.astype(dtype=np.float32)).to(device)
 sign_1 = extract_area(points_1,sign_point,1.5,'square')
 sign_1= torch.from_numpy(sign_1.astype(dtype=np.float32)).to(device)
 sign_0, sign_1 = co_min_max(sign_0,sign_1)
-batch_id_0 = torch.zeros(sign_0.shape[0],dtype=torch.long).to(device)
-encoding = Pointnet2(None,sign_0[:,:3],batch_id_0)
-encoded = flow_dist.condition(encoding.unsqueeze(-2))
-samples = encoded.sample([2000]).squeeze()
-samples = random_subsample(samples,10000)
-view_cloud_plotly(samples[:,:3])
 
+
+
+
+point_tester = PointTester(sign_0,sign_1,r"save/test_samples",device,samples=3000)
+point_tester.generate_sample(pointnet2,flow_dist,f"test_sample.html",show=False)
 clearance = 12
 print(f"Starting grid, {(2*clearance/grid_square_size)**2} squares of area {grid_square_size}")
 center = points_1[:,:2].mean(axis=0)
