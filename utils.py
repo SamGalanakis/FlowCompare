@@ -272,11 +272,16 @@ class PointTester:
     def generate_sample(self,encoder,flow,file_name,show=False):
         if self.points_0.shape[-1]==3:
             features = None
+            
         else:
             features = self.points_0[:,3:]
+            
         with torch.no_grad():
             encoding = encoder(features,self.points_0[:,:3],self.batch_id_0)
             encoded = flow.condition(encoding.unsqueeze(-2))
             samples = encoded.sample([self.samples]).squeeze()
-        fig = view_cloud_plotly(samples[:,:3],show = show)
+        rgb = None
+        if samples.shape[-1]==6:
+            rgb = samples[:,3:]
+        fig = view_cloud_plotly(samples[:,:3],rgb,show = show)
         fig.write_html(os.path.join(self.save_path,file_name))

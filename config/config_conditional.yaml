@@ -6,13 +6,13 @@ n_flow_layers:
   value: 18
 batchnorm:
   desc: batchnorm between flow layers
-  value: True
+  value: False
 flow_type:
   desc: What flow blocks to use
   value: exponential_coupling
 hidden_dims:
   desc: linear layers for flow coupling
-  value: [400,400,400,400]
+  value: [512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
   value: random_permute

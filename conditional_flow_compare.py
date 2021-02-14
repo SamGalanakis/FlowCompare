@@ -204,7 +204,7 @@ def main():
     point_tester = PointTester(sign_0,sign_1,r"save/test_samples",device,samples=3000)
 
 
-    point_tester.generate_sample(pointnet2,flow_dist,f"sample_{batch_ind}.html",show=False)
+    
 
 
 
