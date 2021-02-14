@@ -32,7 +32,12 @@ class ConditionalDenseNN(torch.nn.Module):
         for i in range(1, len(hidden_dims)):
             layers.append(torch.nn.Linear(hidden_dims[i - 1], hidden_dims[i]))
         layers.append(torch.nn.Linear(hidden_dims[-1], self.output_multiplier))
-
+        # for layer in layers:
+        #     nn.init.xavier_uniform_(layer.parameters(), gain=nn.init.calculate_gain('relu'))
+        #Make last layer zeros in order to start as Identity
+        with torch.no_grad():
+            layers[-1].weight.copy_(torch.zeros_like(layers[-1].weight))
+            layers[-1].bias.copy_(torch.zeros_like(layers[-1].bias))
         self.layers = torch.nn.ModuleList(layers)
 
         # Save the nonlinearity

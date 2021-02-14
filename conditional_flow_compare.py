@@ -31,7 +31,7 @@ def main():
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = 'cuda:1'
+    device = 'cuda:0'
 
     config_path = r"config/config_conditional.yaml"
     wandb.init(project="flow_change",config = config_path)
@@ -81,7 +81,7 @@ def main():
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,"save/processed_dataset")
     dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
-    dataset[51]
+    # dataset.combinations_list = dataset.combinations_list[0:20]
     
     
     shuffle=True
@@ -182,7 +182,7 @@ def main():
     flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
 
 
-    optimizer = torch.optim.AdamW(parameters, lr=lr) 
+    optimizer = torch.optim.Adam(parameters, lr=lr) 
 
 
     save_model_path = r'save/conditional_flow_compare'
@@ -215,16 +215,24 @@ def main():
             
             optimizer.zero_grad()
             extract_0,enumeration_0,extract_1 = batch
+            
             if (extract_0.isnan().any() or extract_1.isnan().any()).item():
                 print('Found nan, skipping batch!')
                 continue
-     
+            extract_0+= torch.randn_like(extract_0)/1000
             extract_0 = extract_0.to(device)
             enumeration_0 = enumeration_0.to(device)
+            extract_1 += torch.randn_like(extract_1)/1000
             extract_1 = extract_1.to(device)
-            encodings = pointnet2(extract_0[:,3:],extract_0[:,:3],enumeration_0) 
+            if input_dim==3:
+                features = None
+            else:
+                features = extract_0[:,3:]
+            encodings = pointnet2(features,extract_0[:,:3],enumeration_0) 
             assert not encodings.isnan().any(), "Nan in encoder"
             conditioned = flow_dist.condition(encodings.unsqueeze(-2))
+            #sample = conditioned.sample([20,2000])[0]
+            #view_cloud_plotly(sample)
             loss = -conditioned.log_prob(extract_1).mean()
 
         
@@ -233,13 +241,14 @@ def main():
         
             assert not loss.isnan(), "Nan loss!"
             loss.backward()
-            #torch.nn.utils.clip_grad_value_(parameters,10)
+            torch.nn.utils.clip_grad_norm_(parameters,max_norm=10.0)
            
             optimizer.step()
            
             flow_dist.clear_cache()
             wandb.log({'loss':loss.item()})
             if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
+
                 save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':pointnet2.state_dict(),'flow_transformations':transformations}
                 point_tester.generate_sample(pointnet2,flow_dist,f"sample_{batch_ind}.html",show=False)
                 torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))

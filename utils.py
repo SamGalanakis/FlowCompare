@@ -18,7 +18,7 @@ from sklearn.neighbors import NearestNeighbors
 import os
 #Losses from original repo
 
-eps = 1.2e-07
+eps = 1e-8
 
 
 def loss_fun(z, z_ldetJ, prior_z, e, e_ldetJ, prior_e):
@@ -171,10 +171,7 @@ def rotate_mat(points,x,y,z):
 
     
 
-if __name__ == "__main__":
-    points = load_las("D:/data/cycloData/2016/0_5D4KVPBP.las")[0:10,:]
-    knn_relator(points,points,np.random.randn(points.shape[0]))
-    grid_split(points,2)
+
     
 class Early_stop:
     def __init__(self,patience=50,min_perc_improvement=0):
@@ -285,3 +282,37 @@ class PointTester:
             rgb = samples[:,3:]
         fig = view_cloud_plotly(samples[:,:3],rgb,show = show)
         fig.write_html(os.path.join(self.save_path,file_name))
+
+    
+
+def expm(x):
+    """
+    # compute the matrix exponential: \sum_{k=0}^{\infty}\frac{x^{k}}{k!}, first way in paper for low dims
+    # From https://github.com/changyi7231/MEF/blob/master/models/utils.py
+    # """
+    # scale = torch.clip(torch.ceil(torch.log2(torch.linalg.norm(x, ord=1, dim=(-2,-1))  ) + 1 ),min=0).long()
+    # #scale = int(np.ceil(np.log2(np.max([torch.linalg.norm(x, ord=1, dim=(-2,-1)).max().item(), 0.5]))) + 1)
+    # x = x / (2**scale).unsqueeze(-1).unsqueeze(-1).expand(x.size())
+    # s = torch.eye(x.size(-1), device=x.device)
+    # t = x
+    # k = 2
+    # while (torch.linalg.norm(t, ord=1, dim=(-2,-1)) > eps).any():
+    #     s = s + t
+    #     t = torch.matmul(x, t) / k
+    #     k = k + 1
+
+    # for i in range(torch.min(scale).item()):
+    #     s = torch.matmul(s, s)
+
+    # scale = scale - torch.min(scale)
+    # for i in range(scale.max().item()):
+    #     indexes = (scale==i)
+    #     s[indexes] = torch.matmul(s[indexes],s[indexes])
+    # torch.matrix_exp(x)
+    return torch.matrix_exp(x)
+
+
+if __name__ == '__main__':
+    a = torch.tensor([[8,-7],[1,0]],dtype=torch.float32)
+    exponential = expm(a)
+    print(exponential)

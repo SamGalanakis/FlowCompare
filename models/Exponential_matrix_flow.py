@@ -12,8 +12,9 @@ from pyro.distributions.transforms.utils import clamp_preserve_gradients
 from pyro.distributions.util import copy_docs_from
 sys.path.append(".")
 from models.nets import ConditionalDenseNN, DenseNN
+from utils import expm
 
-eps = 1.2e-07
+eps = 1e-8
 
 class Exponential_matrix_coupling(TransformModule):
 
@@ -77,15 +78,19 @@ class Exponential_matrix_coupling(TransformModule):
         x1, x2 = x.split([self.split_dim, x.size(self.dim) - self.split_dim], dim=self.dim)
 
         # Now that we can split on an arbitrary dimension, we have do a bit of reshaping...
-        w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
+        w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,))) 
         w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift + eps
+        
+
         w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],self.input_dim-self.split_dim,self.input_dim-self.split_dim))
+        w_mat = expm(w_mat)
+
         self.cached_w_mat = w_mat
 
        
 
         y1 = x1
-        y2 = self._exp(x2,w_mat) + b_vec
+        y2 = torch.matmul(x2.unsqueeze(-2),w_mat).squeeze() + b_vec
         return torch.cat([y1, y2], dim=self.dim)
 
     def _inverse(self, y):
@@ -103,11 +108,11 @@ class Exponential_matrix_coupling(TransformModule):
 
         # Now that we can split on an arbitrary dimension, we have do a bit of reshaping...
         w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
-        w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift + eps
+        w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift +eps
         w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],self.input_dim-self.split_dim,self.input_dim-self.split_dim))
-        
+        w_mat = expm(w_mat)
         self.cached_w_mat = w_mat
-        x2 = self._exp(y2-b_vec,-w_mat)
+        x2 = torch.matmul((y2-b_vec).unsqueeze(-2),-w_mat).squeeze()
         return torch.cat([x1, x2], dim=self.dim)
 
     def log_abs_det_jacobian(self, x, y):
@@ -202,7 +207,7 @@ def conditional_exponential_matrix_coupling(input_dim, context_dim,device, hidde
                             context_dim =  context_dim, 
                             hidden_dims = hidden_dims,
                             param_dims = [(event_shape[dim]-split_dim)**2,event_shape[dim]-split_dim],
-                            nonlinearity= torch.nn.ELU()
+                            nonlinearity= torch.nn.ReLU()
                             )
     return Conditional_exponential_matrix_coupling(split_dim, nn,input_dim = input_dim,device = device)
 
