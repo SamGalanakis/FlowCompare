@@ -31,7 +31,7 @@ def main():
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+    device = 'cuda:1'
 
     config_path = r"config/config_conditional.yaml"
     wandb.init(project="flow_change",config = config_path)
@@ -189,8 +189,8 @@ def main():
     
 
 
-    points_0 = load_las(r"D:\data\cycloData\2016\0_5D4KVPBP.las")[:,:input_dim]
-    points_1 = load_las(r"D:\data\cycloData\2020\0_WE1NZ71I.las")[:,:input_dim]
+    points_0 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2016/0_5D4KVPBP.las")[:,:input_dim]
+    points_1 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2020/0_WE1NZ71I.las")[:,:input_dim]
     sign_point = np.array([86967.46,439138.8])
 
     sign_0 = extract_area(points_0,sign_point,1.5,'square')
@@ -204,7 +204,7 @@ def main():
     point_tester = PointTester(sign_0,sign_1,r"save/test_samples",device,samples=3000)
 
 
-
+    point_tester.generate_sample(pointnet2,flow_dist,f"sample_{batch_ind}.html",show=False)
 
 
 
@@ -233,15 +233,18 @@ def main():
         
             assert not loss.isnan(), "Nan loss!"
             loss.backward()
-            torch.nn.utils.clip_grad_value_(parameters,10)
+            #torch.nn.utils.clip_grad_value_(parameters,10)
            
             optimizer.step()
            
             flow_dist.clear_cache()
             wandb.log({'loss':loss.item()})
             if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
-                save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':Pointnet2.state_dict(),'flow_transformations':transformations}
+                save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':pointnet2.state_dict(),'flow_transformations':transformations}
                 point_tester.generate_sample(pointnet2,flow_dist,f"sample_{batch_ind}.html",show=False)
                 torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
+                
+            
+            
 if __name__ == "__main__":
     main()

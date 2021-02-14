@@ -15,6 +15,7 @@ import matplotlib.artist as artist
 import matplotlib.image as image
 from scipy.spatial.transform import Rotation 
 from sklearn.neighbors import NearestNeighbors
+import os
 #Losses from original repo
 
 eps = 1.2e-07
