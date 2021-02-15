@@ -54,10 +54,10 @@ context_dim:
   value: 32
 batch_size:
   desc: Batch size
-  value: 20
+  value: 1
 lr:
   desc: Initial learning rate for optimizer
-  value: 0.0005
+  value: 0.0001
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/

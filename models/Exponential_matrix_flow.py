@@ -83,14 +83,16 @@ class Exponential_matrix_coupling(TransformModule):
         
 
         w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],self.input_dim-self.split_dim,self.input_dim-self.split_dim))
-        w_mat = expm(w_mat)
+        
 
         self.cached_w_mat = w_mat
+        w_mat = expm(w_mat)
 
        
 
         y1 = x1
-        y2 = torch.matmul(x2.unsqueeze(-2),w_mat).squeeze() + b_vec
+        y2 = torch.matmul(w_mat,x2.unsqueeze(-1)).squeeze(-1) + b_vec
+
         return torch.cat([y1, y2], dim=self.dim)
 
     def _inverse(self, y):
@@ -110,9 +112,10 @@ class Exponential_matrix_coupling(TransformModule):
         w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
         w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift +eps
         w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],self.input_dim-self.split_dim,self.input_dim-self.split_dim))
-        w_mat = expm(w_mat)
+        
         self.cached_w_mat = w_mat
-        x2 = torch.matmul((y2-b_vec).unsqueeze(-2),-w_mat).squeeze()
+        w_mat = expm(-w_mat)
+        x2 = torch.matmul(w_mat,(y2-b_vec).unsqueeze(-1)).squeeze(-1)
         return torch.cat([x1, x2], dim=self.dim)
 
     def log_abs_det_jacobian(self, x, y):
@@ -214,13 +217,15 @@ def conditional_exponential_matrix_coupling(input_dim, context_dim,device, hidde
 
 
 if __name__ == '__main__':
-    x = torch.randn((32,2000,6))
-    context = torch.randn((32,10))
-    input_dim = x.shape[-1]
-    context_dim = context.shape[-1]
-    coupling = conditional_exponential_matrix_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=[128,256], split_dim=input_dim//2, dim=-1,device='cpu')
-    conditioned_coupling = coupling.condition(context.unsqueeze(-2))
-    y = conditioned_coupling._call(x)
-    x_after = conditioned_coupling._inverse(y)
-    print(torch.abs(x_after-x).max())
-    jac = conditioned_coupling.log_abs_det_jacobian(x,y)
+    for ind in range(0,100):
+        x = torch.randn((32,2000,6))
+        context = torch.randn((32,10))
+        input_dim = x.shape[-1]
+        context_dim = context.shape[-1]
+        coupling = conditional_exponential_matrix_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=[128,256], split_dim=input_dim//2, dim=-1,device='cpu')
+        conditioned_coupling = coupling.condition(context.unsqueeze(-2))
+        y = conditioned_coupling._call(x)
+        x_after = conditioned_coupling._inverse(y)
+        print(torch.abs(x_after-x).max())
+        jac = conditioned_coupling.log_abs_det_jacobian(x,y)
+        

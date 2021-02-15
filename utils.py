@@ -16,6 +16,7 @@ import matplotlib.image as image
 from scipy.spatial.transform import Rotation 
 from sklearn.neighbors import NearestNeighbors
 import os
+import math
 #Losses from original repo
 
 eps = 1e-8
@@ -309,10 +310,17 @@ def expm(x):
     #     indexes = (scale==i)
     #     s[indexes] = torch.matmul(s[indexes],s[indexes])
     # torch.matrix_exp(x)
-    return torch.matrix_exp(x)
+    return (approx_expm(x))
+    #return torch.matrix_exp(x)
 
+def approx_expm(x):
+    y = 0
+    for i in range(0,15):
+        y = y + torch.matrix_power(x,i)/math.factorial(i)
+    return y
 
 if __name__ == '__main__':
     a = torch.tensor([[8,-7],[1,0]],dtype=torch.float32)
     exponential = expm(a)
     print(exponential)
+

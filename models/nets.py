@@ -54,7 +54,7 @@ class ConditionalDenseNN(torch.nn.Module):
         h = x
         residual = None
         for index, layer in enumerate(self.layers[:-1]):
-            if ((index % 2) != 0) and index>1:
+            if ((index % 2) == 0) and index>1:
                 h = layer(h)             
                 h = self.f(residual+h)
             elif index ==0:

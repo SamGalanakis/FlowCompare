@@ -81,11 +81,11 @@ def main():
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,"save/processed_dataset")
     dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
-    # dataset.combinations_list = dataset.combinations_list[0:20]
+    # dataset.combinations_list = [dataset.combinations_list[0]]
     
     
     shuffle=True
-    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2)
+    #dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2)
 
 
 
@@ -141,6 +141,8 @@ def main():
         flow = lambda : T.conditional_spline(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3.0)
     elif flow_type == 'spline_autoregressive':
         flow = lambda : T.conditional_spline_autoregressive(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3)
+    elif flow_type == 'affine_coupling':
+        flow = lambda : T.conditional_affine_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims)
     else:
         raise Exception(f'Invalid flow type: {flow_type}')
     if permuter_type == 'Exponential_combiner':
@@ -211,10 +213,13 @@ def main():
     torch.autograd.set_detect_anomaly(False)
     for epoch in range(n_epochs):
         print(f"Starting epoch: {epoch}")
-        for batch_ind,batch in enumerate(tqdm(dataloader)):
-            
+        for batch_ind,batch in enumerate(range(1000)):#enumerate(tqdm(dataloader)):
+            extract_1 = dataset[0][1][:,:input_dim].unsqueeze(0)
+            extract_0 = dataset[0][0][:,:input_dim]
+            enumeration_0 = torch.zeros(extract_0.shape[0]).long()
+
             optimizer.zero_grad()
-            extract_0,enumeration_0,extract_1 = batch
+            #extract_0,enumeration_0,extract_1 = batch
             
             if (extract_0.isnan().any() or extract_1.isnan().any()).item():
                 print('Found nan, skipping batch!')
@@ -233,25 +238,25 @@ def main():
             conditioned = flow_dist.condition(encodings.unsqueeze(-2))
             #sample = conditioned.sample([20,2000])[0]
             #view_cloud_plotly(sample)
-            loss = -conditioned.log_prob(extract_1).mean()
+            loss = -conditioned.log_prob(extract_1).mean(axis=1).mean()
 
-        
-           
 
-        
+            
+
+
             assert not loss.isnan(), "Nan loss!"
             loss.backward()
             torch.nn.utils.clip_grad_norm_(parameters,max_norm=10.0)
-           
+            
             optimizer.step()
-           
+            
             flow_dist.clear_cache()
             wandb.log({'loss':loss.item()})
-            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
+            # if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
 
-                save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':pointnet2.state_dict(),'flow_transformations':transformations}
-                point_tester.generate_sample(pointnet2,flow_dist,f"sample_{batch_ind}.html",show=False)
-                torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
+            #     save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':pointnet2.state_dict(),'flow_transformations':transformations}
+            #     point_tester.generate_sample(pointnet2,flow_dist,f"sample_{batch_ind}.html",show=False)
+            #     torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
                 
             
             
