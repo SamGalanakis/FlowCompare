@@ -12,9 +12,9 @@ from torch.distributions import Transform, constraints
 from pyro.distributions.torch_transform import TransformModule
 from pyro.distributions.util import copy_docs_from
 from pyro.nn import DenseNN   
-    
+from tqdm import tqdm
 
-    
+eps = 1e-8
 
 class Full_matrix_combiner(TransformModule):
     def __init__(self,dim):
@@ -36,6 +36,10 @@ class Exponential_combiner(TransformModule):
         self.dim = dim
         self.iterations = iterations
         self.w = nn.Parameter(torch.randn((self.dim,self.dim)))
+        self.scale = nn.Parameter(torch.ones(1) / 8)
+        self.shift = nn.Parameter(torch.zeros(1))
+        self.rescale = nn.Parameter(torch.ones(1))
+        self.reshift = nn.Parameter(torch.zeros(1))
         
 
 
@@ -55,13 +59,15 @@ class Exponential_combiner(TransformModule):
         return M.diagonal(dim1=-2, dim2=-1).sum(-1)
 
     def _inverse(self,y): 
-        y = self._matrix_exp(y, -self.w)
-        return y
+        w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + eps
+        return torch.matmul(torch.matrix_exp(-w_mat),y.unsqueeze(-1)).squeeze(-1)
     def _call(self,x):
-        y = self._matrix_exp(x, self.w)
+        w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + eps
+        y = torch.matmul(torch.matrix_exp(w_mat),x.unsqueeze(-1)).squeeze(-1)
         return y
     def log_abs_det_jacobian(self,x,y):
-        return self._trace(self.w)
+        w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + eps
+        return self._trace(w_mat)
             
 
 
@@ -72,6 +78,12 @@ class Exponential_combiner(TransformModule):
 
    
 if __name__ == '__main__':
-    layer = Linear_combiner(6)
-    x = torch.randn(6)
+    exp_comb = Exponential_combiner(6)
+
+
+    for i in tqdm(range(100)):
+        x = torch.randn((20,6,6))
+        y = exp_comb(x)
+        x_ = exp_comb._inverse(y)
+        print(torch.abs(x-x_).max())
     

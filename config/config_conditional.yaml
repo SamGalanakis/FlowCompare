@@ -3,10 +3,10 @@ sample_size:
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
-  value: 15
+  value: 20
 batchnorm:
   desc: batchnorm between flow layers
-  value: False
+  value: true
 flow_type:
   desc: What flow blocks to use
   value: exponential_coupling
@@ -15,7 +15,7 @@ hidden_dims:
   value: [512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
-  value: random_permute
+  value: Exponential_combiner
 scaler_type:
   desc: How to scale after permute
   value: Sigmoid_scaler
@@ -54,7 +54,7 @@ context_dim:
   value: 32
 batch_size:
   desc: Batch size
-  value: 1
+  value: 20
 lr:
   desc: Initial learning rate for optimizer
   value: 0.0001

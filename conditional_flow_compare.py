@@ -31,7 +31,7 @@ def main():
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = 'cuda:0'
+    device = 'cpu'
 
     config_path = r"config/config_conditional.yaml"
     wandb.init(project="flow_change",config = config_path)
@@ -85,7 +85,8 @@ def main():
     
     
     shuffle=True
-    #dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2)
+    #SET PIN MEM TRUE
+    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=False,prefetch_factor=2)
 
 
 
@@ -117,10 +118,7 @@ def main():
                 
                 if i<(self.n_flow_layers-1): #Don't add at the end
                     
-                    if self.batchnorm:
-                        bn_layer = BatchNorm(input_dim).to(device)
-                        self.parameters += bn_layer.parameters()
-                        self.transformations.append(bn_layer)
+                    #Batchnorm > permute > flow layer and end with flow layer
                     
                     #self.transformations.append(scaler())
                     permuter_instance = permuter()
@@ -130,6 +128,11 @@ def main():
                     except:
                         pass
                     self.transformations.append(permuter_instance)
+
+                    if self.batchnorm:
+                        bn_layer = BatchNorm(input_dim).to(device)
+                        self.parameters += bn_layer.parameters()
+                        self.transformations.append(bn_layer)
                     
             self.layer_name_list = [type(x).__name__ for x in self.transformations]
         def save(self,path):
@@ -213,13 +216,13 @@ def main():
     torch.autograd.set_detect_anomaly(False)
     for epoch in range(n_epochs):
         print(f"Starting epoch: {epoch}")
-        for batch_ind,batch in enumerate(range(1000)):#enumerate(tqdm(dataloader)):
-            extract_1 = dataset[0][1][:,:input_dim].unsqueeze(0)
-            extract_0 = dataset[0][0][:,:input_dim]
-            enumeration_0 = torch.zeros(extract_0.shape[0]).long()
+        for batch_ind,batch in enumerate(tqdm(dataloader)):#enumerate(range(1000)):
+            # extract_1 = dataset[0][1][:,:input_dim].unsqueeze(0)
+            # extract_0 = dataset[0][0][:,:input_dim]
+            # enumeration_0 = torch.zeros(extract_0.shape[0]).long()
 
             optimizer.zero_grad()
-            #extract_0,enumeration_0,extract_1 = batch
+            extract_0,enumeration_0,extract_1 = batch
             
             if (extract_0.isnan().any() or extract_1.isnan().any()).item():
                 print('Found nan, skipping batch!')
@@ -252,11 +255,11 @@ def main():
             
             flow_dist.clear_cache()
             wandb.log({'loss':loss.item()})
-            # if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
+            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
 
-            #     save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':pointnet2.state_dict(),'flow_transformations':transformations}
-            #     point_tester.generate_sample(pointnet2,flow_dist,f"sample_{batch_ind}.html",show=False)
-            #     torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
+                save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':pointnet2.state_dict(),'flow_transformations':transformations}
+                point_tester.generate_sample(pointnet2,flow_dist,f"sample_{batch_ind}.html",show=False)
+                torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
                 
             
             
