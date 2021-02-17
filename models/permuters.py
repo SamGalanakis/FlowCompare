@@ -14,7 +14,27 @@ from pyro.distributions.util import copy_docs_from
 from pyro.nn import DenseNN   
 from tqdm import tqdm
 
+
 eps = 1e-8
+class Learned_permuter(TransformModule):
+    def __init__(self,dim):
+        super().__init__()
+        self.dim = dim
+        self.order_floats = nn.Parameter(torch.randn(dim))
+        self.event_dim = -dim
+
+    def _call(self,x):
+        permutation_indices = torch.argsort(self.order_floats)
+        y = x.index_select(-1,permutation_indices)
+        return y
+    def _inverse(self,y):
+        permutation_indices = torch.argsort(self.order_floats)
+        inv_permutation_indices = torch.sort(permutation_indices)[1]
+        x = y.index_select(-1,inv_permutation_indices)
+        return x
+    def log_abs_det_jacobian(self, x, y):
+        return torch.zeros(x.size()[:-self.event_dim], dtype=x.dtype, layout=x.layout, device=x.device)
+
 
 class Full_matrix_combiner(TransformModule):
     def __init__(self,dim):
@@ -79,11 +99,14 @@ class Exponential_combiner(TransformModule):
    
 if __name__ == '__main__':
     exp_comb = Exponential_combiner(6)
+    learned_permuter = Learned_permuter(6)
+    for i in range(100):
+        a = torch.randn((20,2000,6))
+        print(torch.max(torch.abs(a-learned_permuter._inverse(learned_permuter(a)))))
 
-
-    for i in tqdm(range(100)):
-        x = torch.randn((20,6,6))
-        y = exp_comb(x)
-        x_ = exp_comb._inverse(y)
-        print(torch.abs(x-x_).max())
+    # for i in tqdm(range(100)):
+    #     x = torch.randn((20,6,6))
+    #     y = exp_comb(x)
+    #     x_ = exp_comb._inverse(y)
+    #     print(torch.abs(x-x_).max())
     

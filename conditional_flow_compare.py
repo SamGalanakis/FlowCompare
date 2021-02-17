@@ -21,7 +21,7 @@ def main():
     from torch.nn.parallel import DataParallel
     import torch.distributed as distributed
     from torch_geometric.nn import DataParallel as geomDataParallel
-    from models.permuters import Full_matrix_combiner,Exponential_combiner
+    from models.permuters import Full_matrix_combiner,Exponential_combiner,Learned_permuter
     from models.scalers import Sigmoid_scaler
     from models.batchnorm import BatchNorm
     from torch.autograd import Variable, Function
@@ -150,6 +150,8 @@ def main():
         raise Exception(f'Invalid flow type: {flow_type}')
     if permuter_type == 'Exponential_combiner':
         permuter = lambda : Exponential_combiner(input_dim)
+    elif permuter_type == 'Learned_permuter':
+        permuter = lambda : Learned_permuter(input_dim)
     elif permuter_type == 'Full_matrix_combiner':
         permuter = lambda : Full_matrix_combiner(input_dim)
     elif permuter_type == "random_permute":
