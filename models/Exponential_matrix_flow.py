@@ -29,10 +29,10 @@ class Exponential_matrix_coupling(TransformModule):
         self.event_dim = -dim
         self.cached_w_mat = None
         self.input_dim = input_dim
-        self.scale = scale
-        self.shift = shift 
-        self.rescale = rescale
-        self.reshift = reshift
+        self.scale = nn.Parameter(scale)
+        self.shift = nn.Parameter(shift)
+        self.rescale = nn.Parameter(rescale)
+        self.reshift = nn.Parameter(reshift)
 
 
 

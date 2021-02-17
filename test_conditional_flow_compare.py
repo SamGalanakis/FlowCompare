@@ -25,7 +25,7 @@ import laspy
 
 
 
-device = 'cuda'
+device = 'cpu'
 
 
 
@@ -45,7 +45,7 @@ def ready_module(transform):
 grid_square_size = 4
 context_dim =32
 input_dim = 3
-model_dict_path = r"save\conditional_flow_compare\0_16068_model_dict.pt"
+model_dict_path = r"save/conditional_flow_compare/1_8223_model_dict.pt"
 model_dict = torch.load(model_dict_path)
 transformations = model_dict['flow_transformations']
 transformations = [ready_module(x) for x in transformations]
@@ -61,8 +61,8 @@ flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
 
 
 
-points_0 = load_las(r"D:\data\cycloData\2016\0_5D4KVPBP.las")[:,:input_dim]
-points_1 = load_las(r"D:\data\cycloData\2020\0_WE1NZ71I.las")[:,:input_dim]
+points_0 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2016/0_5D4KVPBP.las")[:,:input_dim]
+points_1 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2020/0_WE1NZ71I.las")[:,:input_dim]
 sign_point = np.array([86967.46,439138.8])
 
 sign_0 = extract_area(points_0,sign_point,1.5,'square')
@@ -72,7 +72,8 @@ sign_1 = extract_area(points_1,sign_point,1.5,'square')
 sign_1= torch.from_numpy(sign_1.astype(dtype=np.float32)).to(device)
 sign_0, sign_1 = co_min_max(sign_0,sign_1)
 
-
+points_2 = points_1
+points_1=points_0
 
 
 point_tester = PointTester(sign_0,sign_1,r"save/test_samples",device,samples=3000)
@@ -82,7 +83,7 @@ print(f"Starting grid, {(2*clearance/grid_square_size)**2} squares of area {grid
 center = points_1[:,:2].mean(axis=0)
 grid_1 = grid_split(points_1,grid_square_size,clearance= clearance,center = center)
 grid_2 = grid_split(points_2,grid_square_size,clearance= clearance,center = center)
-
+downsample_number=2000
 grid_1_subsampled = [random_subsample(x,downsample_number) for x in grid_1]
 grid_2_subsampled = [random_subsample(x,downsample_number) for x in grid_2]
 
@@ -101,9 +102,11 @@ for index, (tensor_0,tensor_1) in enumerate(tqdm(zip(grid_1_subsampled,grid_2_su
     batch_id_1 = (torch.zeros(tensor_1.shape[0],dtype=torch.long)).to(device)
     tensor_0 = tensor_0.to(device)
     tensor_1 = tensor_1.to(device)
-    encodings_0 = Pointnet2(tensor_0[:,3:],tensor_0[:,:3],batch_id_0) 
-    encodings_1 = Pointnet2(tensor_1[:,3:],tensor_1[:,:3],batch_id_1)
+    encodings_0 = pointnet2(tensor_0[:,3:],tensor_0[:,:3],batch_id_0) 
+    encodings_1 = pointnet2(tensor_1[:,3:],tensor_1[:,:3],batch_id_1)
     reconstruction_given_0 = flow_dist.condition(encodings_0).sample([2000]).cpu().numpy().squeeze()
+    
+    
     save_las(reconstruction_given_0[:,:3],f"/mnt/cm-nas03/synch/students/sam/change_maps/{index}_reconstruction.las",reconstruction_given_0[:,3:])
     save_las(tensor_0[:,:3].cpu().detach().numpy(),f"/mnt/cm-nas03/synch/students/sam/change_maps/{index}_original.las",tensor_0[:,3:].cpu().detach().numpy())
     prob_0_given_1 = flow_dist.condition(encodings_1).log_prob(tensor_0).cpu().detach().numpy().squeeze()

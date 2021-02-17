@@ -17,6 +17,7 @@ from scipy.spatial.transform import Rotation
 from sklearn.neighbors import NearestNeighbors
 import os
 import math
+import laspy
 #Losses from original repo
 
 eps = 1e-8
@@ -235,9 +236,12 @@ def save_las(pos,path,rgb=None,extra_feature=None,feature_name='Change'):
     outfile.z = allz
 
     if not isinstance( rgb,type(None)):
-        outfile.red = rgb[:,0]
-        outfile.green = rgb[:,1]
-        outfile.blue = rgb[:,2]
+        if rgb.shape[-1]==6:
+            outfile.red = rgb[:,0]
+            outfile.green = rgb[:,1]
+            outfile.blue = rgb[:,2]
+        else:
+            rgb= None
         
 
 
@@ -315,7 +319,7 @@ def expm(x):
 
 def approx_expm(x):
     y = 0
-    for i in range(0,15):
+    for i in range(0,13):
         y = y + torch.matrix_power(x,i)/math.factorial(i)
     return y
 
