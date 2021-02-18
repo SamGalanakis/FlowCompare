@@ -77,7 +77,8 @@ def view_cloud_plotly(points,rgb=None,fig=None,point_size=2,show=True,axes=False
         points = points.cpu()
         points = points.numpy()
     if  isinstance(rgb,torch.Tensor):
-        rgb = rgb.numpy()
+        
+        rgb = rgb.cpu().numpy()
     if  rgb is None:
         rgb = np.zeros_like(points)
     else:
@@ -281,7 +282,7 @@ class PointTester:
         with torch.no_grad():
             encoding = encoder(features,self.points_0[:,:3],self.batch_id_0)
             encoded = flow.condition(encoding.unsqueeze(-2))
-            samples = encoded.sample([self.samples]).squeeze()
+            samples = encoded.sample([1,self.samples]).squeeze()
         rgb = None
         if samples.shape[-1]==6:
             rgb = samples[:,3:]
@@ -291,6 +292,7 @@ class PointTester:
     
 
 def expm(x):
+    return torch.matrix_exp(x)
     """
     # compute the matrix exponential: \sum_{k=0}^{\infty}\frac{x^{k}}{k!}, first way in paper for low dims
     # From https://github.com/changyi7231/MEF/blob/master/models/utils.py

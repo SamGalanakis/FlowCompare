@@ -31,7 +31,7 @@ def main():
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = 'cpu'
+    
 
     config_path = r"config/config_conditional.yaml"
     wandb.init(project="flow_change",config = config_path)
@@ -58,6 +58,7 @@ def main():
     scaler_type = config['scaler_type']
     flow_type = config['flow_type']
     batchnorm = config['batchnorm']
+    optimizer_type = config['optimizer_type']
 
 
     torch.backends.cudnn.benchmark = True
@@ -86,7 +87,7 @@ def main():
     
     shuffle=True
     #SET PIN MEM TRUE
-    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=False,prefetch_factor=2)
+    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2)
 
 
 
@@ -188,8 +189,14 @@ def main():
 
     flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
 
-
-    optimizer = torch.optim.Adam(parameters, lr=lr) 
+    if optimizer_type =='Adam':
+        optimizer = torch.optim.Adam(parameters, lr=lr) 
+    elif optimizer_type == 'Adamax':
+        optimizer = torch.optim.Adamax(parameters, lr=lr)
+    elif optimizer_type == 'AdamW':
+        optimizer = torch.optim.AdamW(parameters, lr=lr)
+    else:
+        raise Exception('Invalid optimizer type!')
 
 
     save_model_path = r'save/conditional_flow_compare'
@@ -241,8 +248,8 @@ def main():
             encodings = pointnet2(features,extract_0[:,:3],enumeration_0) 
             assert not encodings.isnan().any(), "Nan in encoder"
             conditioned = flow_dist.condition(encodings.unsqueeze(-2))
-            #sample = conditioned.sample([20,2000])[0]
-            #view_cloud_plotly(sample)
+            #sample = conditioned.sample([20,2000])[0].cpu()
+            #view_cloud_plotly(sample[:,:3],sample[:,3:])
             loss = -conditioned.log_prob(extract_1).mean(axis=1).mean()
 
 
@@ -251,7 +258,7 @@ def main():
 
             assert not loss.isnan(), "Nan loss!"
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(parameters,max_norm=10.0)
+            #torch.nn.utils.clip_grad_norm_(parameters,max_norm=10.0)
             
             optimizer.step()
             

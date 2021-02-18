@@ -10,7 +10,7 @@ class ConditionalDenseNN(torch.nn.Module):
             context_dim,
             hidden_dims,
             param_dims=[1, 1],
-            nonlinearity=torch.nn.ReLU(),
+            nonlinearity=torch.nn.ELU(),
             residual_connections=True):
         super().__init__()
 
@@ -86,7 +86,7 @@ class DenseNN(ConditionalDenseNN):
             input_dim,
             hidden_dims,
             param_dims=[1, 1],
-            nonlinearity=torch.nn.ReLU()
+            nonlinearity=torch.nn.ELU()
             ,residual_connections=True):
         super(DenseNN, self).__init__(
             input_dim,
