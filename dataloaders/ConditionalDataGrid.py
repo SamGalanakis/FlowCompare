@@ -24,8 +24,8 @@ class ConditionalDataGrid(Dataset):
         self.extract_id_dict = {}
         self.subsample = subsample
         self.height_min_dif = height_min_dif
-        self.minimum_difs = torch.Tensor([self.grid_square_size/2,self.grid_square_size/2,self.height_min_dif])
-        self.save_name = f"extract_id_dict_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}.pt"
+        self.minimum_difs = torch.Tensor([self.grid_square_size*0.95,self.grid_square_size*0.95,self.height_min_dif])
+        self.save_name = f"extract_id_dict_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}.pt"
         self.normalization = normalization
         if not preload:
             print(f"Recreating dataset, saving to: {self.out_path}")
@@ -116,8 +116,14 @@ class ConditionalDataGrid(Dataset):
             idx = idx.tolist()
         combination_entry = self.combinations_list[idx]
         relevant_tensors = self.extract_id_dict[combination_entry[0]]
-        tensor_0 = relevant_tensors[combination_entry[1]]
-        tensor_1 = relevant_tensors[combination_entry[2]]
+        #CLONE THE TENSOR IF SAME, OTHERWISE POINT TO SAME MEMORY, PROBLEMS IN NORMALIZATION
+        if combination_entry[1]!=combination_entry[2]:
+            tensor_0 = relevant_tensors[combination_entry[1]]
+            tensor_1 = relevant_tensors[combination_entry[2]]
+        else:
+            tensor_0 = relevant_tensors[combination_entry[1]]
+            tensor_1 = relevant_tensors[combination_entry[2]].clone()
+
         if self.normalization == 'min_max':
             tensor_0[:,:3], tensor_1[:,:3] = co_min_max(tensor_0[:,:3],tensor_1[:,:3])
         elif self.normalization == 'normalize':

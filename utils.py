@@ -256,7 +256,7 @@ def co_min_max(tensor_0,tensor_1):
     tensor_1[:,:3] = (tensor_1[:,:3] - overall_min)/denominator
 
     if (tensor_0.isnan().any() or tensor_1.isnan().any()).item():
-            raise Exception("")
+            raise Exception("Nan in __item__!")
 
 
     return tensor_0,tensor_1

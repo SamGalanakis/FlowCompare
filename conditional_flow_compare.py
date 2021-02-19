@@ -59,6 +59,7 @@ def main():
     flow_type = config['flow_type']
     batchnorm = config['batchnorm']
     optimizer_type = config['optimizer_type']
+    batchnorm_encodings = config['batchnorm_encodings']
 
 
     torch.backends.cudnn.benchmark = True
@@ -84,6 +85,8 @@ def main():
     dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
     # dataset.combinations_list = [dataset.combinations_list[0]]
     
+    
+
     
     shuffle=True
     #SET PIN MEM TRUE
@@ -176,7 +179,10 @@ def main():
     pointnet2 = pointnet2.to(device).train()
     wandb.watch(pointnet2,log='gradients',log_freq=10)
 
-
+    if batchnorm_encodings:
+        batchnorm_encoder = torch.nn.BatchNorm1d(context_dim).to(device)
+        parameters+= batchnorm_encoder.parameters()
+    
     parameters+= pointnet2.parameters()
     transformations = conditional_flow_layers.transformations
     
@@ -246,6 +252,8 @@ def main():
             else:
                 features = extract_0[:,3:]
             encodings = pointnet2(features,extract_0[:,:3],enumeration_0) 
+            if batchnorm_encoder:
+                encodings = batchnorm_encoder(encodings)
             assert not encodings.isnan().any(), "Nan in encoder"
             conditioned = flow_dist.condition(encodings.unsqueeze(-2))
             #sample = conditioned.sample([20,2000])[0].cpu()
@@ -266,8 +274,8 @@ def main():
             wandb.log({'loss':loss.item()})
             if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
 
-                save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':pointnet2.state_dict(),'flow_transformations':transformations}
-                point_tester.generate_sample(pointnet2,flow_dist,f"sample_{batch_ind}.html",show=False)
+                save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':pointnet2.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':transformations}
+                point_tester.generate_sample(pointnet2,flow_dist,f"sample_{epoch}_{batch_ind}.html",show=False)
                 torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
                 
             
