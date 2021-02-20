@@ -133,8 +133,22 @@ def main(rank, world_size):
                         self.transformations.append(bn_layer)
                     
             self.layer_name_list = [type(x).__name__ for x in self.transformations]
-        def save(self,path):
-            torch.save(self,path)
+        def make_save_list(self):
+            save_list = []
+            for x in self.transformations:
+                try:
+                    save_list.append(x.state_dict())
+                    continue
+                except:
+                    pass
+                try:
+                    save_list.append(x.permutation)
+                    continue
+                except:
+                    pass
+                raise Exception('Can not save object')
+            return save_list
+
         def to(self,device):
             for transform in self.transformations:
                 try:
@@ -283,16 +297,15 @@ def main(rank, world_size):
             optimizer.step()
             
             flow_dist.clear_cache()
-            wandb.log({'loss':loss.item()})
             
-            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/50 +1)  == 0) :
+            
+            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/50 +1)  == 0):
                 print(f'Making samples and saving!')
-
-                cond_nump,gen_sample = numpy_samples(conditioned,data_list_0)
-                wandb.log({'loss':loss.item(),"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(gen_sample)})
-                save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':transformations}
-                #point_tester.generate_sample(encoder,flow_dist,f"sample_{epoch}_{batch_ind}.html",show=False)
-                torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
+                with torch.no_grad():
+                    cond_nump,gen_sample = numpy_samples(conditioned,data_list_0)
+                    wandb.log({'loss':loss.item(),"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(gen_sample)})
+                    save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
+                    torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
             else:
                 wandb.log({'loss':loss.item()})
                 
