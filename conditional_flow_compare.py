@@ -1,38 +1,43 @@
-def main():
+import torch
+import pyro
+import pyro.distributions as dist
+import pyro.distributions.transforms as T
+import os
+import numpy as np
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,PointTester
+from torch.utils.data import Dataset,DataLoader
+
+from itertools import permutations, combinations
+from tqdm import tqdm
+from models.pytorch_geometric_pointnet2 import Pointnet2
+from models.nets import ConditionalDenseNN, DenseNN
+from torch_geometric.data import Data,Batch
+from torch_geometric.nn import fps
+from dataloaders.ConditionalDataGrid import ConditionalDataGrid
+import wandb
+import torch.multiprocessing as mp
+from torch.nn.parallel import DataParallel
+import torch.distributed as distributed
+from models.permuters import Full_matrix_combiner,Exponential_combiner,Learned_permuter
+from models.scalers import Sigmoid_scaler
+from models.batchnorm import BatchNorm
+from torch.autograd import Variable, Function
+from models.Exponential_matrix_flow import conditional_exponential_matrix_coupling
+from models.gcn_encoder import GCNEncoder
+import torch.multiprocessing as mp
+from torch_geometric.nn import DataParallel as geomDataParallel
+from torch import nn
+
+def main(rank, world_size):
 
 
-    import torch
-    import pyro
-    import pyro.distributions as dist
-    import pyro.distributions.transforms as T
-    import os
-    import numpy as np
-    from sklearn.preprocessing import StandardScaler, MinMaxScaler
-    from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,PointTester
-    from torch.utils.data import Dataset, DataLoader
-    from itertools import permutations, combinations
-    from tqdm import tqdm
-    from models.pytorch_geometric_pointnet2 import Pointnet2
-    from models.nets import ConditionalDenseNN, DenseNN
-    from torch_geometric.nn import fps
-    from dataloaders.ConditionalDataGrid import ConditionalDataGrid
-    import wandb
-    import torch.multiprocessing as mp
-    from torch.nn.parallel import DataParallel
-    import torch.distributed as distributed
-    from torch_geometric.nn import DataParallel as geomDataParallel
-    from models.permuters import Full_matrix_combiner,Exponential_combiner,Learned_permuter
-    from models.scalers import Sigmoid_scaler
-    from models.batchnorm import BatchNorm
-    from torch.autograd import Variable, Function
-    from models.Exponential_matrix_flow import conditional_exponential_matrix_coupling
-    
 
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-
+    
     config_path = r"config/config_conditional.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
@@ -60,18 +65,17 @@ def main():
     batchnorm = config['batchnorm']
     optimizer_type = config['optimizer_type']
     batchnorm_encodings = config['batchnorm_encodings']
-
+    encoder_type = config['encoder_type']
 
     torch.backends.cudnn.benchmark = True
-    
+    feature_assigner = lambda x : None if input_dim==3 else x[:,3:]
     def my_collate(batch):
         extract_0 = [item[0][:,:input_dim] for item in batch]
         extract_1 = [item[1][:,:input_dim] for item in batch]
-        batch_id_0 = [torch.ones(x.shape[0],dtype=torch.long)*index for index,x in enumerate(extract_0)]
-        extract_0 = torch.cat(extract_0)
+        
+        data_list_0 = [Data(x=feature_assigner(x),pos=x[:,:3]) for x in extract_0]
         extract_1 = torch.stack(extract_1)
-        batch_id_0 = torch.cat(batch_id_0)
-        return [extract_0, batch_id_0, extract_1]
+        return [data_list_0, extract_1]
 
   
 
@@ -83,6 +87,8 @@ def main():
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,"save/processed_dataset")
     dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
+
+    
     # dataset.combinations_list = [dataset.combinations_list[0]]
     
     
@@ -99,7 +105,7 @@ def main():
 
 
     
-
+    
 
 
 
@@ -109,15 +115,14 @@ def main():
     class Conditional_flow_layers:
         def __init__(self,flow,n_flow_layers,input_dim,context_dim,count_bins,device,permuter,scaler,hidden_dims,batchnorm):
             self.transformations = []
-            self.parameters =[]
             self.n_flow_layers = n_flow_layers
             self.hidden_dims = hidden_dims
             self.batchnorm = batchnorm
             
             for i in range(n_flow_layers):
-                flow_module = flow().to(device)
+                flow_module = flow()
                 
-                self.parameters += flow_module.parameters()
+                
                 self.transformations.append(flow_module)
                 
                 if i<(self.n_flow_layers-1): #Don't add at the end
@@ -126,16 +131,11 @@ def main():
                     
                     #self.transformations.append(scaler())
                     permuter_instance = permuter()
-                    try:
-                        permuter_instance = permuter_instance.to(device)
-                        self.parameters += permuter_instance.parameters()
-                    except:
-                        pass
+            
                     self.transformations.append(permuter_instance)
 
                     if self.batchnorm:
-                        bn_layer = BatchNorm(input_dim).to(device)
-                        self.parameters += bn_layer.parameters()
+                        bn_layer = BatchNorm(input_dim)
                         self.transformations.append(bn_layer)
                     
             self.layer_name_list = [type(x).__name__ for x in self.transformations]
@@ -143,7 +143,7 @@ def main():
             torch.save(self,path)
 
     if flow_type == 'exponential_coupling':
-        flow = lambda  : conditional_exponential_matrix_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims, split_dim=None, dim=-1,device=device)
+        flow = lambda  : conditional_exponential_matrix_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu')
     elif flow_type == 'spline_coupling':
         flow = lambda : T.conditional_spline(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3.0)
     elif flow_type == 'spline_autoregressive':
@@ -172,25 +172,33 @@ def main():
     conditional_flow_layers = Conditional_flow_layers(flow,n_flow_layers,input_dim,context_dim,count_bins,device,permuter,scaler,hidden_dims,batchnorm)
 
     
-    parameters = conditional_flow_layers.parameters
+    parameters=[]
 
-
-    pointnet2 = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim)
-    pointnet2 = pointnet2.to(device).train()
-    wandb.watch(pointnet2,log='gradients',log_freq=10)
+    if encoder_type == 'pointnet2':
+        encoder = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim)
+    elif encoder_type == 'gcn':
+        encoder = GCNEncoder(out_channels=context_dim,k=20)
+    else:
+        raise Exception('Invalid encoder type!')
+  
+    encoder = geomDataParallel(encoder).to(device)
+    parameters+= encoder.parameters()
+    wandb.watch(encoder,log='gradients',log_freq=10)
 
     if batchnorm_encodings:
-        batchnorm_encoder = torch.nn.BatchNorm1d(context_dim).to(device)
+        batchnorm_encoder = torch.nn.BatchNorm1d(context_dim)
+        batchnorm_encoder = nn.DataParallel(batchnorm_encoder).to(device)
         parameters+= batchnorm_encoder.parameters()
     
-    parameters+= pointnet2.parameters()
+
     transformations = conditional_flow_layers.transformations
     
 
     for transform in transformations:
         if isinstance(transform,torch.nn.Module):
-
             transform.train()
+            transform = nn.DataParallel(transform).to(device)
+            parameters+= transform.parameters()
             wandb.watch(transform,log='gradients',log_freq=10)
 
 
@@ -233,27 +241,23 @@ def main():
     torch.autograd.set_detect_anomaly(False)
     for epoch in range(n_epochs):
         print(f"Starting epoch: {epoch}")
-        for batch_ind,batch in enumerate(tqdm(dataloader)):#enumerate(range(1000)):
-            # extract_1 = dataset[0][1][:,:input_dim].unsqueeze(0)
-            # extract_0 = dataset[0][0][:,:input_dim]
-            # enumeration_0 = torch.zeros(extract_0.shape[0]).long()
+        for batch_ind,batch in enumerate(tqdm(dataloader)):
+            
 
             optimizer.zero_grad()
-            extract_0,enumeration_0,extract_1 = batch
-            
-            if (extract_0.isnan().any() or extract_1.isnan().any()).item():
-                print('Found nan, skipping batch!')
-                continue
-            extract_0+= torch.randn_like(extract_0)/1000
-            extract_0 = extract_0.to(device)
-            enumeration_0 = enumeration_0.to(device)
-            extract_1 += torch.randn_like(extract_1)/1000
+            data_list_0,extract_1 = batch
             extract_1 = extract_1.to(device)
-            if input_dim==3:
-                features = None
-            else:
-                features = extract_0[:,3:]
-            encodings = pointnet2(features,extract_0[:,:3],enumeration_0) 
+            # if (extract_0.isnan().any() or extract_1.isnan().any()).item():
+            #     print('Found nan, skipping batch!')
+            #     continue
+            # extract_0+= torch.randn_like(extract_0)/1000
+            # extract_0 = extract_0.to(device)
+
+            # extract_1 += torch.randn_like(extract_1)/1000
+            # extract_1 = extract_1.to(device)
+  
+            
+            encodings = encoder(data_list_0) 
             if batchnorm_encoder:
                 encodings = batchnorm_encoder(encodings)
             assert not encodings.isnan().any(), "Nan in encoder"
@@ -276,11 +280,14 @@ def main():
             wandb.log({'loss':loss.item()})
             if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
 
-                save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':pointnet2.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':transformations}
-                point_tester.generate_sample(pointnet2,flow_dist,f"sample_{epoch}_{batch_ind}.html",show=False)
+                save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':transformations}
+                point_tester.generate_sample(encoder,flow_dist,f"sample_{epoch}_{batch_ind}.html",show=False)
                 torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
                 
             
             
 if __name__ == "__main__":
-    main()
+    world_size = torch.cuda.device_count()
+    print('Let\'s use', world_size, 'GPUs!')
+    rank=''
+    main(rank,world_size)

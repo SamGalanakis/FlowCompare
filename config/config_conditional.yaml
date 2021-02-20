@@ -70,3 +70,6 @@ optimizer_type:
 batchnorm_encodings:
   desc: batchnorm after output of encoder\
   value: true
+encoder_type:
+  desc: What pointcloud encoder to use
+  value: gcn
