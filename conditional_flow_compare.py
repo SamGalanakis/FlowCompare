@@ -88,12 +88,6 @@ def main(rank, world_size):
     out_path = os.path.join(one_up_path,"save/processed_dataset")
     dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
 
-    
-    # dataset.combinations_list = [dataset.combinations_list[0]]
-    
-    
-
-    
     shuffle=True
     #SET PIN MEM TRUE
     dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2)
@@ -141,6 +135,12 @@ def main(rank, world_size):
             self.layer_name_list = [type(x).__name__ for x in self.transformations]
         def save(self,path):
             torch.save(self,path)
+        def to(self,device):
+            for transform in self.transformations:
+                try:
+                    transform = transform.to(device)
+                except:
+                    continue
 
     if flow_type == 'exponential_coupling':
         flow = lambda  : conditional_exponential_matrix_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu')
@@ -235,7 +235,20 @@ def main(rank, world_size):
 
 
     
+    def numpy_samples(conditioned,data_list_0):
+        with torch.no_grad():
+            sample = conditioned.sample([batch_size,2000])[0].cpu().numpy()
+            extract_0_0 = data_list_0[0]
+            cond_nump = torch.cat((extract_0_0.pos,extract_0_0.x),dim=-1).cpu().numpy()
+            cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
+            sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
+            return cond_nump,sample
+            # fig_cond = view_cloud_plotly(extract_0_0.pos.cpu(),extract_0_0.x.cpu(),show=show)
+            # fig_sample = view_cloud_plotly(sample[:,:3],sample[:,3:],show=show)
 
+            # if save:
+            #     fig_cond.write_html(os.path.join(save_path,'cond_'+save))
+            #     fig_cond.write_html(os.path.join(save_path,'gen_'+save))
 
 
     torch.autograd.set_detect_anomaly(False)
@@ -247,14 +260,7 @@ def main(rank, world_size):
             optimizer.zero_grad()
             data_list_0,extract_1 = batch
             extract_1 = extract_1.to(device)
-            # if (extract_0.isnan().any() or extract_1.isnan().any()).item():
-            #     print('Found nan, skipping batch!')
-            #     continue
-            # extract_0+= torch.randn_like(extract_0)/1000
-            # extract_0 = extract_0.to(device)
-
-            # extract_1 += torch.randn_like(extract_1)/1000
-            # extract_1 = extract_1.to(device)
+         
   
             
             encodings = encoder(data_list_0) 
@@ -262,8 +268,8 @@ def main(rank, world_size):
                 encodings = batchnorm_encoder(encodings)
             assert not encodings.isnan().any(), "Nan in encoder"
             conditioned = flow_dist.condition(encodings.unsqueeze(-2))
-            #sample = conditioned.sample([20,2000])[0].cpu()
-            #view_cloud_plotly(sample[:,:3],sample[:,3:])
+            
+           
             loss = -conditioned.log_prob(extract_1).mean()
 
 
@@ -278,11 +284,17 @@ def main(rank, world_size):
             
             flow_dist.clear_cache()
             wandb.log({'loss':loss.item()})
-            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/10 +1)  == 0) :
+            
+            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/50 +1)  == 0) :
+                print(f'Making samples and saving!')
 
+                cond_nump,gen_sample = numpy_samples(conditioned,data_list_0)
+                wandb.log({'loss':loss.item(),"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(gen_sample)})
                 save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':transformations}
-                point_tester.generate_sample(encoder,flow_dist,f"sample_{epoch}_{batch_ind}.html",show=False)
+                #point_tester.generate_sample(encoder,flow_dist,f"sample_{epoch}_{batch_ind}.html",show=False)
                 torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
+            else:
+                wandb.log({'loss':loss.item()})
                 
             
             

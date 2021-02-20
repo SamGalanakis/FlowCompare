@@ -18,6 +18,7 @@ from sklearn.neighbors import NearestNeighbors
 import os
 import math
 import laspy
+from torch_geometric.data import Data
 #Losses from original repo
 
 eps = 1e-8
@@ -265,7 +266,6 @@ class PointTester:
     def __init__(self,points_0,points_1,save_path,device,samples=10000):
         self.points_0 = points_0
         self.points_1 = points_1
-        self.batch_id_0 = torch.zeros(points_0.shape[0],dtype=torch.long).to(device)
         self.save_path = save_path
         self.samples= samples
         self.device = device
@@ -280,13 +280,15 @@ class PointTester:
             features = self.points_0[:,3:]
             
         with torch.no_grad():
-            encoding = encoder(features,self.points_0[:,:3],self.batch_id_0)
+            data_encoder = [Data(x=features,pos =self.points_0[:,:3] )]
+            encoding = encoder(data_encoder)
             encoded = flow.condition(encoding.unsqueeze(-2))
             samples = encoded.sample([1,self.samples]).squeeze()
         rgb = None
         if samples.shape[-1]==6:
             rgb = samples[:,3:]
         fig = view_cloud_plotly(samples[:,:3],rgb,show = show)
+        print(f'Writing sample as {file_name}')
         fig.write_html(os.path.join(self.save_path,file_name))
 
     
