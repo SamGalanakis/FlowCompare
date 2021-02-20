@@ -3,7 +3,7 @@ sample_size:
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
-  value: 15
+  value: 10
 batchnorm:
   desc: batchnorm between flow layers
   value: true
@@ -12,7 +12,7 @@ flow_type:
   value: exponential_coupling
 hidden_dims:
   desc: linear layers for flow coupling
-  value: [400,400]
+  value: [400,400,400]
 permuter_type:
   desc: 'How to permute between coupling blocks'
   value: random_permute
@@ -57,7 +57,7 @@ batch_size:
   value: 20
 lr:
   desc: Initial learning rate for optimizer
-  value: 0.0003
+  value: 0.001
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/

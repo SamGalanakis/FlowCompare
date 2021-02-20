@@ -186,8 +186,10 @@ def main():
     parameters+= pointnet2.parameters()
     transformations = conditional_flow_layers.transformations
     
+
     for transform in transformations:
         if isinstance(transform,torch.nn.Module):
+
             transform.train()
             wandb.watch(transform,log='gradients',log_freq=10)
 
@@ -258,7 +260,7 @@ def main():
             conditioned = flow_dist.condition(encodings.unsqueeze(-2))
             #sample = conditioned.sample([20,2000])[0].cpu()
             #view_cloud_plotly(sample[:,:3],sample[:,3:])
-            loss = -conditioned.log_prob(extract_1).mean(axis=1).mean()
+            loss = -conditioned.log_prob(extract_1).mean()
 
 
             
@@ -266,7 +268,7 @@ def main():
 
             assert not loss.isnan(), "Nan loss!"
             loss.backward()
-            #torch.nn.utils.clip_grad_norm_(parameters,max_norm=10.0)
+            torch.nn.utils.clip_grad_norm_(parameters,max_norm=1.0)
             
             optimizer.step()
             
