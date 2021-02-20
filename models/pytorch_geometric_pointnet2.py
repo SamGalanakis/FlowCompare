@@ -60,7 +60,8 @@ class Pointnet2(torch.nn.Module):
         self.lin2 = Lin(512, 256)
         self.lin3 = Lin(256, self.out_dim)
 
-    def forward(self, x,pos,batch):
+    def forward(self, data):
+        x,pos,batch = data.x,data.pos,data.batch
         sa1_out = self.sa1_module(x,pos,batch)
         assert all([not z.isnan().any() for z in sa1_out]), "nan"
         sa2_out = self.sa2_module(*sa1_out)
