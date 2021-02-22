@@ -73,3 +73,6 @@ batchnorm_encodings:
 encoder_type:
   desc: What pointcloud encoder to use
   value: gcn
+weight_decay:
+  desc: weigth decay for optiizer
+  value: 0.1
