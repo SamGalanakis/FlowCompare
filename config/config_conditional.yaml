@@ -4,6 +4,9 @@ sample_size:
 n_flow_layers:
   desc: Number of flow layers
   value: 5
+data_loader:
+  desc: What loader to use
+  value: ShapeNet
 batchnorm:
   desc: batchnorm between flow layers
   value: true
@@ -27,7 +30,7 @@ count_bins:
   value: 64
 input_dim:
   desc: Dimension of pointcloud data
-  value: 6
+  value: 3
 grid_square_size:
   desc: Number of f subblocks 
   value: 4
@@ -54,7 +57,7 @@ context_dim:
   value: 32
 batch_size:
   desc: Batch size
-  value: 35
+  value: 15 #35
 lr:
   desc: Initial learning rate for optimizer
   value: 0.0001
@@ -63,7 +66,7 @@ save_model_path:
   value: save/conditional_flow_compare/
 num_workers:
   desc: num_workers
-  value: 8
+  value: 0
 optimizer_type:
   desc: optimizer type
   value: AdamW
@@ -74,5 +77,8 @@ encoder_type:
   desc: What pointcloud encoder to use
   value: gcn
 weight_decay:
-  desc: weigth decay for optiizer
+  desc: weigth decay for optimizer
   value: 0.1
+data_parallel:
+  desc: Use parallel
+  value: true

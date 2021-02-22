@@ -7,7 +7,6 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,PointTester
 from torch.utils.data import Dataset,DataLoader
-
 from itertools import permutations, combinations
 from tqdm import tqdm
 from models.pytorch_geometric_pointnet2 import Pointnet2
@@ -15,6 +14,7 @@ from models.nets import ConditionalDenseNN, DenseNN
 from torch_geometric.data import Data,Batch
 from torch_geometric.nn import fps
 from dataloaders.ConditionalDataGrid import ConditionalDataGrid
+from dataloaders.ShapenetLoader import ShapeNetLoader
 import wandb
 import torch.multiprocessing as mp
 from torch.nn.parallel import DataParallel
@@ -67,7 +67,8 @@ def main(rank, world_size):
     batchnorm_encodings = config['batchnorm_encodings']
     encoder_type = config['encoder_type']
     weight_decay = config['weight_decay']
-
+    data_parallel = config['data_parallel']
+    data_loader = config['data_loader']
     torch.backends.cudnn.benchmark = True
     feature_assigner = lambda x : None if input_dim==3 else x[:,3:]
     def my_collate(batch):
@@ -86,12 +87,16 @@ def main(rank, world_size):
 
 
     one_up_path = os.path.dirname(__file__)
-    out_path = os.path.join(one_up_path,"save/processed_dataset")
-    dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
+    out_path = os.path.join(one_up_path,r"save/processed_dataset")
+    if data_loader == 'ConditionalDataGrid':
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
+    elif data_loader=='ShapeNet':
+        dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size)
 
     shuffle=True
     #SET PIN MEM TRUE
-    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2)
+    
+    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2,)
 
 
 
@@ -192,17 +197,23 @@ def main(rank, world_size):
     if encoder_type == 'pointnet2':
         encoder = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim)
     elif encoder_type == 'gcn':
-        encoder = GCNEncoder(out_channels=context_dim,k=20)
+        encoder = GCNEncoder(in_dim= input_dim,out_channels=context_dim,k=20)
     else:
         raise Exception('Invalid encoder type!')
-  
-    encoder = geomDataParallel(encoder).to(device)
+    if data_parallel:
+        encoder = geomDataParallel(encoder).to(device)
+    else:
+        encoder = encoder.to(device)
+    
     parameters+= encoder.parameters()
     wandb.watch(encoder,log_freq=10)
 
     if batchnorm_encodings:
         batchnorm_encoder = torch.nn.BatchNorm1d(context_dim)
-        batchnorm_encoder = nn.DataParallel(batchnorm_encoder).to(device)
+        if data_parallel:
+            batchnorm_encoder = nn.DataParallel(batchnorm_encoder).to(device)
+        else:
+            batchnorm_encoder = batchnorm_encoder.to(device)
         parameters+= batchnorm_encoder.parameters()
     
 
@@ -212,7 +223,10 @@ def main(rank, world_size):
     for transform in transformations:
         if isinstance(transform,torch.nn.Module):
             transform.train()
-            transform = nn.DataParallel(transform).to(device)
+            if data_parallel:
+                transform = nn.DataParallel(transform).to(device)
+            else:
+                transforms = transform.to(device)
             parameters+= transform.parameters()
             wandb.watch(transform,log_freq=10)
 
@@ -254,7 +268,11 @@ def main(rank, world_size):
         with torch.no_grad():
             sample = conditioned.sample([batch_size,2000])[0].cpu().numpy()
             extract_0_0 = data_list_0[0]
-            cond_nump = torch.cat((extract_0_0.pos,extract_0_0.x),dim=-1).cpu().numpy()
+            if input_dim>3:
+                cond_nump = torch.cat((extract_0_0.pos,extract_0_0.x),dim=-1).cpu().numpy()
+            else:
+                cond_nump = torch.cat((extract_0_0.pos,torch.zeros_like(extract_0_0.pos))).cpu().numpy()
+                sample = np.concatenate((sample,np.zeros_like(sample)),axis=-1)
             cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
             sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
             return cond_nump,sample
@@ -300,13 +318,13 @@ def main(rank, world_size):
             flow_dist.clear_cache()
             
             
-            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/50 +1)  == 0):
+            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/2)  == 0):
                 print(f'Making samples and saving!')
                 with torch.no_grad():
                     cond_nump,gen_sample = numpy_samples(conditioned,data_list_0)
                     wandb.log({'loss':loss.item(),"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(gen_sample)})
                     save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
-                    torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
+                    #torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
             else:
                 wandb.log({'loss':loss.item()})
                 
