@@ -66,6 +66,7 @@ def main(rank, world_size):
     optimizer_type = config['optimizer_type']
     batchnorm_encodings = config['batchnorm_encodings']
     encoder_type = config['encoder_type']
+    weight_decay = config['weight_decay']
 
     torch.backends.cudnn.benchmark = True
     feature_assigner = lambda x : None if input_dim==3 else x[:,3:]
@@ -197,7 +198,7 @@ def main(rank, world_size):
   
     encoder = geomDataParallel(encoder).to(device)
     parameters+= encoder.parameters()
-    wandb.watch(encoder,log='gradients',log_freq=10)
+    wandb.watch(encoder,log_freq=10)
 
     if batchnorm_encodings:
         batchnorm_encoder = torch.nn.BatchNorm1d(context_dim)
@@ -213,18 +214,18 @@ def main(rank, world_size):
             transform.train()
             transform = nn.DataParallel(transform).to(device)
             parameters+= transform.parameters()
-            wandb.watch(transform,log='gradients',log_freq=10)
+            wandb.watch(transform,log_freq=10)
 
 
 
     flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
 
     if optimizer_type =='Adam':
-        optimizer = torch.optim.Adam(parameters, lr=lr) 
+        optimizer = torch.optim.Adam(parameters, lr=lr,weight_decay=weight_decay) 
     elif optimizer_type == 'Adamax':
         optimizer = torch.optim.Adamax(parameters, lr=lr)
     elif optimizer_type == 'AdamW':
-        optimizer = torch.optim.AdamW(parameters, lr=lr)
+        optimizer = torch.optim.AdamW(parameters, lr=lr,weight_decay=weight_decay)
     else:
         raise Exception('Invalid optimizer type!')
 
@@ -233,19 +234,19 @@ def main(rank, world_size):
     
 
 
-    points_0 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2016/0_5D4KVPBP.las")[:,:input_dim]
-    points_1 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2020/0_WE1NZ71I.las")[:,:input_dim]
-    sign_point = np.array([86967.46,439138.8])
+    # points_0 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2016/0_5D4KVPBP.las")[:,:input_dim]
+    # points_1 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2020/0_WE1NZ71I.las")[:,:input_dim]
+    # sign_point = np.array([86967.46,439138.8])
 
-    sign_0 = extract_area(points_0,sign_point,1.5,'square')
-    sign_0 = torch.from_numpy(sign_0.astype(dtype=np.float32)).to(device)
+    # sign_0 = extract_area(points_0,sign_point,1.5,'square')
+    # sign_0 = torch.from_numpy(sign_0.astype(dtype=np.float32)).to(device)
 
-    sign_1 = extract_area(points_1,sign_point,1.5,'square')
-    sign_1= torch.from_numpy(sign_1.astype(dtype=np.float32)).to(device)
-    sign_0, sign_1 = co_min_max(sign_0,sign_1)
+    # sign_1 = extract_area(points_1,sign_point,1.5,'square')
+    # sign_1= torch.from_numpy(sign_1.astype(dtype=np.float32)).to(device)
+    # sign_0, sign_1 = co_min_max(sign_0,sign_1)
 
 
-    point_tester = PointTester(sign_0,sign_1,r"save/test_samples",device,samples=3000)
+    
 
 
     
