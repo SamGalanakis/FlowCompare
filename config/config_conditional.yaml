@@ -3,10 +3,10 @@ sample_size:
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
-  value: 5
+  value: 18
 data_loader:
   desc: What loader to use
-  value: ShapeNet
+  value: ConditionalDataGrid
 batchnorm:
   desc: batchnorm between flow layers
   value: true
@@ -15,7 +15,7 @@ flow_type:
   value: exponential_coupling
 hidden_dims:
   desc: linear layers for flow coupling
-  value: [400,400]
+  value: [350,350,350]
 permuter_type:
   desc: 'How to permute between coupling blocks'
   value: random_permute
@@ -30,7 +30,7 @@ count_bins:
   value: 64
 input_dim:
   desc: Dimension of pointcloud data
-  value: 3
+  value: 6
 grid_square_size:
   desc: Number of f subblocks 
   value: 4
@@ -42,7 +42,7 @@ subsample:
   value: 'random'
 patience:
   desc: patience
-  value: 50
+  value: 110
 preload:
   desc: Preload_dataset
   value: True
@@ -57,10 +57,10 @@ context_dim:
   value: 32
 batch_size:
   desc: Batch size
-  value: 15 #35
+  value: 25 #35
 lr:
   desc: Initial learning rate for optimizer
-  value: 0.0001
+  value: 0.01
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/

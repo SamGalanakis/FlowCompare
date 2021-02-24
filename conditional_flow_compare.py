@@ -96,8 +96,11 @@ def main(rank, world_size):
     shuffle=True
     #SET PIN MEM TRUE
     
-    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2,)
-
+    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=my_collate,pin_memory=True,prefetch_factor=2)
+    # for batch in dataloader:
+    #     to_view = batch[-1][0]
+    #     view_cloud_plotly(batch[0][0].pos + np.array([0,1,0]))
+    #     view_cloud_plotly(to_view[:,:3])
 
 
 
@@ -110,8 +113,7 @@ def main(rank, world_size):
 
 
 
-        
-    #NEED TO DEAL WITH THE ORDER OF TRANSFORMATIONS AS TRAINING USED THE INVERS!!!
+      
     class Conditional_flow_layers:
         def __init__(self,flow,n_flow_layers,input_dim,context_dim,count_bins,device,permuter,scaler,hidden_dims,batchnorm):
             self.transformations = []
@@ -233,7 +235,7 @@ def main(rank, world_size):
 
 
     flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
-
+    
     if optimizer_type =='Adam':
         optimizer = torch.optim.Adam(parameters, lr=lr,weight_decay=weight_decay) 
     elif optimizer_type == 'Adamax':
@@ -243,25 +245,11 @@ def main(rank, world_size):
     else:
         raise Exception('Invalid optimizer type!')
 
+    
 
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.05,patience=patience,threshold=0.0001)
     save_model_path = r'save/conditional_flow_compare'
     
-
-
-    # points_0 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2016/0_5D4KVPBP.las")[:,:input_dim]
-    # points_1 = load_las(r"/mnt/cm-nas03/synch/students/sam/data/2020/0_WE1NZ71I.las")[:,:input_dim]
-    # sign_point = np.array([86967.46,439138.8])
-
-    # sign_0 = extract_area(points_0,sign_point,1.5,'square')
-    # sign_0 = torch.from_numpy(sign_0.astype(dtype=np.float32)).to(device)
-
-    # sign_1 = extract_area(points_1,sign_point,1.5,'square')
-    # sign_1= torch.from_numpy(sign_1.astype(dtype=np.float32)).to(device)
-    # sign_0, sign_1 = co_min_max(sign_0,sign_1)
-
-
-    
-
 
     
     def numpy_samples(conditioned,data_list_0):
@@ -311,22 +299,23 @@ def main(rank, world_size):
 
             assert not loss.isnan(), "Nan loss!"
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(parameters,max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.0)
             
             optimizer.step()
             
             flow_dist.clear_cache()
             
-            
-            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/2)  == 0):
+            scheduler.step(loss)
+            current_lr = optimizer.param_groups[0]['lr']
+            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/100)  == 0):
                 print(f'Making samples and saving!')
                 with torch.no_grad():
                     cond_nump,gen_sample = numpy_samples(conditioned,data_list_0)
-                    wandb.log({'loss':loss.item(),"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(gen_sample)})
+                    wandb.log({'loss':loss.item(),"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(gen_sample),'lr':current_lr})
                     save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
-                    #torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
+                    torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
             else:
-                wandb.log({'loss':loss.item()})
+                wandb.log({'loss':loss.item(),'lr':current_lr})
                 
             
             

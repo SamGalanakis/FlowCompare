@@ -133,7 +133,7 @@ def extract_area(full_cloud,center,clearance,shape= 'cylinder'):
 def grid_split(points,grid_size,center = False,clearance = 20):
     if isinstance(center,bool):
         center = points[:,:2].mean(axis=0)
-    #points = points[:,:3]
+    
     
     center_x = center[0]
     center_y= center[1]
@@ -149,6 +149,23 @@ def grid_split(points,grid_size,center = False,clearance = 20):
             tile = x_strip[mask_y]
             grid_list.append(tile)
     return grid_list
+def circle_split(points,circle_radius,center = False,clearance = 20):
+    if isinstance(center,bool):
+        center = points[:,:2].mean(axis=0)
+    
+    
+    center_x = center[0]
+    center_y= center[1]
+    x = np.arange(center_x-clearance, center_x+clearance, circle_radius) 
+    y = np.arange(center_y-clearance, center_y+clearance, circle_radius) 
+   
+    circles_list = []
+    for x_val in x:
+        for y_val in y:
+            tile = points[np.linalg.norm(points[:,:2]-np.array([x_val,y_val]),axis=1)<circle_radius]
+            circles_list.append(tile)
+    return circles_list
+
 
 def random_subsample(points,n_samples):
     if points.shape[0]==0:
@@ -295,31 +312,7 @@ class PointTester:
 
 def expm(x):
     return torch.matrix_exp(x)
-    """
-    # compute the matrix exponential: \sum_{k=0}^{\infty}\frac{x^{k}}{k!}, first way in paper for low dims
-    # From https://github.com/changyi7231/MEF/blob/master/models/utils.py
-    # """
-    # scale = torch.clip(torch.ceil(torch.log2(torch.linalg.norm(x, ord=1, dim=(-2,-1))  ) + 1 ),min=0).long()
-    # #scale = int(np.ceil(np.log2(np.max([torch.linalg.norm(x, ord=1, dim=(-2,-1)).max().item(), 0.5]))) + 1)
-    # x = x / (2**scale).unsqueeze(-1).unsqueeze(-1).expand(x.size())
-    # s = torch.eye(x.size(-1), device=x.device)
-    # t = x
-    # k = 2
-    # while (torch.linalg.norm(t, ord=1, dim=(-2,-1)) > eps).any():
-    #     s = s + t
-    #     t = torch.matmul(x, t) / k
-    #     k = k + 1
-
-    # for i in range(torch.min(scale).item()):
-    #     s = torch.matmul(s, s)
-
-    # scale = scale - torch.min(scale)
-    # for i in range(scale.max().item()):
-    #     indexes = (scale==i)
-    #     s[indexes] = torch.matmul(s[indexes],s[indexes])
-    # torch.matrix_exp(x)
-    return (approx_expm(x))
-    #return torch.matrix_exp(x)
+  
 
 def approx_expm(x):
     y = 0
@@ -328,7 +321,16 @@ def approx_expm(x):
     return y
 
 if __name__ == '__main__':
-    a = torch.tensor([[8,-7],[1,0]],dtype=torch.float32)
-    exponential = expm(a)
-    print(exponential)
+    points = load_las(r'/mnt/cm-nas03/synch/students/sam/data_test/2018/0_0_5D696L9N.las')
+    circles = circle_split(points,2,center = False,clearance = 20)
+    circles = [x for x in circles if x.shape[0]>100]
+    circle_list =[]
+    rand_colors = [np.random.uniform(0,1,(3))+np.zeros_like(x[:,:3]) for x in circles]
+    for index,circle in enumerate(circles):
+        rgb = rand_colors[index]
+        circle[:,3:] = rgb
+        circle_list.append(circle)
+    
+    all_circles = np.concatenate(circle_list,axis=0)
+    save_las(all_circles[:,:3],'/mnt/cm-nas03/synch/students/sam/test_circles.las',all_circles[:,3:])
 
