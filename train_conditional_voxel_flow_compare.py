@@ -246,12 +246,7 @@ def main(rank, world_size):
             cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
             sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
             return cond_nump,sample
-            # fig_cond = view_cloud_plotly(extract_0_0.pos.cpu(),extract_0_0.x.cpu(),show=show)
-            # fig_sample = view_cloud_plotly(sample[:,:3],sample[:,3:],show=show)
-
-            # if save:
-            #     fig_cond.write_html(os.path.join(save_path,'cond_'+save))
-            #     fig_cond.write_html(os.path.join(save_path,'gen_'+save))
+        
 
 
     torch.autograd.set_detect_anomaly(False)
