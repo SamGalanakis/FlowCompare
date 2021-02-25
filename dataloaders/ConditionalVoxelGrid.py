@@ -8,7 +8,7 @@ from torch.utils.data import Dataset, DataLoader
 from itertools import permutations 
 from torch_geometric.nn import fps
 from tqdm import tqdm
-from torch.nn import voxel_grid
+from torch_geometric.nn import voxel_grid
 
 
 eps = 1e-8
@@ -23,10 +23,11 @@ class ConditionalVoxelGrid(Dataset):
         self.min_points = min_points
         self.out_path = out_path
         self.extract_id_dict = {}
+        self.voxel_indicies_id_dict = {}
         self.subsample = subsample
         self.height_min_dif = height_min_dif
         self.minimum_difs = torch.Tensor([self.grid_square_size*0.95,self.grid_square_size*0.95,self.height_min_dif])
-        self.save_name = f"extract_id_dict_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}.pt"
+        self.save_name = f"voxel_dataset_{clearance}_{subsample}_{self.in_vox_sample_size}_{self.min_points}_{self.grid_square_size}{self.voxel_size}.pt"
         self.normalization = normalization
         self.vozel_size = voxel_size
         if not preload:
@@ -56,24 +57,22 @@ class ConditionalVoxelGrid(Dataset):
                     extract_list = [torch.from_numpy(x.astype(np.float32)) for x in extract_list if x.shape[0]>=self.min_points]
                     #Check mins
                     extract_list = [x for x in extract_list if ((x.max(dim=0)[0][:3]-x.min(dim=0)[0][:3] )>self.minimum_difs).all().item()]
-                    extract_list = [voxel_grid(x[:,:3],batch=torch.zeros_like(x[:,:3],size=self.vozel_size)) for x in extract_list]
                     if len(extract_list)<2:
                         continue
-                    extract_id +=1 # Iterate after continue to not skip ints
-                    if self.subsample=='random':
-                        extract_list = [ random_subsample(x,sample_size) for x in extract_list]
-                    elif self.subsample=='fps':
-                        
-                        extract_list = [ x[fps(x.cuda(),ratio = self.sample_size/x.shape[0])] if 0<self.sample_size/x.shape[0]<1 else x for x in extract_list]
                     else:
-                        raise Exception("Invalid subsampling type")
-                    #Check mins again
-                    extract_list = [x for x in extract_list if ((x.max(dim=0)[0][:3]-x.min(dim=0)[0][:3] )>self.minimum_difs).all().item()]
+                        # Iterate after check to not skip ints
+                        extract_id +=1
+    
+                         
+
                     for scan_index,extract in enumerate(extract_list):
-                        
                         if not extract_id in self.extract_id_dict:
                             self.extract_id_dict[extract_id]=[]
                         self.extract_id_dict[extract_id].append(extract)
+
+                        if not extract_id in self.voxel_indicies_id_dict:
+                            self.voxel_indicies_id_dict[extract_id]=[]
+                        self.voxel_indicies_id_dict[extract_id].append(voxel_indices[scan_index])
                         
             save_path  = os.path.join(self.out_path,self.save_name)
             print(f"Saving to {save_path}!")
@@ -118,6 +117,7 @@ class ConditionalVoxelGrid(Dataset):
             idx = idx.tolist()
         combination_entry = self.combinations_list[idx]
         relevant_tensors = self.extract_id_dict[combination_entry[0]]
+        relevant_voxel_indices = self.voxel_indicies_id_dict[combination_entry[0]]
         #CLONE THE TENSOR IF SAME, OTHERWISE POINT TO SAME MEMORY, PROBLEMS IN NORMALIZATION
         if combination_entry[1]!=combination_entry[2]:
             tensor_0 = relevant_tensors[combination_entry[1]]

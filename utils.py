@@ -21,7 +21,7 @@ import laspy
 from torch_geometric.data import Data
 import torch
 import torch.nn.functional as F
-
+from torch_geometric.data import Data,Batch
 #Losses from original repo
 
 eps = 1e-8
@@ -281,42 +281,23 @@ def co_min_max(tensor_0,tensor_1):
 
 
     return tensor_0,tensor_1
-
-class PointTester:
-    def __init__(self,points_0,points_1,save_path,device,samples=10000):
-        self.points_0 = points_0
-        self.points_1 = points_1
-        self.save_path = save_path
-        self.samples= samples
-        self.device = device
-
-        
-
-    def generate_sample(self,encoder,flow,file_name,show=False):
-        if self.points_0.shape[-1]==3:
-            features = None
-            
-        else:
-            features = self.points_0[:,3:]
-            
-        with torch.no_grad():
-            data_encoder = [Data(x=features,pos =self.points_0[:,:3] )]
-            encoding = encoder(data_encoder)
-            encoded = flow.condition(encoding.unsqueeze(-2))
-            samples = encoded.sample([1,self.samples]).squeeze()
-        rgb = None
-        if samples.shape[-1]==6:
-            rgb = samples[:,3:]
-        fig = view_cloud_plotly(samples[:,:3],rgb,show = show)
-        print(f'Writing sample as {file_name}')
-        fig.write_html(os.path.join(self.save_path,file_name))
-
     
 
 def expm(x):
     return torch.matrix_exp(x)
 
+def feature_assigner(x,input_dim):
+    return None if input_dim==3 else x[:,3:]
 
+def collate_voxel(batch,voxel_size,input_dim):
+    
+    extract_0 = [item[0][:,:input_dim] for item in batch]
+    extract_1 = [item[1][:,:input_dim] for item in batch]
+    data_list_0 = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_0]
+    data_list_1 = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_1]
+    batch_0 = Batch.from_dict(data_list_0(data_list_0))
+    batch_1 = Batch.from_dict(data_list_1(data_list_1))
+    return batch_0,batch_1
 
 
 if __name__ == '__main__':
