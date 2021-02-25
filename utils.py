@@ -136,7 +136,7 @@ def extract_area(full_cloud,center,clearance,shape= 'cylinder'):
 def grid_split(points,grid_size,center = False,clearance = 20):
     if isinstance(center,bool):
         center = points[:,:2].mean(axis=0)
-    #points = points[:,:3]
+    
     
     center_x = center[0]
     center_y= center[1]
@@ -152,6 +152,23 @@ def grid_split(points,grid_size,center = False,clearance = 20):
             tile = x_strip[mask_y]
             grid_list.append(tile)
     return grid_list
+def circle_split(points,circle_radius,center = False,clearance = 20):
+    if isinstance(center,bool):
+        center = points[:,:2].mean(axis=0)
+    
+    
+    center_x = center[0]
+    center_y= center[1]
+    x = np.arange(center_x-clearance, center_x+clearance, circle_radius) 
+    y = np.arange(center_y-clearance, center_y+clearance, circle_radius) 
+   
+    circles_list = []
+    for x_val in x:
+        for y_val in y:
+            tile = points[np.linalg.norm(points[:,:2]-np.array([x_val,y_val]),axis=1)<circle_radius]
+            circles_list.append(tile)
+    return circles_list
+
 
 def random_subsample(points,n_samples):
     if points.shape[0]==0:
@@ -303,7 +320,16 @@ def expm(x):
 
 
 if __name__ == '__main__':
-    a = torch.tensor([[8,-7],[1,0]],dtype=torch.float32)
-    exponential = expm(a)
-    print(exponential)
+    points = load_las(r'/mnt/cm-nas03/synch/students/sam/data_test/2018/0_0_5D696L9N.las')
+    circles = circle_split(points,2,center = False,clearance = 20)
+    circles = [x for x in circles if x.shape[0]>100]
+    circle_list =[]
+    rand_colors = [np.random.uniform(0,1,(3))+np.zeros_like(x[:,:3]) for x in circles]
+    for index,circle in enumerate(circles):
+        rgb = rand_colors[index]
+        circle[:,3:] = rgb
+        circle_list.append(circle)
+    
+    all_circles = np.concatenate(circle_list,axis=0)
+    save_las(all_circles[:,:3],'/mnt/cm-nas03/synch/students/sam/test_circles.las',all_circles[:,3:])
 
