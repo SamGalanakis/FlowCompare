@@ -5,7 +5,7 @@ import pyro.distributions.transforms as T
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,collate_voxel
 from torch.utils.data import Dataset,DataLoader
 from itertools import permutations, combinations
 from tqdm import tqdm
@@ -27,7 +27,7 @@ from models.gcn_encoder import GCNEncoder
 import torch.multiprocessing as mp
 from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
-
+import functools
 def main(rank, world_size):
 
 
@@ -37,7 +37,7 @@ def main(rank, world_size):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     
-    config_path = r"config/config_conditional.yaml"
+    config_path = r"config/config_conditional_voxel.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     sample_size= config['sample_size'] 
@@ -68,39 +68,21 @@ def main(rank, world_size):
     weight_decay = config['weight_decay']
     data_parallel = config['data_parallel']
     data_loader = config['data_loader']
+    voxel_size = config['voxel_size']
+
+
+
     torch.backends.cudnn.benchmark = True
     
-    def collate_grid(batch):
-        
-        extract_0 = [item[0][:,:input_dim] for item in batch]
-        extract_1 = [item[1][:,:input_dim] for item in batch]
-        
-        data_list_0 = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_0]
-        extract_1 = torch.stack(extract_1)
-        return [data_list_0, extract_1]
-
-  
-
-
-
-
-
-
+    
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
-    if data_loader == 'ConditionalDataGrid':
-        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points)
-    elif data_loader=='ShapeNet':
-        dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size)
+    dataset = ConditionalVoxelGrid(direcories_list,out_path,voxel_size,grid_square_size,clearance,preload,min_points,in_vox_sample_size,subsample=subsample)
 
     shuffle=True
     #SET PIN MEM TRUE
-    
-    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=collate_grid,pin_memory=True,prefetch_factor=2)
-    # for batch in dataloader:
-    #     to_view = batch[-1][0]
-    #     view_cloud_plotly(batch[0][0].pos + np.array([0,1,0]))
-    #     view_cloud_plotly(to_view[:,:3])
+    collate = functools.partial(collate_voxel,voxel_size=voxel_size,input_dim=input_dim)
+    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=collate_voxel,pin_memory=True,prefetch_factor=2)
 
 
 
@@ -264,12 +246,7 @@ def main(rank, world_size):
             cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
             sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
             return cond_nump,sample
-            # fig_cond = view_cloud_plotly(extract_0_0.pos.cpu(),extract_0_0.x.cpu(),show=show)
-            # fig_sample = view_cloud_plotly(sample[:,:3],sample[:,3:],show=show)
-
-            # if save:
-            #     fig_cond.write_html(os.path.join(save_path,'cond_'+save))
-            #     fig_cond.write_html(os.path.join(save_path,'gen_'+save))
+        
 
 
     torch.autograd.set_detect_anomaly(False)
