@@ -4,7 +4,7 @@ data/ShapeNetCore.v2.PC15k/
 save/
 wandb/
 data/
-
+emd_loss/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

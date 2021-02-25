@@ -13,7 +13,8 @@ from models.pytorch_geometric_pointnet2 import Pointnet2
 from models.nets import ConditionalDenseNN, DenseNN
 from torch_geometric.data import Data,Batch
 from torch_geometric.nn import fps
-from dataloaders import ConditionalDataGrid, ShapeNetLoader, ConditionalVoxelGrid
+from dataloaders.ConditionalDataGrid import ConditionalDataGrid
+from dataloaders.ShapenetLoader import ShapeNetLoader
 import wandb
 import torch.multiprocessing as mp
 from torch.nn.parallel import DataParallel

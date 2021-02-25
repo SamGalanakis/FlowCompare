@@ -19,6 +19,9 @@ import os
 import math
 import laspy
 from torch_geometric.data import Data
+import torch
+import torch.nn.functional as F
+
 #Losses from original repo
 
 eps = 1e-8
@@ -295,37 +298,9 @@ class PointTester:
 
 def expm(x):
     return torch.matrix_exp(x)
-    """
-    # compute the matrix exponential: \sum_{k=0}^{\infty}\frac{x^{k}}{k!}, first way in paper for low dims
-    # From https://github.com/changyi7231/MEF/blob/master/models/utils.py
-    # """
-    # scale = torch.clip(torch.ceil(torch.log2(torch.linalg.norm(x, ord=1, dim=(-2,-1))  ) + 1 ),min=0).long()
-    # #scale = int(np.ceil(np.log2(np.max([torch.linalg.norm(x, ord=1, dim=(-2,-1)).max().item(), 0.5]))) + 1)
-    # x = x / (2**scale).unsqueeze(-1).unsqueeze(-1).expand(x.size())
-    # s = torch.eye(x.size(-1), device=x.device)
-    # t = x
-    # k = 2
-    # while (torch.linalg.norm(t, ord=1, dim=(-2,-1)) > eps).any():
-    #     s = s + t
-    #     t = torch.matmul(x, t) / k
-    #     k = k + 1
 
-    # for i in range(torch.min(scale).item()):
-    #     s = torch.matmul(s, s)
 
-    # scale = scale - torch.min(scale)
-    # for i in range(scale.max().item()):
-    #     indexes = (scale==i)
-    #     s[indexes] = torch.matmul(s[indexes],s[indexes])
-    # torch.matrix_exp(x)
-    return (approx_expm(x))
-    #return torch.matrix_exp(x)
 
-def approx_expm(x):
-    y = 0
-    for i in range(0,13):
-        y = y + torch.matrix_power(x,i)/math.factorial(i)
-    return y
 
 if __name__ == '__main__':
     a = torch.tensor([[8,-7],[1,0]],dtype=torch.float32)
