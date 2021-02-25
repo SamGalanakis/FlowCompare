@@ -33,7 +33,7 @@ input_dim:
   value: 6
 grid_square_size:
   desc: Number of f subblocks 
-  value: 4
+  value: 2
 clearance:
   desc: clearance
   value: 10
@@ -45,7 +45,7 @@ patience:
   value: 110
 preload:
   desc: Preload_dataset
-  value: True
+  value: False
 min_points:
   desc: Minimum sample size
   value: 2000

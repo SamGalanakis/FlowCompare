@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split
 from torch.utils.data import Dataset, DataLoader
 from itertools import permutations 
 from torch_geometric.nn import fps
@@ -15,7 +15,7 @@ eps = 1e-8
 
 
 class ConditionalDataGrid(Dataset):
-    def __init__(self, direcories_list,out_path,sample_size=2000,grid_square_size = 4,clearance = 28,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max'):
+    def __init__(self, direcories_list,out_path,sample_size=2000,grid_square_size = 4,clearance = 28,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle'):
         self.sample_size  = sample_size
         self.grid_square_size = grid_square_size
         self.clearance = clearance
@@ -25,7 +25,8 @@ class ConditionalDataGrid(Dataset):
         self.subsample = subsample
         self.height_min_dif = height_min_dif
         self.minimum_difs = torch.Tensor([self.grid_square_size*0.95,self.grid_square_size*0.95,self.height_min_dif])
-        self.save_name = f"extract_id_dict_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}.pt"
+        self.grid_type = grid_type
+        self.save_name = f"extract_id_dict_{grid_type}_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}.pt"
         self.normalization = normalization
         if not preload:
             print(f"Recreating dataset, saving to: {self.out_path}")
@@ -46,7 +47,11 @@ class ConditionalDataGrid(Dataset):
             for scene_number, path_list in tqdm(scene_dict.items()):
                 full_clouds = [load_las(path) for path in path_list]
                 center = full_clouds[0][:,:2].mean(axis=0)
-                grids = [grid_split(cloud,self.grid_square_size,center=center,clearance = self.clearance) for cloud in full_clouds]
+                if self.grid_type == 'square':
+                    grids = [grid_split(cloud,self.grid_square_size,center=center,clearance = self.clearance) for cloud in full_clouds]
+                else:
+                    grids = [circle_split(cloud,self.grid_square_size,center=center,clearance = self.clearance) for cloud in full_clouds]
+
                 
 
                 for square_index,extract_list in enumerate(list(zip(*grids))):
