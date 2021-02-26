@@ -45,7 +45,7 @@ patience:
   value: 110
 preload:
   desc: Preload_dataset
-  value: False
+  value: True
 min_points:
   desc: Minimum sample size
   value: 2000
@@ -54,7 +54,7 @@ n_epochs:
   value: 3000
 batch_size:
   desc: Batch size
-  value: 25 #35
+  value: 2 #35
 lr:
   desc: Initial learning rate for optimizer
   value: 0.01
@@ -78,7 +78,7 @@ weight_decay:
   value: 0.1
 data_parallel:
   desc: Use parallel
-  value: true
+  value: false
 voxel_size:
   desc: voxel_size
   value: 0.03125

@@ -291,14 +291,14 @@ def expm(x):
 def feature_assigner(x,input_dim):
     return None if input_dim==3 else x[:,3:]
 
-def collate_voxel(batch,voxel_size,input_dim,device,start=0,end=1):
+def collate_voxel(batch,voxel_size,input_dim,start=0,end=1):
     
     extract_0 = [item[0][:,:input_dim] for item in batch]
     extract_1 = [item[1][:,:input_dim] for item in batch]
     data_list_0 = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_0]
     data_list_1 = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_1]
-    batch_0 = Batch.from_data_list(data_list_0).to(device)
-    batch_1 = Batch.from_data_list(data_list_1).to(device)
+    batch_0 = Batch.from_data_list(data_list_0)
+    batch_1 = Batch.from_data_list(data_list_1)
 
     batch_0_voxels = voxel_grid(batch_0.pos,batch_0.batch,size=voxel_size,start=start,end=end)
     voxel_cluster_0, perm_0 = consecutive_cluster(batch_0_voxels)
@@ -315,7 +315,7 @@ if __name__ == '__main__':
         batch = [(torch.rand(100000,6),torch.rand(100000,6)) for x in range(20)]
 
 
-        result = collate_voxel(batch=batch,voxel_size=1/32,input_dim=6,start=None,end=None)
+        result = collate_voxel(batch=batch,voxel_size=1/2,input_dim=6,start=None,end=None)
 
 
 

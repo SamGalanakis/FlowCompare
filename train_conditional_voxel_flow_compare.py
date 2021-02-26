@@ -36,8 +36,8 @@ def main(rank, world_size):
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    
+    device = 'cpu'
+    print(f'Using device {device}!')
     config_path = r"config/config_conditional_voxel.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
@@ -72,7 +72,7 @@ def main(rank, world_size):
     global_emb_dim = config['global_emb_dim']
     voxel_emb_dim = config['voxel_emb_dim']
 
-
+    n_voxels = int((1/voxel_size)**3)
     torch.backends.cudnn.benchmark = True
     
     
@@ -82,8 +82,8 @@ def main(rank, world_size):
    
     shuffle=True
     #SET PIN MEM TRUE
-    collate = functools.partial(collate_voxel,voxel_size=voxel_size,device=device,input_dim=input_dim)
-    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=collate_voxel,pin_memory=True,prefetch_factor=2)
+    collate = functools.partial(collate_voxel,voxel_size=voxel_size,input_dim=input_dim)
+    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=collate,pin_memory=False,prefetch_factor=2)
 
 
 
@@ -268,7 +268,7 @@ def main(rank, world_size):
             encodings_1 = encoder(batch_1)
             
             
-         
+            empty_grid_0 = torch.zeros((batch_size,n_voxels,n_voxels,n_voxels,voxel_emb_dim),dtype=torch.float32,device=device)
             conditioned = flow_dist.condition(encodings.unsqueeze(-2))
             
            
