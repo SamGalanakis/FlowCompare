@@ -11,6 +11,7 @@ from itertools import permutations, combinations
 from tqdm import tqdm
 from models.pytorch_geometric_pointnet2 import Pointnet2
 from models.nets import ConditionalDenseNN, DenseNN
+from models.voxel_cnn import VoxelCNN
 from torch_geometric.data import Data,Batch
 from torch_geometric.nn import fps
 from dataloaders import ConditionalDataGrid, ShapeNetLoader, ConditionalVoxelGrid
@@ -55,7 +56,6 @@ def main(rank, world_size):
     preload = config['preload']
     min_points = config['min_points']
     n_epochs = config['n_epochs']
-    context_dim = config['context_dim']
     lr = config['lr']
     num_workers = config['num_workers']
     permuter_type = config['permuter_type']
@@ -69,7 +69,8 @@ def main(rank, world_size):
     data_parallel = config['data_parallel']
     data_loader = config['data_loader']
     voxel_size = config['voxel_size']
-
+    global_emb_dim = config['global_emb_dim']
+    voxel_emb_dim = config['voxel_emb_dim']
 
 
     torch.backends.cudnn.benchmark = True
@@ -77,16 +78,16 @@ def main(rank, world_size):
     
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
-    dataset = ConditionalVoxelGrid(direcories_list,out_path,voxel_size,grid_square_size,clearance,preload,min_points,in_vox_sample_size,subsample=subsample)
-
+    dataset = ConditionalVoxelGrid(dirs,out_path=out_path,grid_square_size=grid_square_size,clearance=clearance,preload=preload,min_points=min_points)
+   
     shuffle=True
     #SET PIN MEM TRUE
-    collate = functools.partial(collate_voxel,voxel_size=voxel_size,input_dim=input_dim)
+    collate = functools.partial(collate_voxel,voxel_size=voxel_size,device=device,input_dim=input_dim)
     dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=collate_voxel,pin_memory=True,prefetch_factor=2)
 
 
 
-    base_dist = dist.Normal(torch.zeros(input_dim).to(device), torch.ones(input_dim).to(device))
+
 
 
     
@@ -172,12 +173,14 @@ def main(rank, world_size):
     if scaler_type == 'Sigmoid_scaler':
         scaler = Sigmoid_scaler
     
-    
-    conditional_flow_layers = Conditional_flow_layers(flow,n_flow_layers,input_dim,context_dim,count_bins,device,permuter,scaler,hidden_dims,batchnorm)
+    flow_input_dim = voxel_emb_dim
+    context_dim = global_emb_dim
+    base_dist = dist.Normal(torch.zeros(flow_input_dim).to(device), torch.ones(flow_input_dim).to(device))
+    conditional_flow_layers = Conditional_flow_layers(flow,n_flow_layers,flow_input_dim,context_dim,count_bins,device,permuter,scaler,hidden_dims,batchnorm)
 
     
     parameters=[]
-
+    #VOXEL ENCODER
     if encoder_type == 'pointnet2':
         encoder = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim)
     elif encoder_type == 'gcn':
@@ -192,6 +195,19 @@ def main(rank, world_size):
     parameters+= encoder.parameters()
     wandb.watch(encoder,log_freq=10)
 
+    #FULL GRID ENCODER
+
+    grid_encoder = VoxelCNN(input_dim=voxel_emb_dim,emb_dim=global_emb_dim)
+    if data_parallel:
+        grid_encoder = nn.DataParallel(grid_encoder).to(device)
+    else:
+        grid_encoder = grid_encoder.to(device)
+    
+    parameters += grid_encoder.parameters()
+
+    wandb.watch(grid_encoder,log_freq=10)
+
+    #BATCHNORM ON FULL GRID ENCODER
     if batchnorm_encodings:
         batchnorm_encoder = torch.nn.BatchNorm1d(context_dim)
         if data_parallel:
@@ -234,21 +250,8 @@ def main(rank, world_size):
     
 
     
-    def numpy_samples(conditioned,data_list_0):
-        with torch.no_grad():
-            sample = conditioned.sample([batch_size,2000])[0].cpu().numpy()
-            extract_0_0 = data_list_0[0]
-            if input_dim>3:
-                cond_nump = torch.cat((extract_0_0.pos,extract_0_0.x),dim=-1).cpu().numpy()
-            else:
-                cond_nump = torch.cat((extract_0_0.pos,torch.zeros_like(extract_0_0.pos))).cpu().numpy()
-                sample = np.concatenate((sample,np.zeros_like(sample)),axis=-1)
-            cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
-            sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
-            return cond_nump,sample
-        
 
-
+    
     torch.autograd.set_detect_anomaly(False)
     for epoch in range(n_epochs):
         print(f"Starting epoch: {epoch}")
@@ -256,15 +259,16 @@ def main(rank, world_size):
             
 
             optimizer.zero_grad()
-            data_list_0,extract_1 = batch
-            extract_1 = extract_1.to(device)
-         
-  
+            batch = [x.to(device) for x in batch]
+            batch_0,batch_0_voxels,batch_sample_0,batch_1,batch_1_voxels,batch_sample_1 = batch
+            batch_0.batch = batch_0_voxels
+            batch_1.batch = batch_1_voxels
+
+            encodings_0 = encoder(batch_0)
+            encodings_1 = encoder(batch_1)
             
-            encodings = encoder(data_list_0) 
-            if batchnorm_encoder:
-                encodings = batchnorm_encoder(encodings)
-            assert not encodings.isnan().any(), "Nan in encoder"
+            
+         
             conditioned = flow_dist.condition(encodings.unsqueeze(-2))
             
            

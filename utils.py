@@ -22,6 +22,8 @@ from torch_geometric.data import Data
 import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data,Batch
+from torch_geometric.nn import voxel_grid
+from torch_geometric.nn.pool.consecutive import consecutive_cluster
 #Losses from original repo
 
 eps = 1e-8
@@ -289,18 +291,34 @@ def expm(x):
 def feature_assigner(x,input_dim):
     return None if input_dim==3 else x[:,3:]
 
-def collate_voxel(batch,voxel_size,input_dim):
+def collate_voxel(batch,voxel_size,input_dim,device,start=0,end=1):
     
     extract_0 = [item[0][:,:input_dim] for item in batch]
     extract_1 = [item[1][:,:input_dim] for item in batch]
     data_list_0 = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_0]
     data_list_1 = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_1]
-    batch_0 = Batch.from_dict(data_list_0(data_list_0))
-    batch_1 = Batch.from_dict(data_list_1(data_list_1))
-    return batch_0,batch_1
+    batch_0 = Batch.from_data_list(data_list_0).to(device)
+    batch_1 = Batch.from_data_list(data_list_1).to(device)
+
+    batch_0_voxels = voxel_grid(batch_0.pos,batch_0.batch,size=voxel_size,start=start,end=end)
+    voxel_cluster_0, perm_0 = consecutive_cluster(batch_0_voxels)
+    batch_sample_0 = batch_0.batch[perm_0]
+    batch_1_voxels = voxel_grid(batch_1.pos,batch_1.batch,size=voxel_size,start=start,end=end)
+    voxel_cluster_1, perm_1 = consecutive_cluster(batch_1_voxels)
+    batch_sample_1 = batch_1.batch[perm_1]
+    
+    return batch_0,batch_0_voxels,batch_sample_0,batch_1,batch_1_voxels,batch_sample_1
 
 
 if __name__ == '__main__':
+    for x in range(100):
+        batch = [(torch.rand(100000,6),torch.rand(100000,6)) for x in range(20)]
+
+
+        result = collate_voxel(batch=batch,voxel_size=1/32,input_dim=6,start=None,end=None)
+
+
+
     points = load_las(r'/mnt/cm-nas03/synch/students/sam/data_test/2018/0_0_5D696L9N.las')
     circles = circle_split(points,2,center = False,clearance = 20)
     circles = [x for x in circles if x.shape[0]>100]

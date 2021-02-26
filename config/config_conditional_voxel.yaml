@@ -45,16 +45,13 @@ patience:
   value: 110
 preload:
   desc: Preload_dataset
-  value: True
+  value: False
 min_points:
   desc: Minimum sample size
   value: 2000
 n_epochs:
   desc: Number of epochs to train for
   value: 3000
-context_dim:
-  desc: Dimension of embedding w (encoder output) ,e (conditioner)
-  value: 32
 batch_size:
   desc: Batch size
   value: 25 #35
@@ -84,4 +81,10 @@ data_parallel:
   value: true
 voxel_size:
   desc: voxel_size
-  value: 0.2
+  value: 0.03125
+global_emb_dim:
+  desc: Emb dim after 3DCNN
+  value: 1024
+voxel_emb_dim:
+  desc: Emb dim for each voxel
+  value: 32

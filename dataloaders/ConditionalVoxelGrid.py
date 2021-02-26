@@ -16,20 +16,17 @@ eps = 1e-8
 
 
 class ConditionalVoxelGrid(Dataset):
-    def __init__(self, direcories_list,out_path,voxel_size=0.1,grid_square_size = 4,clearance = 28,preload=False,min_points=500,in_vox_sample_size= 100,subsample='random',height_min_dif=0.5,normalization='min_max'):
-        self.in_vox_sample_size  = in_vox_sample_size
+    def __init__(self, direcories_list,out_path,grid_square_size = 4,clearance = 28,preload=False,min_points=500,height_min_dif=0.5,normalization='min_max'):
         self.grid_square_size = grid_square_size
         self.clearance = clearance
         self.min_points = min_points
         self.out_path = out_path
         self.extract_id_dict = {}
         self.voxel_indicies_id_dict = {}
-        self.subsample = subsample
         self.height_min_dif = height_min_dif
         self.minimum_difs = torch.Tensor([self.grid_square_size*0.95,self.grid_square_size*0.95,self.height_min_dif])
-        self.save_name = f"voxel_dataset_{clearance}_{subsample}_{self.in_vox_sample_size}_{self.min_points}_{self.grid_square_size}{self.voxel_size}.pt"
+        self.save_name = f"voxel_dataset_{clearance}_{self.min_points}_{self.grid_square_size}.pt"
         self.normalization = normalization
-        self.vozel_size = voxel_size
         if not preload:
             print(f"Recreating dataset, saving to: {self.out_path}")
             file_path_lists  = [[os.path.join(path,x) for x in os.listdir(path) if x.split('.')[-1]=='las'] for path in direcories_list]
