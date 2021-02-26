@@ -16,17 +16,18 @@ eps = 1e-8
 
 
 class ConditionalVoxelGrid(Dataset):
-    def __init__(self, direcories_list,out_path,grid_square_size = 4,clearance = 28,preload=False,min_points=500,height_min_dif=0.5,normalization='min_max'):
+    def __init__(self, direcories_list,out_path,grid_square_size = 4,sample_size=10000,clearance = 28,preload=False,min_points=500,height_min_dif=0.5,normalization='min_max',subsample='random'):
         self.grid_square_size = grid_square_size
         self.clearance = clearance
+        self.subsample= subsample
         self.min_points = min_points
         self.out_path = out_path
         self.extract_id_dict = {}
-        self.voxel_indicies_id_dict = {}
         self.height_min_dif = height_min_dif
         self.minimum_difs = torch.Tensor([self.grid_square_size*0.95,self.grid_square_size*0.95,self.height_min_dif])
         self.save_name = f"voxel_dataset_{clearance}_{self.min_points}_{self.grid_square_size}.pt"
         self.normalization = normalization
+        self.sample_size = sample_size
         if not preload:
             print(f"Recreating dataset, saving to: {self.out_path}")
             file_path_lists  = [[os.path.join(path,x) for x in os.listdir(path) if x.split('.')[-1]=='las'] for path in direcories_list]
@@ -59,6 +60,14 @@ class ConditionalVoxelGrid(Dataset):
                     else:
                         # Iterate after check to not skip ints
                         extract_id +=1
+                    
+                    if self.subsample=='random':
+                        extract_list = [ random_subsample(x,sample_size) for x in extract_list]
+                    elif self.subsample=='fps':
+                        
+                        extract_list = [ x[fps(x.cuda(),ratio = self.sample_size/x.shape[0])] if 0<self.sample_size/x.shape[0]<1 else x for x in extract_list]
+                    else:
+                        raise Exception("Invalid subsampling type")
     
                          
 
@@ -67,9 +76,7 @@ class ConditionalVoxelGrid(Dataset):
                             self.extract_id_dict[extract_id]=[]
                         self.extract_id_dict[extract_id].append(extract)
 
-                        if not extract_id in self.voxel_indicies_id_dict:
-                            self.voxel_indicies_id_dict[extract_id]=[]
-                        self.voxel_indicies_id_dict[extract_id].append(voxel_indices[scan_index])
+                   
                         
             save_path  = os.path.join(self.out_path,self.save_name)
             print(f"Saving to {save_path}!")
@@ -114,7 +121,7 @@ class ConditionalVoxelGrid(Dataset):
             idx = idx.tolist()
         combination_entry = self.combinations_list[idx]
         relevant_tensors = self.extract_id_dict[combination_entry[0]]
-        relevant_voxel_indices = self.voxel_indicies_id_dict[combination_entry[0]]
+
         #CLONE THE TENSOR IF SAME, OTHERWISE POINT TO SAME MEMORY, PROBLEMS IN NORMALIZATION
         if combination_entry[1]!=combination_entry[2]:
             tensor_0 = relevant_tensors[combination_entry[1]]
