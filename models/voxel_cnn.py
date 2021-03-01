@@ -55,5 +55,3 @@ if __name__ == '__main__':
     x = torch.randn((100,32,32,32,32))
     result = encoder(x)
     print(result.shape)
-
-        

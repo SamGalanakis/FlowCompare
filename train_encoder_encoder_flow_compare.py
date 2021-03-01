@@ -19,7 +19,6 @@ import torch.multiprocessing as mp
 from torch.nn.parallel import DataParallel
 import torch.distributed as distributed
 from models.permuters import Full_matrix_combiner,Exponential_combiner,Learned_permuter
-from models.scalers import Sigmoid_scaler
 from models.batchnorm import BatchNorm
 from torch.autograd import Variable, Function
 from models.Exponential_matrix_flow import conditional_exponential_matrix_coupling
@@ -27,6 +26,7 @@ from models.gcn_encoder import GCNEncoder
 import torch.multiprocessing as mp
 from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
+from models.flow_creator import Conditional_flow_layers
 
 def main(rank, world_size):
 
@@ -73,15 +73,11 @@ def main(rank, world_size):
 
     
     def collate_double_encode(batch):
-        
-        extract_0 = [item[0][:,:input_dim] for item in batch]
-        extract_1 = [item[1][:,:input_dim] for item in batch]
-        
-        data_list_0 = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_0]
-        data_list_1 = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_1]
-        batch_0 = Batch.from_data_list(data_list_0)
-        batch_1 = Batch.from_data_list(data_list_1)
-        return [batch_0, batch_1]
+        extract_0,extract_1 = list(zip(*batch))
+
+        combined_data_list = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_0+extract_1]
+        combined_batch = Batch.from_data_list(combined_data_list)
+        return combined_batch
 
   
 
@@ -121,55 +117,7 @@ def main(rank, world_size):
 
 
       
-    class Conditional_flow_layers:
-        def __init__(self,flow,n_flow_layers,input_dim,context_dim,count_bins,device,permuter,scaler,hidden_dims,batchnorm):
-            self.transformations = []
-            self.n_flow_layers = n_flow_layers
-            self.hidden_dims = hidden_dims
-            self.batchnorm = batchnorm
-            
-            for i in range(n_flow_layers):
-                flow_module = flow()
-                
-                
-                self.transformations.append(flow_module)
-                
-                if i<(self.n_flow_layers-1): #Don't add at the end
-                    
-                    #Batchnorm > permute > flow layer and end with flow layer
-                    
-                    #self.transformations.append(scaler())
-                    permuter_instance = permuter()
-            
-                    self.transformations.append(permuter_instance)
-
-                    if self.batchnorm:
-                        bn_layer = BatchNorm(input_dim)
-                        self.transformations.append(bn_layer)
-                    
-            self.layer_name_list = [type(x).__name__ for x in self.transformations]
-        def make_save_list(self):
-            save_list = []
-            for x in self.transformations:
-                try:
-                    save_list.append(x.state_dict())
-                    continue
-                except:
-                    pass
-                try:
-                    save_list.append(x.permutation)
-                    continue
-                except:
-                    pass
-                raise Exception('Can not save object')
-            return save_list
-
-        def to(self,device):
-            for transform in self.transformations:
-                try:
-                    transform = transform.to(device)
-                except:
-                    continue
+    
     
     if flow_type == 'exponential_coupling':
         flow = lambda  : conditional_exponential_matrix_coupling(input_dim=flow_input_dim, context_dim=context_dim, hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu')
@@ -194,11 +142,8 @@ def main(rank, world_size):
 
 
 
-    if scaler_type == 'Sigmoid_scaler':
-        scaler = Sigmoid_scaler
     
-    
-    conditional_flow_layers = Conditional_flow_layers(flow,n_flow_layers,flow_input_dim,context_dim,count_bins,device,permuter,scaler,hidden_dims,batchnorm)
+    conditional_flow_layers = Conditional_flow_layers(flow,n_flow_layers,flow_input_dim,context_dim,count_bins,device,permuter,hidden_dims,batchnorm)
 
     
     parameters=[]
@@ -269,14 +214,12 @@ def main(rank, world_size):
             
 
             optimizer.zero_grad()
-            batch = [x.to(device) for x in batch]
-            batch_0,batch_1 = batch
+            batch = batch.to(device)
+            encodings = encoder(batch.to_data_list())
+            encoding_0, encoding_1 = torch.split(encodings,batch_size)
     
          
   
-            
-            encoding_0 = encoder(batch_0.to_data_list()) 
-            encoding_1 = encoder(batch_1.to_data_list())
             if batchnorm_encoder:
                 encoding_0 = batchnorm_encoder(encoding_0)
             assert not encoding_0.isnan().any(), "Nan in encoder"

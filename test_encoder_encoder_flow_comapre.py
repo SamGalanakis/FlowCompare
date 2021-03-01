@@ -5,13 +5,12 @@ import pyro.distributions.transforms as T
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,collate_voxel
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner
 from torch.utils.data import Dataset,DataLoader
 from itertools import permutations, combinations
 from tqdm import tqdm
 from models.pytorch_geometric_pointnet2 import Pointnet2
 from models.nets import ConditionalDenseNN, DenseNN
-from models.voxel_cnn import VoxelCNN
 from torch_geometric.data import Data,Batch
 from torch_geometric.nn import fps
 from dataloaders import ConditionalDataGrid, ShapeNetLoader, ConditionalVoxelGrid
@@ -24,11 +23,10 @@ from models.batchnorm import BatchNorm
 from torch.autograd import Variable, Function
 from models.Exponential_matrix_flow import conditional_exponential_matrix_coupling
 from models.gcn_encoder import GCNEncoder
+from models.flow_creator import Conditional_flow_layers
 import torch.multiprocessing as mp
 from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
-import functools
-from models.flow_creator import Conditional_flow_layers
 
 def main(rank, world_size):
 
@@ -37,9 +35,9 @@ def main(rank, world_size):
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    print(f'Using device {device}!')
-    config_path = r"config/config_conditional_voxel.yaml"
+    
+    
+    config_path = r"config\config_conditional_encoder.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     sample_size= config['sample_size'] 
@@ -57,6 +55,7 @@ def main(rank, world_size):
     preload = config['preload']
     min_points = config['min_points']
     n_epochs = config['n_epochs']
+    context_dim = config['context_dim']
     lr = config['lr']
     num_workers = config['num_workers']
     permuter_type = config['permuter_type']
@@ -68,65 +67,86 @@ def main(rank, world_size):
     weight_decay = config['weight_decay']
     data_parallel = config['data_parallel']
     data_loader = config['data_loader']
-    voxel_size = config['voxel_size']
-    global_emb_dim = config['global_emb_dim']
-    voxel_emb_dim = config['voxel_emb_dim']
-
-    n_voxels = int((1/voxel_size)**3)
     torch.backends.cudnn.benchmark = True
+    flow_input_dim = context_dim
+
     
-    
+    def collate_double_encode(batch):
+        extract_0,extract_1 = list(zip(*batch))
+
+        combined_data_list = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_0+extract_1]
+        combined_batch = Batch.from_data_list(combined_data_list)
+        return combined_batch
+
+  
+
+
+
+
+
+
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
-    dataset = ConditionalVoxelGrid(dirs,out_path=out_path,grid_square_size=grid_square_size,clearance=clearance,preload=preload,min_points=min_points)
-   
+    if data_loader == 'ConditionalDataGridSquare':
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points,grid_type='square')
+    elif data_loader == 'ConditionalDataGridCircle':
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size,min_points=min_points,grid_type='circle')
+    elif data_loader=='ShapeNet':
+        dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=preload,subsample=subsample,sample_size=sample_size)
+    else:
+        raise Exception('Invalid dataloader type!')
     shuffle=True
     #SET PIN MEM TRUE
-    collate = functools.partial(collate_voxel,voxel_size=voxel_size,input_dim=input_dim)
-    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=collate,pin_memory=False,prefetch_factor=2)
+    
+    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=collate_double_encode,pin_memory=True,prefetch_factor=2)
+    # for batch in dataloader:
+    #     to_view = batch[-1][0]
+    #     view_cloud_plotly(batch[0][0].pos + np.array([0,1,0]))
+    #     view_cloud_plotly(to_view[:,:3])
 
 
 
+    base_dist = dist.Normal(torch.zeros(flow_input_dim).to(device), torch.ones(flow_input_dim).to(device))
 
 
+    
+    
 
-
+    
+    
     if flow_type == 'exponential_coupling':
-        flow = lambda  : conditional_exponential_matrix_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu')
+        flow = lambda  : conditional_exponential_matrix_coupling(input_dim=flow_input_dim, context_dim=context_dim, hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu')
     elif flow_type == 'spline_coupling':
-        flow = lambda : T.conditional_spline(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3.0)
+        flow = lambda : T.conditional_spline(input_dim=flow_input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3.0)
     elif flow_type == 'spline_autoregressive':
-        flow = lambda : T.conditional_spline_autoregressive(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3)
+        flow = lambda : T.conditional_spline_autoregressive(input_dim=flow_input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3)
     elif flow_type == 'affine_coupling':
-        flow = lambda : T.conditional_affine_coupling(input_dim=input_dim, context_dim=context_dim, hidden_dims=hidden_dims)
+        flow = lambda : T.conditional_affine_coupling(input_dim=flow_input_dim, context_dim=context_dim, hidden_dims=hidden_dims)
     else:
         raise Exception(f'Invalid flow type: {flow_type}')
     if permuter_type == 'Exponential_combiner':
-        permuter = lambda : Exponential_combiner(input_dim)
+        permuter = lambda : Exponential_combiner(flow_input_dim)
     elif permuter_type == 'Learned_permuter':
-        permuter = lambda : Learned_permuter(input_dim)
+        permuter = lambda : Learned_permuter(flow_input_dim)
     elif permuter_type == 'Full_matrix_combiner':
-        permuter = lambda : Full_matrix_combiner(input_dim)
+        permuter = lambda : Full_matrix_combiner(flow_input_dim)
     elif permuter_type == "random_permute":
-        permuter = lambda : T.Permute(torch.randperm(input_dim, dtype=torch.long).to(device))
+        permuter = lambda : T.Permute(torch.randperm(flow_input_dim, dtype=torch.long).to(device))
     else:
         raise Exception(f'Invalid permuter type: {permuter_type}')
 
 
 
     
-    flow_input_dim = voxel_emb_dim
-    context_dim = global_emb_dim
-    base_dist = dist.Normal(torch.zeros(flow_input_dim).to(device), torch.ones(flow_input_dim).to(device))
     conditional_flow_layers = Conditional_flow_layers(flow,n_flow_layers,flow_input_dim,context_dim,count_bins,device,permuter,hidden_dims,batchnorm)
 
     
     parameters=[]
-    #VOXEL ENCODER
+
     if encoder_type == 'pointnet2':
-        encoder = Pointnet2(feature_dim=input_dim-3,out_dim=voxel_emb_dim)
+        encoder = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim)
     elif encoder_type == 'gcn':
-        encoder = GCNEncoder(in_dim= input_dim,out_channels=voxel_emb_dim,k=20)
+        encoder = GCNEncoder(in_dim= input_dim,out_channels=context_dim,k=20)
     else:
         raise Exception('Invalid encoder type!')
     if data_parallel:
@@ -137,19 +157,6 @@ def main(rank, world_size):
     parameters+= encoder.parameters()
     wandb.watch(encoder,log_freq=10)
 
-    #FULL GRID ENCODER
-
-    grid_encoder = VoxelCNN(input_dim=voxel_emb_dim,emb_dim=global_emb_dim)
-    if data_parallel:
-        grid_encoder = nn.DataParallel(grid_encoder).to(device)
-    else:
-        grid_encoder = grid_encoder.to(device)
-    
-    parameters += grid_encoder.parameters()
-
-    wandb.watch(grid_encoder,log_freq=10)
-
-    #BATCHNORM ON FULL GRID ENCODER
     if batchnorm_encodings:
         batchnorm_encoder = torch.nn.BatchNorm1d(context_dim)
         if data_parallel:
@@ -191,9 +198,10 @@ def main(rank, world_size):
     save_model_path = r'save/conditional_flow_compare'
     
 
-    
 
-    
+     
+
+
     torch.autograd.set_detect_anomaly(False)
     for epoch in range(n_epochs):
         print(f"Starting epoch: {epoch}")
@@ -201,20 +209,20 @@ def main(rank, world_size):
             
 
             optimizer.zero_grad()
-            batch = [x.to(device) for x in batch]
-            batch_0,batch_0_voxels,batch_sample_0,voxel_cluster_0,batch_1,batch_1_voxels,batch_sample_1,voxel_cluster_1 = batch
-            batch_0.batch = voxel_cluster_0
-            batch_1.batch = voxel_cluster_1
-
-            encodings_0 = encoder(batch_0)
-            encodings_1 = encoder(batch_1)
-            
-            
-            empty_grid_0 = torch.zeros((batch_size,n_voxels,n_voxels,n_voxels,voxel_emb_dim),dtype=torch.float32,device=device)
-            conditioned = flow_dist.condition(encodings.unsqueeze(-2))
+            batch = batch.to(device)
+            encodings = encoder(batch.to_data_list())
+            encoding_0, encoding_1 = torch.split(encodings,batch_size)
+    
+         
+  
+            if batchnorm_encoder:
+                encoding_0 = batchnorm_encoder(encoding_0)
+            assert not encoding_0.isnan().any(), "Nan in encoder"
+            assert not encoding_1.isnan().any(), "Nan in encoder"
+            conditioned = flow_dist.condition(encoding_0)
             
            
-            loss = -conditioned.log_prob(extract_1).mean()
+            loss = -conditioned.log_prob(encoding_1).mean()
 
 
             
@@ -233,8 +241,8 @@ def main(rank, world_size):
             if batch_ind!=0 and  (batch_ind % int(len(dataloader)/100)  == 0):
                 print(f'Making samples and saving!')
                 with torch.no_grad():
-                    cond_nump,gen_sample = numpy_samples(conditioned,data_list_0)
-                    wandb.log({'loss':loss.item(),"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(gen_sample),'lr':current_lr})
+
+                    wandb.log({'loss':loss.item(),'lr':current_lr})
                     save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
                     torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
             else:
