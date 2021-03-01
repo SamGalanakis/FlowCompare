@@ -27,6 +27,79 @@ import torch.multiprocessing as mp
 from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 from models.flow_creator import Conditional_flow_layers
+def initialize_encoder_models(config,device = 'cuda',mode='train'):
+    flow_input_dim = config['context_dim']
+    flow_type = config['flow_type']
+    permuter_type = config['permuter_type']
+    hidden_dims = config['hidden_dims']
+    data_parallel = config['DataParallel']
+    parameters = []
+
+    if flow_type == 'exponential_coupling':
+        flow = lambda  : conditional_exponential_matrix_coupling(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu')
+    elif flow_type == 'spline_coupling':
+        flow = lambda : T.conditional_spline(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims,count_bins=count_bins,bound=3.0)
+    elif flow_type == 'spline_autoregressive':
+        flow = lambda : T.conditional_spline_autoregressive(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims,count_bins=count_bins,bound=3)
+    elif flow_type == 'affine_coupling':
+        flow = lambda : T.conditional_affine_coupling(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims)
+    else:
+        raise Exception(f'Invalid flow type: {flow_type}')
+    if permuter_type == 'Exponential_combiner':
+        permuter = lambda : Exponential_combiner(flow_input_dim)
+    elif permuter_type == 'Learned_permuter':
+        permuter = lambda : Learned_permuter(flow_input_dim)
+    elif permuter_type == 'Full_matrix_combiner':
+        permuter = lambda : Full_matrix_combiner(flow_input_dim)
+    elif permuter_type == "random_permute":
+        permuter = lambda : T.Permute(torch.randperm(flow_input_dim, dtype=torch.long).to(device))
+    else:
+        raise Exception(f'Invalid permuter type: {permuter_type}')
+
+    conditional_flow_layers = Conditional_flow_layers(flow,n_flow_layers,flow_input_dim,config['context_dim'],device,permuter,hidden_dims,config['batchnorm'])
+
+    for transform in conditional_flow_layers.transforms:
+        if isinstance(transform,torch.nn.Module):
+            if mode == 'train':
+                transform.train()
+            else:
+                transform.eval()
+            if data_parallel:
+                transform = nn.DataParallel(transform).to(device)
+            else:
+                transforms = transform.to(device)
+            parameters+= transform.parameters()
+            wandb.watch(transform,log_freq=10)
+
+    if config['encoder_type'] == 'pointnet2':
+        encoder = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim)
+    elif config['encoder_type'] == 'gcn':
+        encoder = GCNEncoder(in_dim= input_dim,out_channels=context_dim,k=20)
+    else:
+        raise Exception('Invalid encoder type!')
+    if data_parallel:
+        encoder = geomDataParallel(encoder).to(device)
+    else:
+        encoder = encoder.to(device)
+    if mode == 'train':
+        encoder.train()
+    else:
+        encoder.eval()
+    parameters += encoder.parameters()
+
+    if config['batchnorm_encodings']:
+        batchnorm_encoder = torch.nn.BatchNorm1d(context_dim)
+        if data_parallel:
+            batchnorm_encoder = nn.DataParallel(batchnorm_encoder).to(device)
+        else:
+            batchnorm_encoder = batchnorm_encoder.to(device)
+        parameters+= batchnorm_encoder.parameters()
+        if mode == 'train':
+            batchnorm_encoder.train()
+        else:
+            batchnorm_encoder.eval()
+
+    return {'parameters':parameters,"flow_layers":conditional_flow_layers,'batchnorm_encoder':batchnorm_encoder,'encoder':encoder}
 
 def main(rank, world_size):
 
@@ -100,10 +173,7 @@ def main(rank, world_size):
     #SET PIN MEM TRUE
     
     dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=batch_size,num_workers=num_workers,collate_fn=collate_double_encode,pin_memory=True,prefetch_factor=2)
-    # for batch in dataloader:
-    #     to_view = batch[-1][0]
-    #     view_cloud_plotly(batch[0][0].pos + np.array([0,1,0]))
-    #     view_cloud_plotly(to_view[:,:3])
+
 
 
 
@@ -116,75 +186,17 @@ def main(rank, world_size):
 
 
 
-      
+    models_dict = initialize_encoder_models(config,device,mode='train')
     
-    
-    if flow_type == 'exponential_coupling':
-        flow = lambda  : conditional_exponential_matrix_coupling(input_dim=flow_input_dim, context_dim=context_dim, hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu')
-    elif flow_type == 'spline_coupling':
-        flow = lambda : T.conditional_spline(input_dim=flow_input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3.0)
-    elif flow_type == 'spline_autoregressive':
-        flow = lambda : T.conditional_spline_autoregressive(input_dim=flow_input_dim, context_dim=context_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3)
-    elif flow_type == 'affine_coupling':
-        flow = lambda : T.conditional_affine_coupling(input_dim=flow_input_dim, context_dim=context_dim, hidden_dims=hidden_dims)
-    else:
-        raise Exception(f'Invalid flow type: {flow_type}')
-    if permuter_type == 'Exponential_combiner':
-        permuter = lambda : Exponential_combiner(flow_input_dim)
-    elif permuter_type == 'Learned_permuter':
-        permuter = lambda : Learned_permuter(flow_input_dim)
-    elif permuter_type == 'Full_matrix_combiner':
-        permuter = lambda : Full_matrix_combiner(flow_input_dim)
-    elif permuter_type == "random_permute":
-        permuter = lambda : T.Permute(torch.randperm(flow_input_dim, dtype=torch.long).to(device))
-    else:
-        raise Exception(f'Invalid permuter type: {permuter_type}')
-
-
 
     
-    conditional_flow_layers = Conditional_flow_layers(flow,n_flow_layers,flow_input_dim,context_dim,count_bins,device,permuter,hidden_dims,batchnorm)
-
-    
-    parameters=[]
-
-    if encoder_type == 'pointnet2':
-        encoder = Pointnet2(feature_dim=input_dim-3,out_dim=context_dim)
-    elif encoder_type == 'gcn':
-        encoder = GCNEncoder(in_dim= input_dim,out_channels=context_dim,k=20)
-    else:
-        raise Exception('Invalid encoder type!')
-    if data_parallel:
-        encoder = geomDataParallel(encoder).to(device)
-    else:
-        encoder = encoder.to(device)
-    
-    parameters+= encoder.parameters()
-    wandb.watch(encoder,log_freq=10)
-
-    if batchnorm_encodings:
-        batchnorm_encoder = torch.nn.BatchNorm1d(context_dim)
-        if data_parallel:
-            batchnorm_encoder = nn.DataParallel(batchnorm_encoder).to(device)
-        else:
-            batchnorm_encoder = batchnorm_encoder.to(device)
-        parameters+= batchnorm_encoder.parameters()
-    
+    parameters = models_dict['parameters']
+    encoder = models_dict['encoder']
+    batchnorm_encoder = models_dict['batchnorm_encoder']
+    conditional_flow_layers = models_dict['flow_layers']
 
     transformations = conditional_flow_layers.transformations
     
-
-    for transform in transformations:
-        if isinstance(transform,torch.nn.Module):
-            transform.train()
-            if data_parallel:
-                transform = nn.DataParallel(transform).to(device)
-            else:
-                transforms = transform.to(device)
-            parameters+= transform.parameters()
-            wandb.watch(transform,log_freq=10)
-
-
 
     flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
     
@@ -202,9 +214,6 @@ def main(rank, world_size):
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.05,patience=patience,threshold=0.0001)
     save_model_path = r'save/conditional_flow_compare'
     
-
-
-     
 
 
     torch.autograd.set_detect_anomaly(False)

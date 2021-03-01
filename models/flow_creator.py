@@ -1,9 +1,9 @@
 from torch import nn
 import torch
-from batchnorm import BatchNorm
+from models.batchnorm import BatchNorm
 
 class Conditional_flow_layers:
-        def __init__(self,flow,n_flow_layers,input_dim,context_dim,count_bins,device,permuter,hidden_dims,batchnorm):
+        def __init__(self,flow,n_flow_layers,input_dim,context_dim,device,permuter,hidden_dims,batchnorm):
             self.transformations = []
             self.n_flow_layers = n_flow_layers
             self.hidden_dims = hidden_dims
