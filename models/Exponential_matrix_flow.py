@@ -73,8 +73,8 @@ class Exponential_matrix_coupling(TransformModule):
         the base distribution (or the output of a previous transform)
         """
         # To allow for non batched
-        if len(x.shape) ==2:
-            x= x.unsqueeze(0)
+        # if len(x.shape) ==2:
+        #     x= x.unsqueeze(0)
         x1, x2 = x.split([self.split_dim, x.size(self.dim) - self.split_dim], dim=self.dim)
 
         # Now that we can split on an arbitrary dimension, we have do a bit of reshaping...
@@ -82,7 +82,7 @@ class Exponential_matrix_coupling(TransformModule):
         w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift + eps
         
 
-        w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],self.input_dim-self.split_dim,self.input_dim-self.split_dim))
+        w_mat = w_mat.reshape((w_mat.shape[:-1] + (self.input_dim-self.split_dim,self.input_dim-self.split_dim)))
         
 
         self.cached_w_mat = w_mat
@@ -103,15 +103,15 @@ class Exponential_matrix_coupling(TransformModule):
         performs the inversion afresh.
         """
         # To allow for non batched
-        if len(y.shape) ==2:
-            y= y.unsqueeze(0)
+        # if len(y.shape) ==2:
+        #     y= y.unsqueeze(0)
         y1, y2 = y.split([self.split_dim, y.size(self.dim) - self.split_dim], dim=self.dim)
         x1 = y1
 
         # Now that we can split on an arbitrary dimension, we have do a bit of reshaping...
         w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
         w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift +eps
-        w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],self.input_dim-self.split_dim,self.input_dim-self.split_dim))
+        w_mat = w_mat.reshape((w_mat.shape[:-1] + (self.input_dim-self.split_dim,self.input_dim-self.split_dim)))
         
         self.cached_w_mat = w_mat
         w_mat = expm(-w_mat)
@@ -129,7 +129,7 @@ class Exponential_matrix_coupling(TransformModule):
             x1, _ = x.split([self.split_dim, x.size(self.dim) - self.split_dim], dim=self.dim)
             w_mat, _ = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
             w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift + eps
-            w_mat = w_mat.reshape((w_mat.shape[0],w_mat.shape[1],self.input_dim-self.split_dim,self.input_dim-self.split_dim))
+            w_mat = w_mat.reshape((w_mat.shape[:-1] + (self.input_dim-self.split_dim,self.input_dim-self.split_dim)))
         # Equivalent to : torch.log(torch.abs(torch.det(torch.matrix_exp(w_mat)))) but faster
         return self._trace(w_mat)
 

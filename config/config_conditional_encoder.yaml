@@ -6,7 +6,7 @@ n_flow_layers:
   value: 2
 data_loader:
   desc: What loader to use
-  value: ConditionalDataGrid
+  value: ConditionalDataGridSquare
 batchnorm:
   desc: batchnorm between flow layers
   value: true
@@ -33,7 +33,7 @@ input_dim:
   value: 6
 grid_square_size:
   desc: Number of f subblocks 
-  value: 4
+  value: 2
 clearance:
   desc: clearance
   value: 10
@@ -52,9 +52,12 @@ min_points:
 n_epochs:
   desc: Number of epochs to train for
   value: 3000
+context_dim:
+  desc: Dimension of embedding w (encoder output) ,e (conditioner)
+  value: 32
 batch_size:
   desc: Batch size
-  value: 2 #35
+  value: 10 #35
 lr:
   desc: Initial learning rate for optimizer
   value: 0.01
@@ -78,13 +81,4 @@ weight_decay:
   value: 0.1
 data_parallel:
   desc: Use parallel
-  value: false
-voxel_size:
-  desc: voxel_size
-  value: 0.03125
-global_emb_dim:
-  desc: Emb dim after 3DCNN
-  value: 1024
-voxel_emb_dim:
-  desc: Emb dim for each voxel
-  value: 32
+  value: true

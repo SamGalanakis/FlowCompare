@@ -307,7 +307,7 @@ def collate_voxel(batch,voxel_size,input_dim,start=0,end=1):
     voxel_cluster_1, perm_1 = consecutive_cluster(batch_1_voxels)
     batch_sample_1 = batch_1.batch[perm_1]
     
-    return batch_0,batch_0_voxels,batch_sample_0,batch_1,batch_1_voxels,batch_sample_1
+    return batch_0,batch_0_voxels,batch_sample_0,voxel_cluster_0,batch_1,batch_1_voxels,batch_sample_1,voxel_cluster_1
 
 
 if __name__ == '__main__':
