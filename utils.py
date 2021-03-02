@@ -81,10 +81,10 @@ def load_las(path,extra_dim_list=None,scale_colors = True):
 def view_cloud_plotly(points,rgb=None,fig=None,point_size=2,show=True,axes=False,show_scale=False,colorscale=None):
     if  isinstance(points,torch.Tensor):
         points = points.cpu()
-        points = points.numpy()
+        points = points.detach().numpy()
     if  isinstance(rgb,torch.Tensor):
         
-        rgb = rgb.cpu().numpy()
+        rgb = rgb.cpu().detach().numpy()
     if  rgb is None:
         rgb = np.zeros_like(points)
     else:

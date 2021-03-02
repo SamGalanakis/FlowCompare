@@ -1,7 +1,7 @@
 from torch import nn
 import torch
 from models.batchnorm import BatchNorm
-
+import pyro 
 class Conditional_flow_layers:
         def __init__(self,flow,n_flow_layers,input_dim,context_dim,device,permuter,hidden_dims,batchnorm):
             self.transformations = []
@@ -50,4 +50,6 @@ class Conditional_flow_layers:
                 try:
                     transform = transform.to(device)
                 except:
-                    continue
+                    if isinstance(transform,pyro.distributions.transforms.Permute):
+                        transform.permutation=transform.permutation.to(device)
+            return self

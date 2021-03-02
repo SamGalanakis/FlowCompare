@@ -27,6 +27,8 @@ import torch.multiprocessing as mp
 from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 from models.flow_creator import Conditional_flow_layers
+
+
 def initialize_encoder_models(config,device = 'cuda',mode='train'):
     flow_input_dim = config['context_dim']
     flow_type = config['flow_type']
@@ -67,7 +69,7 @@ def initialize_encoder_models(config,device = 'cuda',mode='train'):
             if data_parallel:
                 transform = nn.DataParallel(transform).to(device)
             else:
-                transforms = transform.to(device)
+                transform = transform.to(device)
             parameters+= transform.parameters()
             wandb.watch(transform,log_freq=10)
 
@@ -101,10 +103,14 @@ def initialize_encoder_models(config,device = 'cuda',mode='train'):
 
     return {'parameters':parameters,"flow_layers":conditional_flow_layers,'batchnorm_encoder':batchnorm_encoder,'encoder':encoder}
 
+def collate_double_encode(batch,input_dim):
+        extract_0,extract_1 = list(zip(*batch))
+
+        combined_data_list = [Data(x=feature_assigner(x,input_dim),pos=x[:,:3]) for x in extract_0+extract_1]
+        combined_batch = Batch.from_data_list(combined_data_list)
+        return combined_batch
+
 def main(rank, world_size):
-
-
-
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -118,12 +124,7 @@ def main(rank, world_size):
     flow_input_dim = config['context_dim']
 
     
-    def collate_double_encode(batch):
-        extract_0,extract_1 = list(zip(*batch))
-
-        combined_data_list = [Data(x=feature_assigner(x,config["input_dim"]),pos=x[:,:3]) for x in extract_0+extract_1]
-        combined_batch = Batch.from_data_list(combined_data_list)
-        return combined_batch
+    
 
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
@@ -136,7 +137,7 @@ def main(rank, world_size):
     else:
         raise Exception('Invalid dataloader type!')
 
-    
+    collate = functools.partial(collate_double_encode,input_dim = config['input_dim'])
     dataloader = DataLoader(dataset,shuffle=True,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=collate_double_encode,pin_memory=True,prefetch_factor=2)
 
     base_dist = dist.Normal(torch.zeros(flow_input_dim).to(device), torch.ones(flow_input_dim).to(device))
@@ -151,7 +152,7 @@ def main(rank, world_size):
 
     transformations = conditional_flow_layers.transformations
     
-
+    
     flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
     
     if config["optimizer_type"] =='Adam':
@@ -181,20 +182,13 @@ def main(rank, world_size):
             encodings = encoder(batch.to_data_list())
             encoding_0, encoding_1 = torch.split(encodings,config["batch_size"])
     
-         
-  
             if batchnorm_encoder:
                 encoding_0 = batchnorm_encoder(encoding_0)
             assert not encoding_0.isnan().any(), "Nan in encoder"
             assert not encoding_1.isnan().any(), "Nan in encoder"
             conditioned = flow_dist.condition(encoding_0)
             
-           
             loss = -conditioned.log_prob(encoding_1).mean()
-
-
-            
-
 
             assert not loss.isnan(), "Nan loss!"
             loss.backward()

@@ -3,7 +3,7 @@ sample_size:
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
-  value: 2
+  value: 30
 data_loader:
   desc: What loader to use
   value: ConditionalDataGridSquare
@@ -57,7 +57,7 @@ context_dim:
   value: 32
 batch_size:
   desc: Batch size
-  value: 10 #35
+  value: 12 #35
 lr:
   desc: Initial learning rate for optimizer
   value: 0.01
