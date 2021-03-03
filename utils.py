@@ -78,7 +78,10 @@ def load_las(path,extra_dim_list=None,scale_colors = True):
     
     return points
 
-def view_cloud_plotly(points,rgb=None,fig=None,point_size=2,show=True,axes=False,show_scale=False,colorscale=None):
+
+
+
+def view_cloud_plotly(points,rgb=None,fig=None,point_size=8,show=True,axes=False,show_scale=False,colorscale=None):
     if  isinstance(points,torch.Tensor):
         points = points.cpu()
         points = points.detach().numpy()
@@ -187,13 +190,6 @@ def random_subsample(points,n_samples):
     return points
 
 
-
-def rotate_mat(points,x,y,z):
-    rx = Rotation.from_euler('x', x, degrees=True)
-    ry = Rotation.from_euler('y', y, degrees=True)
-    rz = Rotation.from_euler('z', z, degrees=True)
-    full_rot = (rx*ry*rz).as_matrix()
-    return (np.matmul(full_rot,points.T)).T
 
     
 
@@ -308,7 +304,12 @@ def collate_voxel(batch,voxel_size,input_dim,start=0,end=1):
     batch_sample_1 = batch_1.batch[perm_1]
     
     return batch_0,batch_0_voxels,batch_sample_0,voxel_cluster_0,batch_1,batch_1_voxels,batch_sample_1,voxel_cluster_1
-
+    
+def MLP(channels, batch_norm=True):
+    return Seq(*[
+        Seq(nn.Linear(channels[i - 1], channels[i]), torch.nn.ReLU(), torch.nn.BatchNorm1d(channels[i]))
+        for i in range(1, len(channels))
+    ])
 
 if __name__ == '__main__':
     for x in range(100):

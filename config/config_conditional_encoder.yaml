@@ -6,7 +6,7 @@ n_flow_layers:
   value: 30
 data_loader:
   desc: What loader to use
-  value: ConditionalDataGridSquare
+  value: ConditionalDataGridCircle
 batchnorm:
   desc: batchnorm between flow layers
   value: true
@@ -45,7 +45,7 @@ patience:
   value: 110
 preload:
   desc: Preload_dataset
-  value: True
+  value: False
 min_points:
   desc: Minimum sample size
   value: 2000

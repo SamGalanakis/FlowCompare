@@ -27,7 +27,7 @@ import torch.multiprocessing as mp
 from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 from models.flow_creator import Conditional_flow_layers
-
+import functools
 
 def initialize_encoder_models(config,device = 'cuda',mode='train'):
     flow_input_dim = config['context_dim']
@@ -138,7 +138,7 @@ def main(rank, world_size):
         raise Exception('Invalid dataloader type!')
 
     collate = functools.partial(collate_double_encode,input_dim = config['input_dim'])
-    dataloader = DataLoader(dataset,shuffle=True,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=collate_double_encode,pin_memory=True,prefetch_factor=2)
+    dataloader = DataLoader(dataset,shuffle=True,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=collate,pin_memory=True,prefetch_factor=2)
 
     base_dist = dist.Normal(torch.zeros(flow_input_dim).to(device), torch.ones(flow_input_dim).to(device))
 
@@ -166,7 +166,7 @@ def main(rank, world_size):
 
     
 
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.05,patience=config["patience"],threshold=0.0001)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.05,patience=config["patience"],threshold=0.0001,min_lr=1e-4)
     save_model_path = r'save/conditional_flow_compare'
     
 

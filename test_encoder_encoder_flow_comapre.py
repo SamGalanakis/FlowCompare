@@ -74,13 +74,13 @@ class Tester():
                 continue
         self.flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
     def grad_to_rgb(self,grad):
-        rgb = torch.sum(torch.abs(grad),axis=1)
-        std = rgb.std()
-        rgb[rgb<std*2]=0
-        rgb[rgb>std*2]=1
+        rgb = torch.log(torch.sum(torch.abs(grad),axis=1))
+        # std = rgb.std()
+        # rgb[rgb<std*2]=0
+        # rgb[rgb>std*2]=1
         return rgb
 
-    def process_sample(self,cloud_0,cloud_1):
+    def process_sample(self,cloud_0,cloud_1,make_figs=True,show=True,colorscale='Bluered'):
         with torch.no_grad():
             cloud_0,cloud_1 = co_min_max(cloud_0,cloud_1)
         cloud_0 = nn.Parameter(cloud_0,requires_grad=True)
@@ -105,8 +105,9 @@ class Tester():
         rgb_0 = self.grad_to_rgb(grads_0)
         grads_1 = cloud_0.grad
         rgb_1 = self.grad_to_rgb(grads_1)
-        view_cloud_plotly(cloud_0[:,:3],rgb_0,colorscale='Hot')
-        view_cloud_plotly(cloud_1[:,:3],rgb_1,colorscale='Hot')
+        if make_figs:
+            fig_0=view_cloud_plotly(cloud_0[:,:3],rgb_0,colorscale=colorscale,show=show)
+            fig_1=view_cloud_plotly(cloud_1[:,:3],rgb_1,colorscale=colorscale,show=show)
 
         pass
 
