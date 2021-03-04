@@ -164,8 +164,8 @@ def circle_split(points,circle_radius,center = False,clearance = 20):
     
     center_x = center[0]
     center_y= center[1]
-    x = np.arange(center_x-clearance, center_x+clearance, circle_radius) 
-    y = np.arange(center_y-clearance, center_y+clearance, circle_radius) 
+    x = np.arange(center_x-clearance, center_x+clearance, circle_radius*2) 
+    y = np.arange(center_y-clearance, center_y+clearance, circle_radius*2) 
    
     circles_list = []
     for x_val in x:
@@ -306,8 +306,8 @@ def collate_voxel(batch,voxel_size,input_dim,start=0,end=1):
     return batch_0,batch_0_voxels,batch_sample_0,voxel_cluster_0,batch_1,batch_1_voxels,batch_sample_1,voxel_cluster_1
     
 def MLP(channels, batch_norm=True):
-    return Seq(*[
-        Seq(nn.Linear(channels[i - 1], channels[i]), torch.nn.ReLU(), torch.nn.BatchNorm1d(channels[i]))
+    return torch.nn.Sequential(*[
+        torch.nn.Sequential(torch.nn.Linear(channels[i - 1], channels[i]), torch.nn.ReLU(), torch.nn.BatchNorm1d(channels[i]))
         for i in range(1, len(channels))
     ])
 

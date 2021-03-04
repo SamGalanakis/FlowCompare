@@ -105,10 +105,10 @@ class ConditionalDataGrid(Dataset):
     def __len__(self):
         return len(self.combinations_list)
 
-    def view(self,index):
+    def view(self,index,point_size=5):
         cloud_1,cloud_2 = self.__getitem__(index)
-        view_cloud_plotly(cloud_1[:,:3],cloud_1[:,3:])
-        view_cloud_plotly(cloud_2[:,:3],cloud_2[:,3:])
+        view_cloud_plotly(cloud_1[:,:3],cloud_1[:,3:],point_size=point_size)
+        view_cloud_plotly(cloud_2[:,:3],cloud_2[:,3:],point_size=point_size)
 
     def test_nans(self):
         for i in range(self.__len__()):

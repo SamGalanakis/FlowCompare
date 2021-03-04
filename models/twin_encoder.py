@@ -29,3 +29,4 @@ class TwinEncoder(nn.Module):
 if __name__ == '__main__':
     encoder = GCNEncoder(6,32)
     encoder = TwinEncoder(6,5,encoder,32)
+    

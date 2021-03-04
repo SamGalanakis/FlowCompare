@@ -40,7 +40,7 @@ def initialize_encoder_models(config,device = 'cuda',mode='train'):
     if flow_type == 'exponential_coupling':
         flow = lambda  : conditional_exponential_matrix_coupling(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu')
     elif flow_type == 'spline_coupling':
-        flow = lambda : T.conditional_spline(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims,count_bins=count_bins,bound=3.0)
+        flow = lambda : T.conditional_spline(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims,count_bins=config["count_bins"],bound=3.0)
     elif flow_type == 'spline_autoregressive':
         flow = lambda : T.conditional_spline_autoregressive(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims,count_bins=count_bins,bound=3)
     elif flow_type == 'affine_coupling':
@@ -112,7 +112,8 @@ def collate_double_encode(batch,input_dim):
 
 def main(rank, world_size):
 
-    dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
+    #dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
+    dirs = ["D:/data/cycloData/multi_scan/2018","D:/data/cycloData/multi_scan/2019","D:/data/cycloData/multi_scan/2020"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     
@@ -138,7 +139,8 @@ def main(rank, world_size):
         raise Exception('Invalid dataloader type!')
 
     collate = functools.partial(collate_double_encode,input_dim = config['input_dim'])
-    dataloader = DataLoader(dataset,shuffle=True,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=collate,pin_memory=True,prefetch_factor=2)
+    dataloader = DataLoader(dataset,shuffle=True,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=collate,pin_memory=True,prefetch_factor=2,drop_last=True)
+
 
     base_dist = dist.Normal(torch.zeros(flow_input_dim).to(device), torch.ones(flow_input_dim).to(device))
 

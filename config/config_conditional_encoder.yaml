@@ -45,7 +45,7 @@ patience:
   value: 110
 preload:
   desc: Preload_dataset
-  value: False
+  value: True
 min_points:
   desc: Minimum sample size
   value: 2000
@@ -54,7 +54,7 @@ n_epochs:
   value: 3000
 context_dim:
   desc: Dimension of embedding w (encoder output) ,e (conditioner)
-  value: 32
+  value: 50
 batch_size:
   desc: Batch size
   value: 12 #35
@@ -78,7 +78,7 @@ encoder_type:
   value: gcn
 weight_decay:
   desc: weigth decay for optimizer
-  value: 0.1
+  value: 0.01
 data_parallel:
   desc: Use parallel
   value: true
