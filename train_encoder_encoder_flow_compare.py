@@ -37,8 +37,17 @@ def initialize_encoder_models(config,device = 'cuda',mode='train'):
     data_parallel = config['data_parallel']
     parameters = []
 
+    if config['coupling_block_nonlinearity']=="ELU":
+        coupling_block_nonlinearity = nn.ELU()
+    elif config['coupling_block_nonlinearity']=="RELU":
+        coupling_block_nonlinearity = nn.ReLU()
+    else:
+        raise Exception("Invalid coupling_block_nonlinearity")
+
+
+
     if flow_type == 'exponential_coupling':
-        flow = lambda  : conditional_exponential_matrix_coupling(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu')
+        flow = lambda  : conditional_exponential_matrix_coupling(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu',nonlinearity=coupling_block_nonlinearity)
     elif flow_type == 'spline_coupling':
         flow = lambda : T.conditional_spline(input_dim=flow_input_dim, context_dim=config['context_dim'], hidden_dims=hidden_dims,count_bins=config["count_bins"],bound=3.0)
     elif flow_type == 'spline_autoregressive':
@@ -171,7 +180,9 @@ def main(rank, world_size):
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.05,patience=config["patience"],threshold=0.0001,min_lr=1e-4)
     save_model_path = r'save/conditional_flow_compare'
     
-
+    #Watch models:
+    wandb.watch(encoder,idx=0)
+    wandb.watch(conditional_flow_layers.transformations[0],idx=1)
 
     torch.autograd.set_detect_anomaly(False)
     for epoch in range(config["n_epochs"]):

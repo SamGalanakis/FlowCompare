@@ -21,7 +21,7 @@ class ConditionalDenseNN(torch.nn.Module):
         self.count_params = len(param_dims)
         self.output_multiplier = sum(param_dims)
         self.residual_connections = residual_connections
-
+        self.nonlinearity = nonlinearity
         # Calculate the indices on the output corresponding to each parameter
         ends = torch.cumsum(torch.tensor(param_dims), dim=0)
         starts = torch.cat((torch.zeros(1).type_as(ends), ends[:-1]))
@@ -41,7 +41,7 @@ class ConditionalDenseNN(torch.nn.Module):
         self.layers = torch.nn.ModuleList(layers)
 
         # Save the nonlinearity
-        self.f = nonlinearity
+        self.f = self.nonlinearity
 
     def forward(self, x, context):
         # We must be able to broadcast the size of the context over the input
@@ -51,17 +51,16 @@ class ConditionalDenseNN(torch.nn.Module):
         return self._forward(x)
 
     def _forward(self, x): 
-        h = x
-        residual = None
-        for index, layer in enumerate(self.layers[:-1]):
-            if ((index % 2) == 0) and index>1:
-                h = layer(h)             
-                h = self.f(residual+h)
-            elif index ==0:
-                h = self.f(layer(h))
-            else:
+        #Go through first layer
+        h = self.layers[0](x)
+        #Go through middle layers
+        for index, layer in enumerate(self.layers[1:-1]):
+            if ((index % 2) == 0):
                 residual = h
                 h = self.f(layer(h))
+            else:
+                h = self.f(residual+layer(h))
+
         h = self.layers[-1](h)
 
         # Shape the output, squeezing the parameter dimension if all ones

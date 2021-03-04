@@ -189,7 +189,7 @@ def exponential_matrix_coupling(input_dim,device, hidden_dims=None, split_dim=No
 
 
 
-def conditional_exponential_matrix_coupling(input_dim, context_dim,device, hidden_dims=None, split_dim=None, dim=-1):
+def conditional_exponential_matrix_coupling(input_dim, context_dim,device, hidden_dims=None, split_dim=None, dim=-1,nonlinearity=torch.nn.ELU()):
    
     if not isinstance(input_dim, int):
         if len(input_dim) != -dim:
@@ -210,7 +210,7 @@ def conditional_exponential_matrix_coupling(input_dim, context_dim,device, hidde
                             context_dim =  context_dim, 
                             hidden_dims = hidden_dims,
                             param_dims = [(event_shape[dim]-split_dim)**2,event_shape[dim]-split_dim],
-                            nonlinearity= torch.nn.ReLU()
+                            nonlinearity= nonlinearity
                             )
     return Conditional_exponential_matrix_coupling(split_dim, nn,input_dim = input_dim,device = device)
 

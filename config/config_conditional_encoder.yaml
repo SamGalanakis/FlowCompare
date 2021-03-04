@@ -3,7 +3,7 @@ sample_size:
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
-  value: 30
+  value: 10
 data_loader:
   desc: What loader to use
   value: ConditionalDataGridCircle
@@ -15,7 +15,7 @@ flow_type:
   value: exponential_coupling
 hidden_dims:
   desc: linear layers for flow coupling
-  value: [350,350,350]
+  value: [512,512,512,512,512,512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
   value: random_permute
@@ -82,3 +82,6 @@ weight_decay:
 data_parallel:
   desc: Use parallel
   value: true
+coupling_block_nonlinearity:
+  desc: coupling_block_nonlinearity
+  value: ELU
