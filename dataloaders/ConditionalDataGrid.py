@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split,co_standardize
 from torch.utils.data import Dataset, DataLoader
 from itertools import permutations 
 from torch_geometric.nn import fps
@@ -132,9 +132,7 @@ class ConditionalDataGrid(Dataset):
         if self.normalization == 'min_max':
             tensor_0[:,:3], tensor_1[:,:3] = co_min_max(tensor_0[:,:3],tensor_1[:,:3])
         elif self.normalization == 'standardize':
-            concatenated = torch.cat((tensor_0,tensor_1),dim=0)
-            concatenated = (concatenated-concatenated.mean(axis=0))/(concatenated.std(axis=0)+eps)
-            tensor_0, tensor_1 = torch.split(concatenated,tensor_0.shape[0],dim=0)
+            tensor_0,tensor_1 = co_standardize(tensor_0,tensor_1)
         else:
             raise Exception('Invalid normalization type')
         

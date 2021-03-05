@@ -4,8 +4,7 @@ import pyro.distributions as dist
 import pyro.distributions.transforms as T
 import os
 import numpy as np
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner,co_standardize
 from torch.utils.data import Dataset,DataLoader
 from itertools import permutations, combinations
 from tqdm import tqdm
@@ -83,7 +82,10 @@ class Tester():
 
     def process_sample(self,cloud_0,cloud_1,make_figs=True,show=True,colorscale='Bluered'):
         with torch.no_grad():
-            cloud_0,cloud_1 = co_min_max(cloud_0,cloud_1)
+            if self.config['normalization']=="min_max":
+                cloud_0,cloud_1 = co_min_max(cloud_0,cloud_1)
+            elif self.config['normalization']=="standardize":
+                cloud_0,cloud_1 = co_standardize(cloud_0,cloud_1)
         cloud_0 = nn.Parameter(cloud_0,requires_grad=True)
         cloud_1 = nn.Parameter(cloud_1,requires_grad=True)
         cloud_0.retain_grad()

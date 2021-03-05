@@ -279,8 +279,11 @@ def co_min_max(tensor_0,tensor_1):
 
 
     return tensor_0,tensor_1
-    
-
+def co_standardize(tensor_0,tensor_1):
+    concatenated = torch.cat((tensor_0,tensor_1),dim=0)
+    concatenated = (concatenated-concatenated.mean(axis=0))/(concatenated.std(axis=0)+eps)
+    tensor_0, tensor_1 = torch.split(concatenated,tensor_0.shape[0],dim=0)
+    return tensor_0, tensor_1
 def expm(x):
     return torch.matrix_exp(x)
 
@@ -391,7 +394,7 @@ class Adamax(torch.optim.Optimizer):
                 new = p.data
                 p.data = state['exp_avg_param']
                 state['exp_avg_param'] = new
-    
+
 if __name__ == '__main__':
     for x in range(100):
         batch = [(torch.rand(100000,6),torch.rand(100000,6)) for x in range(20)]
