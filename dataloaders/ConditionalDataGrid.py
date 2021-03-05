@@ -131,10 +131,10 @@ class ConditionalDataGrid(Dataset):
 
         if self.normalization == 'min_max':
             tensor_0[:,:3], tensor_1[:,:3] = co_min_max(tensor_0[:,:3],tensor_1[:,:3])
-        elif self.normalization == 'normalize':
-            concatenated = torch.cat((tensor_0[:,:3],tensor_1[:,:3]),dim=0)
-            concatenated = (concatenated-concatenated.mean(axis=0))/(concatenated.std()+eps)
-            tensor_0[:,:3], tensor_1[:,:3] = torch.split(concatenated,tensor_0.shape[0],dim=0)
+        elif self.normalization == 'standardize':
+            concatenated = torch.cat((tensor_0,tensor_1),dim=0)
+            concatenated = (concatenated-concatenated.mean(axis=0))/(concatenated.std(axis=0)+eps)
+            tensor_0, tensor_1 = torch.split(concatenated,tensor_0.shape[0],dim=0)
         else:
             raise Exception('Invalid normalization type')
         

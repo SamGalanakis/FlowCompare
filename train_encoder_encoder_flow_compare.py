@@ -5,7 +5,7 @@ import pyro.distributions.transforms as T
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner,Adamax
 from torch.utils.data import Dataset,DataLoader
 from itertools import permutations, combinations
 from tqdm import tqdm
@@ -134,14 +134,14 @@ def main(rank, world_size):
     flow_input_dim = config['context_dim']
 
     
-    
+
 
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
     if config['data_loader'] == 'ConditionalDataGridSquare':
-        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square')
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'])
     elif config['data_loader'] == 'ConditionalDataGridCircle':
-        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle')
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'])
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     else:
@@ -169,7 +169,7 @@ def main(rank, world_size):
     if config["optimizer_type"] =='Adam':
         optimizer = torch.optim.Adam(parameters, lr=config["lr"],weight_decay=config["weight_decay"]) 
     elif config["optimizer_type"] == 'Adamax':
-        optimizer = torch.optim.Adamax(parameters, lr=config["lr"])
+        optimizer = Adamax(parameters, lr=config["lr"],weight_decay=config["weight_decay"],polyak =  0.999)
     elif config["optimizer_type"] == 'AdamW':
         optimizer = torch.optim.AdamW(parameters, lr=config["lr"],weight_decay=config["weight_decay"])
     else:
@@ -177,7 +177,7 @@ def main(rank, world_size):
 
     
 
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.05,patience=config["patience"],threshold=0.0001,min_lr=1e-4)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=config["patience"],threshold=0.0001,min_lr=config["min_lr"])
     save_model_path = r'save/conditional_flow_compare'
     
     #Watch models:
@@ -193,12 +193,13 @@ def main(rank, world_size):
             optimizer.zero_grad()
             batch = batch.to(device)
             encodings = encoder(batch.to_data_list())
+            assert not encodings.isnan().any(), "Nan in encoder"
             encoding_0, encoding_1 = torch.split(encodings,config["batch_size"])
     
             if batchnorm_encoder:
                 encoding_0 = batchnorm_encoder(encoding_0)
-            assert not encoding_0.isnan().any(), "Nan in encoder"
-            assert not encoding_1.isnan().any(), "Nan in encoder"
+            
+            
             conditioned = flow_dist.condition(encoding_0)
             
             loss = -conditioned.log_prob(encoding_1).mean()
@@ -213,13 +214,13 @@ def main(rank, world_size):
             
             scheduler.step(loss)
             current_lr = optimizer.param_groups[0]['lr']
-            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/100)  == 0):
+            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/30)  == 0):
                 print(f'Making samples and saving!')
                 with torch.no_grad():
 
                     wandb.log({'loss':loss.item(),'lr':current_lr})
-                    save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
-                    torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
+                    save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),"scheduler":scheduler.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
+                    torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_{batch_ind}_model_dict.pt"))
             else:
                 wandb.log({'loss':loss.item(),'lr':current_lr})
                 

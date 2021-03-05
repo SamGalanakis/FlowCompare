@@ -45,7 +45,7 @@ def load_transformations(load_dict,conditional_flow_layers):
 
 class Tester():
     def __init__(self,load_path,config_path):
-        load_dict = torch.load(r"save\conditional_flow_compare\0_8550_model_dict.pt")
+        load_dict = torch.load(r"save/conditional_flow_compare/1_4422_model_dict.pt")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         os.environ["WANDB_MODE"] = "dryrun"
@@ -74,11 +74,12 @@ class Tester():
                 continue
         self.flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
     def grad_to_rgb(self,grad):
-        rgb = torch.log(torch.sum(torch.abs(grad),axis=1))
-        # std = rgb.std()
-        # rgb[rgb<std*2]=0
-        # rgb[rgb>std*2]=1
-        return rgb
+        rgb = torch.sum(torch.abs(grad),axis=1).numpy()
+        percentile = np.percentile(rgb,5)
+        rgb_final = np.zeros((rgb.shape[0],3))
+        rgb_final[rgb<percentile,...]= np.array([1,0,0]).astype(np.float32)
+        rgb_final[rgb>percentile]= np.array([0,1,0])
+        return rgb_final
 
     def process_sample(self,cloud_0,cloud_1,make_figs=True,show=True,colorscale='Bluered'):
         with torch.no_grad():
@@ -91,19 +92,20 @@ class Tester():
         combined_batch = collate_double_encode([(cloud_0,cloud_1)],input_dim = self.config['input_dim'])
         combined_batch = combined_batch.to(device)
         encodings = self.encoder(combined_batch.to_data_list())
+        assert not encodings.isnan().any(), "Nan in encoder"
         encoding_0, encoding_1 = torch.split(encodings,1)
-
+        
         if self.config["batchnorm_encodings"]:
             encoding_0 = self.batchnorm_encoder(encoding_0)
-        assert not encoding_0.isnan().any(), "Nan in encoder"
-        assert not encoding_1.isnan().any(), "Nan in encoder"
+        
+        
         conditioned = self.flow_dist.condition(encoding_0)
         
         loss = conditioned.log_prob(encoding_1).mean()
         loss.backward()
-        grads_0 = cloud_0.grad
+        grads_0 = cloud_0.grad.cpu()
         rgb_0 = self.grad_to_rgb(grads_0)
-        grads_1 = cloud_0.grad
+        grads_1 = cloud_0.grad.cpu()
         rgb_1 = self.grad_to_rgb(grads_1)
         if make_figs:
             fig_0=view_cloud_plotly(cloud_0[:,:3],rgb_0,colorscale=colorscale,show=show)
@@ -114,7 +116,7 @@ class Tester():
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config_path = r"config\config_conditional_encoder.yaml"
-    load_path ="save\conditional_flow_compare\0_8550_model_dict.pt"
+    load_path =r"save\conditional_flow_compare\1_4221_model_dict.pt"
     tester = Tester(load_path,config_path)
     input_dim =6
     down_sample = 2000
@@ -130,7 +132,7 @@ if __name__ == '__main__':
 
     sign_0 = random_subsample(sign_0,down_sample)
     sign_1 = random_subsample(sign_1,down_sample)
-    tester.process_sample(sign_0,sign_1)
+    tester.process_sample(sign_0,sign_1,colorscale=None)
 
 
 
