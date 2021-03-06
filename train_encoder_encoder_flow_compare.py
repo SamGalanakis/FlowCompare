@@ -29,6 +29,19 @@ from torch import nn
 from models.flow_creator import Conditional_flow_layers
 import functools
 
+def load_transformations(load_dict,conditional_flow_layers):
+    for transformation_params,transformation in zip(load_dict['flow_transformations'],conditional_flow_layers.transformations):
+        if isinstance(transformation,nn.Module):
+            transformation.load_state_dict(transformation_params)
+        elif isinstance(transformation,pyro.distributions.pyro.distributions.transforms.Permute):
+            transformation.permutation = transformation_params
+        else:
+            raise Exception('How to load?')
+    
+    return conditional_flow_layers
+
+
+
 def initialize_encoder_models(config,device = 'cuda',mode='train'):
     flow_input_dim = config['context_dim']
     flow_type = config['flow_type']
@@ -156,10 +169,15 @@ def main(rank, world_size):
     models_dict = initialize_encoder_models(config,device,mode='train')
     
 
+
     parameters = models_dict['parameters']
     encoder = models_dict['encoder']
     batchnorm_encoder = models_dict['batchnorm_encoder']
     conditional_flow_layers = models_dict['flow_layers']
+    
+    
+
+
 
     transformations = conditional_flow_layers.transformations
     
@@ -179,12 +197,27 @@ def main(rank, world_size):
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=config["patience"],threshold=0.0001,min_lr=config["min_lr"])
     save_model_path = r'save/conditional_flow_compare'
-    
+
+    #Load checkpoint params if specified path
+    if config['load_checkpoint']!=None:
+        print(f"Loading from checkpoint: {config['load_checkpoint']}")
+        checkpoint_dict = torch.load(config['load_checkpoint'])
+        conditional_flow_layers = load_transformations(checkpoint_dict,conditional_flow_layers)
+        encoder.load_state_dict(checkpoint_dict['encoder_dict'])
+        if config['batchnorm_encodings']:
+            batchnorm_encoder.load_state_dict(checkpoint_dict['batchnorm_encoder_dict'])
+        scheduler.load_state_dict(checkpoint_dict['scheduler'])
+        optimizer.load_state_dict(checkpoint_dict['optimizer'])
+
     #Watch models:
     wandb.watch(encoder,idx=0)
     wandb.watch(conditional_flow_layers.transformations[0],idx=1)
 
     torch.autograd.set_detect_anomaly(False)
+
+
+
+    final_model_dict = {"optimizer": optimizer,'encoder':encoder,"scheduler":scheduler.state_dict(),'batchnorm_encoder':batchnorm_encoder,'cond_distrib':flow_dist}
     for epoch in range(config["n_epochs"]):
         print(f"Starting epoch: {epoch}")
         for batch_ind,batch in enumerate(tqdm(dataloader)):
@@ -219,7 +252,7 @@ def main(rank, world_size):
                 with torch.no_grad():
 
                     wandb.log({'loss':loss.item(),'lr':current_lr})
-                    save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),"scheduler":scheduler.state_dict(),'batchnorm_encoder_dict':batchnorm_encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
+                    save_dict = {"optimizer": optimizer.state_dict(),'encoder':encoder.state_dict(),"scheduler":scheduler.state_dict(),'batchnorm_encoder':batchnorm_encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
                     torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_{batch_ind}_model_dict.pt"))
             else:
                 wandb.log({'loss':loss.item(),'lr':current_lr})

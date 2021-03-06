@@ -60,7 +60,7 @@ batch_size:
   value: 12 #35
 lr:
   desc: Initial learning rate for optimizer
-  value: 0.01
+  value: 0.0001
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -87,7 +87,10 @@ coupling_block_nonlinearity:
   value: ELU
 min_lr:
   desc: Minimum schedules learning rate
-  value: 0.00005
+  value: 0.0001
 normalization:
   desc: How pairs are normalized
-  value: standardize
+  value: sep_standardize
+load_checkpoint:
+  desc: Path to checkpoint or None for new training
+  value: save/conditional_flow_compare/absurd-jazz-799_0_4050_model_dict.pt

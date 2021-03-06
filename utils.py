@@ -284,6 +284,9 @@ def co_standardize(tensor_0,tensor_1):
     concatenated = (concatenated-concatenated.mean(axis=0))/(concatenated.std(axis=0)+eps)
     tensor_0, tensor_1 = torch.split(concatenated,tensor_0.shape[0],dim=0)
     return tensor_0, tensor_1
+def sep_standardize(tensor_0,tensor_1):
+    return (tensor_0-tensor_0.mean(axis=0))/tensor_0.std(axis=0),(tensor_1-tensor_1.mean(axis=0))/tensor_1.std(axis=0)
+
 def expm(x):
     return torch.matrix_exp(x)
 
