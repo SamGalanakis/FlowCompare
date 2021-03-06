@@ -62,6 +62,8 @@ class Tester():
         flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
         self.final_model_dict = {'encoder':encoder,'batchnorm_encoder':batchnorm_encoder,'cond_distrib':flow_dist}
     def initialize_from_model_instance(self,final_model_dict):
+        
+    
         self.final_model_dict = final_model_dict
 
     def grad_to_rgb(self,grad,dims,percentile=None):

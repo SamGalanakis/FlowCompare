@@ -54,10 +54,10 @@ n_epochs:
   value: 3000
 context_dim:
   desc: Dimension of embedding w (encoder output) ,e (conditioner)
-  value: 50
+  value: 100
 batch_size:
   desc: Batch size
-  value: 12 #35
+  value: 10 #35
 lr:
   desc: Initial learning rate for optimizer
   value: 0.0001
@@ -87,10 +87,10 @@ coupling_block_nonlinearity:
   value: ELU
 min_lr:
   desc: Minimum schedules learning rate
-  value: 0.0001
+  value: 0.00001
 normalization:
   desc: How pairs are normalized
   value: sep_standardize
 load_checkpoint:
-  desc: Path to checkpoint or None for new training
-  value: save/conditional_flow_compare/absurd-jazz-799_0_4050_model_dict.pt
+  desc: Path to checkpoint or false for new training
+  value: false

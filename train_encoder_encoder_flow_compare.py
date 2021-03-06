@@ -199,16 +199,19 @@ def main(rank, world_size):
     save_model_path = r'save/conditional_flow_compare'
 
     #Load checkpoint params if specified path
-    if config['load_checkpoint']!=None:
+    if config['load_checkpoint']:
         print(f"Loading from checkpoint: {config['load_checkpoint']}")
         checkpoint_dict = torch.load(config['load_checkpoint'])
         conditional_flow_layers = load_transformations(checkpoint_dict,conditional_flow_layers)
-        encoder.load_state_dict(checkpoint_dict['encoder_dict'])
+        encoder.load_state_dict(checkpoint_dict['encoder'])
         if config['batchnorm_encodings']:
-            batchnorm_encoder.load_state_dict(checkpoint_dict['batchnorm_encoder_dict'])
+            batchnorm_encoder.load_state_dict(checkpoint_dict['batchnorm_encoder'])
         scheduler.load_state_dict(checkpoint_dict['scheduler'])
         optimizer.load_state_dict(checkpoint_dict['optimizer'])
-
+    else:
+        print("Starting training from scratch!")
+    #Override min lr to allow for changing after checkpointing
+    scheduler.min_lrs = [config['min_lr']]
     #Watch models:
     wandb.watch(encoder,idx=0)
     wandb.watch(conditional_flow_layers.transformations[0],idx=1)
