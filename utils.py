@@ -129,13 +129,15 @@ def view_cloud_plotly(points,rgb=None,fig=None,point_size=8,show=True,axes=False
     
     
 
-def extract_area(full_cloud,center,clearance,shape= 'cylinder'):
+def extract_area(full_cloud,center,clearance,shape= 'circle'):
     if shape == 'square':
         x_mask = ((center[0]+clearance)>full_cloud[:,0]) &   (full_cloud[:,0] >(center[0]-clearance))
         y_mask = ((center[1]+clearance)>full_cloud[:,1]) &   (full_cloud[:,1] >(center[1]-clearance))
         mask = x_mask & y_mask
-    elif shape == 'cylinder':
+    elif shape == 'circle':
         mask = np.linalg.norm(full_cloud[:,:2]-center,axis=1) <  clearance
+    else:
+        raise Exception("Invalid shape")
     return full_cloud[mask]
 
 def grid_split(points,grid_size,center = False,clearance = 20):

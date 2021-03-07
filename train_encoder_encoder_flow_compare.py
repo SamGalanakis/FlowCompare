@@ -152,9 +152,9 @@ def main(rank, world_size):
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
     if config['data_loader'] == 'ConditionalDataGridSquare':
-        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'])
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'],grid_square_size=confdig['grid_square_size'])
     elif config['data_loader'] == 'ConditionalDataGridCircle':
-        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'])
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=confdig['grid_square_size'])
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     else:
@@ -242,7 +242,7 @@ def main(rank, world_size):
 
             assert not loss.isnan(), "Nan loss!"
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.0)
+            #torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.0)
             
             optimizer.step()
             

@@ -105,7 +105,7 @@ class Tester():
         
         conditioned = self.final_model_dict['cond_distrib'].condition(encoding_0)
         
-        loss = conditioned.log_prob(encoding_1).mean()
+        loss = -conditioned.log_prob(encoding_1).mean()
         loss.backward()
         grads_0 = cloud_0.grad.cpu()
         rgb_0 = self.grad_to_rgb(grads_0,dims=dims,percentile=percentile)
@@ -129,24 +129,24 @@ if __name__ == '__main__':
     config_path = r"config\config_conditional_encoder.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
-    load_path =r"save\conditional_flow_compare\visionary-lion-806_0_225_model_dict.pt"
+    load_path =r"save\conditional_flow_compare\swept-jazz-832_1_7200_model_dict.pt"
     tester = Tester(load_path,config)
     tester.initialize_from_save(load_path)
-    input_dim =6
-    down_sample = 2000
+    input_dim =config['input_dim']
+    down_sample = config['min_points']
     points_0 = load_las(r"D:\data\cycloData\2016\0_5D4KVPBP.las")[:,:input_dim]
     points_1 = load_las(r"D:\data\cycloData\2020\0_WE1NZ71I.las")[:,:input_dim]
     sign_point = np.array([86967.46,439138.8])
 
-    sign_0 = extract_area(points_0,sign_point,2,'square')
+    sign_0 = extract_area(points_0,sign_point,4,'circle')
     sign_0 = torch.from_numpy(sign_0.astype(dtype=np.float32)).to(device)
 
-    sign_1 = extract_area(points_1,sign_point,1.5,'square')
+    sign_1 = extract_area(points_1,sign_point,4,'circle')
     sign_1= torch.from_numpy(sign_1.astype(dtype=np.float32)).to(device)
 
     sign_0 = random_subsample(sign_0,down_sample)
     sign_1 = random_subsample(sign_1,down_sample)
-    tester.process_sample(sign_0,sign_1,colorscale=None,dims=3)
+    tester.process_sample(sign_0,sign_1,colorscale=None,dims=3,percentile=95)
 
 
 
