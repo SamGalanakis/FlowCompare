@@ -49,11 +49,12 @@ class ConditionalDataGrid(Dataset):
                 center = full_clouds[0][:,:2].mean(axis=0)
                 if self.grid_type == 'square':
                     grids = [grid_split(cloud,self.grid_square_size,center=center,clearance = self.clearance) for cloud in full_clouds]
-                else:
+                elif self.grid_type== "circle":
                     #Radius half of grid square size 
                     grids = [circle_split(cloud,self.grid_square_size/2,center=center,clearance = self.clearance) for cloud in full_clouds]
+                else:
+                    raise Exception("Invalid grid type")
 
-                
 
                 for square_index,extract_list in enumerate(list(zip(*grids))):
                     

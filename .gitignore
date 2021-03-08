@@ -5,6 +5,7 @@ save/
 wandb/
 data/
 emd_loss/
+/models/pct_pytorch/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

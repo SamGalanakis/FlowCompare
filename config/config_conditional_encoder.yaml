@@ -36,7 +36,7 @@ grid_square_size:
   value: 4
 clearance:
   desc: clearance
-  value: 10
+  value: 20
 subsample:
   desc: How to subsample
   value: 'random'
@@ -45,7 +45,7 @@ patience:
   value: 300
 preload:
   desc: Preload_dataset
-  value: True
+  value: true
 min_points:
   desc: Minimum sample size
   value: 2000
