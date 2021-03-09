@@ -1,12 +1,12 @@
 sample_size:
   desc: Max number of points
-  value: 2000
+  value: 10000
 n_flow_layers:
   desc: Number of flow layers
   value: 15
 data_loader:
   desc: What loader to use
-  value: ConditionalDataGridCircle
+  value: ChallengeDataset
 batchnorm:
   desc: batchnorm between flow layers
   value: true
@@ -19,9 +19,6 @@ hidden_dims:
 permuter_type:
   desc: 'How to permute between coupling blocks'
   value: random_permute
-scaler_type:
-  desc: How to scale after permute
-  value: Sigmoid_scaler
 early_stop_margin:
   desc: early_stop_margin
   value: 0.0003
@@ -30,16 +27,20 @@ count_bins:
   value: 64
 input_dim:
   desc: Dimension of pointcloud data
-  value: 3
+  value: 6
 grid_square_size:
   desc: Number of f subblocks 
   value: 4
+radius:
+  desc: Radius for challenge dataset
+  value: 2
+
 clearance:
   desc: clearance
   value: 20
 subsample:
   desc: How to subsample
-  value: 'fps'
+  value: 'random'
 patience:
   desc: patience
   value: 300
@@ -52,9 +53,6 @@ min_points:
 n_epochs:
   desc: Number of epochs to train for
   value: 3000
-context_dim:
-  desc: Dimension of embedding w (encoder output) ,e (conditioner)
-  value: 220
 batch_size:
   desc: Batch size
   value: 9 #35
@@ -63,19 +61,13 @@ lr:
   value: 0.0001
 save_model_path:
   desc: Where to save models (before wandb upload)
-  value: save/conditional_flow_compare/
+  value: save/straight_flow_compare/
 num_workers:
   desc: num_workers
   value: 2
 optimizer_type:
   desc: optimizer type
   value: Adam
-batchnorm_encodings:
-  desc: batchnorm after output of encoder
-  value: true
-encoder_type:
-  desc: What pointcloud encoder to use
-  value: gcn
 weight_decay:
   desc: weigth decay for optimizer
   value: 0.01
@@ -94,3 +86,10 @@ normalization:
 load_checkpoint:
   desc: Path to checkpoint or false for new training
   value: false
+dirs_challenge:
+  desc: Paths to folders in order of year
+  value: [D:/data/cycloData/2016,D:/data/cycloData/2020]
+dirs_challenge_csv:
+  desc: Paths to label csv folder
+  value: D:\data\cycloData\2016-2020_train
+

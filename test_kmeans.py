@@ -3,8 +3,8 @@ from utils import *
 import time
 import torch
 from matplotlib import pyplot as plt
-from pykeops.torch import LazyTensor
-
+from torch_geometric.nn import fps
+from kmeans_pytorch import kmeans
 
 def KMeans(x, K=10, Niter=10, verbose=True):
     use_cuda=torch.cuda.is_available()
@@ -57,11 +57,20 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     load_path =r"save\conditional_flow_compare\young-leaf-836_0_6864_model_dict.pt"
-    points_0 = load_las(r"D:\data\cycloData\2016\0_5D4KVPBP.las")[:,:3]
-    points_1 = load_las(r"D:\data\cycloData\2020\0_WE1NZ71I.las")[:,:3]
+    points_0 = load_las(r"D:\data\cycloData\2016\0_5D4KVPBP.las")
+    points_1 = load_las(r"D:\data\cycloData\2020\0_WE1NZ71I.las")
+    
     sign_point = np.array([86967.46,439138.8])
     sign_0 = extract_area(points_0,sign_point,4,'circle')
+    
+
+    fps_sample = fps(torch.from_numpy(sign_0),batch=torch.zeros(sign_0.shape[0]).long(),ratio=100/sign_0.shape[0])
     sign_0 = torch.from_numpy(sign_0.astype(dtype=np.float32)).to(device)
+    sign_0 = sign_0[sign_0[:,2]>sign_0.min(axis=0)[0][2]+0.2]
     sign_0 = random_subsample(sign_0,3000)
-    cl,c = KMeans(sign_0,10)
-    print()
+    
+    cluster_ids_x, cluster_centers = kmeans(
+    X=sign_0, num_clusters=40, distance='euclidean', device=torch.device('cuda:0')
+,tol=5e-2)
+    view_cloud_plotly(cluster_centers[:,:3])
+    

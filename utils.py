@@ -94,10 +94,14 @@ def view_cloud_plotly(points,rgb=None,fig=None,point_size=8,show=True,axes=False
         rgb = np.rint(np.divide(rgb,rgb.max(axis=0))*255).astype(np.uint8)
     if fig==None:
         fig = go.Figure()
+    if points.shape[1]==2:
+        z=np.zeros_like(points[:,0])
+    else:
+        z=points[:,2]
     fig.add_scatter3d(
         x=points[:,0], 
         y=points[:,1], 
-        z=points[:,2], 
+        z=z, 
         marker=dict(
         size=point_size,
         color=rgb,  

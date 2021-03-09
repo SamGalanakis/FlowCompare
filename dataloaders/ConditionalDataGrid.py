@@ -68,8 +68,9 @@ class ConditionalDataGrid(Dataset):
                     if self.subsample=='random':
                         extract_list = [ random_subsample(x,sample_size) for x in extract_list]
                     elif self.subsample=='fps':
-                        
-                        extract_list = [ x[fps(x.cuda(),ratio = self.sample_size/x.shape[0])] if 0<self.sample_size/x.shape[0]<1 else x for x in extract_list]
+                        extract_list = [ random_subsample(x,sample_size*5) for x in extract_list]
+                        extract_list = [ x[fps(x,ratio = self.sample_size/x.shape[0])] if 0<self.sample_size/x.shape[0]<1 else x for x in extract_list]
+                        #extract_list = [x.cpu() for x in extract_list]
                     else:
                         raise Exception("Invalid subsampling type")
                     #Check mins again
