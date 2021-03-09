@@ -176,7 +176,7 @@ def main(rank, world_size):
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     elif config['data_loader']=='ChallengeDataset':
-        dataset = ChallengeDataset(config['dirs_challenge_csv'], config['dirs_challenge'], out_path,subsample="fps")
+        dataset = ChallengeDataset(config['dirs_challenge_csv'], config['dirs_challenge'], out_path,subsample="fps",sample_size=config['sample_size'])
     else:
         raise Exception('Invalid dataloader type!')
 
@@ -194,6 +194,7 @@ def main(rank, world_size):
         parameters = models_dict['parameters']
         conditional_flow_layers = models_dict['flow_layers']
         transformations = conditional_flow_layers.transformations
+        batch = [x.to(device) for x in batch]
         extract_0, extract_1, label = batch
         log_prob_0,log_prob_1 = train_straight_pair(parameters,transformations,config,extract_0,extract_1)
 

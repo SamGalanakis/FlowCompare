@@ -55,7 +55,7 @@ class ConditionalDataGrid(Dataset):
                 else:
                     raise Exception("Invalid grid type")
 
-
+                    
                 for square_index,extract_list in enumerate(list(zip(*grids))):
                     
                     extract_list = [torch.from_numpy(x.astype(np.float32)) for x in extract_list if x.shape[0]>=self.min_points]
