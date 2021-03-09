@@ -404,6 +404,34 @@ class Adamax(torch.optim.Optimizer):
                 p.data = state['exp_avg_param']
                 state['exp_avg_param'] = new
 
+def rgb_to_hsv(rgb):
+    hsv = torch.zeros_like(rgb)
+    r = rgb[:,0]
+    g = rgb[:,1]
+    b = rgb[:,2]
+    cmax = rgb.max(axis=1)[0]
+    cmin = rgb.min(axis=1)[0]
+    v = cmax
+    hsv[cmax==cmin,2] = v[cmax==cmin]
+    s = (cmax-cmin) / cmax
+
+    rc = (cmax-r) / (cmax-cmin)
+    gc = (cmax-g) / (cmax-cmin)
+    bc = (cmax-b) / (cmax-cmin)
+    mask_0 = (r == cmax)
+    mask_1 = (g == cmax)
+    mask_neither = torch.logical_not(torch.logical_or(mask_0,mask_1))
+    hsv[mask_0,0] = (bc-gc)[mask_0]
+    hsv[mask_1,0] = (2.0+rc-bc)[mask_1]
+    hsv[mask_neither,0] = (4.0+gc-rc)[mask_neither]
+    hsv[:,0] = (hsv[:,0]/6.0) % 1.0
+    hsv[:,1] = s
+    hsv[:,2] = cmax
+    hsv = hsv * torch.Tensor([360,100,100])
+    return hsv
+
+
+
 if __name__ == '__main__':
     for x in range(100):
         batch = [(torch.rand(100000,6),torch.rand(100000,6)) for x in range(20)]

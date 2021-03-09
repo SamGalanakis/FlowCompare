@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,co_min_max,co_standardize,sep_standardize,extract_area
+from utils import load_las, random_subsample,view_cloud_plotly,co_min_max,co_standardize,sep_standardize,extract_area,rgb_to_hsv,hsv_to_rgb
 from torch.utils.data import Dataset, DataLoader
 from itertools import permutations 
 from torch_geometric.nn import fps
@@ -53,6 +53,8 @@ class ChallengeDataset(Dataset):
                             extract_0 = extract_0[fps(extract_0,ratio = self.sample_size/extract_0.shape[0]),...]
                         if self.sample_size/extract_1.shape[0]<1:
                             extract_1 = extract_1[fps(extract_0,ratio = self.sample_size/extract_1.shape[0]),...]
+                    extract_0[:,3:] = rgb_to_hsv(extract_0[:,3:])
+                    extract_1[:,3:] = rgb_to_hsv(extract_1[:,3:])
                     torch_label = torch.Tensor([label]).long()
                     self.pair_dict[pair_id]=[extract_0,extract_1,torch_label]
                     pair_id +=1
