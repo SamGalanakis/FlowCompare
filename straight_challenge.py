@@ -145,11 +145,25 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1):
             transformation = transformation.eval()
         except:
             continue
-    log_prob_0 = flow_dist.log_prob(extract_0)
-    log_prob_1 = flow_dist.log_prob(extract_1)
-    return log_prob_0,log_prob_1
-
     
+    extract_1 = nn.Parameter(extract_1,requires_grad=True)
+    extract_1.retain_grad()
+    with torch.no_grad():
+        log_prob_0 = flow_dist.log_prob(extract_0)
+    log_prob_1 = flow_dist.log_prob(extract_1)
+    log_prob_1.backward()
+    grads_1 = log_prob_1.grad()
+    return log_prob_0,log_prob_1,grads_1
+
+def log_prob_to_change(log_prob_0,log_prob_1,grads_1_given_0,percentile=1):
+    std_0 = log_prob_0.std()
+    perc = torch.from_numpy(np.percentile(log_prob_0.cpu().numpy(),percentile))
+    change = torch.zeros_like(log_prob_1)
+    mask = log_prob_1<=percentile
+    change[mask] = torch.abs(log_prob_1-perc)/std_0
+    relevant_grads = torch.abs(grads_1_given_0[mask,...])
+    grads_sum_geom = relevant_grads[:,:3].sum(axis=0)
+    grads_sum_rgb = relevant_grads[:,3:].sum(axis=0)
 def main(rank, world_size):
 
 
@@ -189,15 +203,21 @@ def main(rank, world_size):
     torch.autograd.set_detect_anomaly(False)
 
     for index, batch in enumerate(tqdm(dataloader)):
+        batch = [x.to(device) for x in batch]
+        extract_0, extract_1, label = batch
+        #Initialize models
+        models_dict = initialize_straight_model(config,device,mode='train')
+        parameters = models_dict['parameters']
+        conditional_flow_layers = models_dict['flow_layers']
+        transformations = conditional_flow_layers.transformations
+        log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0 = train_straight_pair(parameters,transformations,config,extract_0,extract_1)
         #Reinitialize models
         models_dict = initialize_straight_model(config,device,mode='train')
         parameters = models_dict['parameters']
         conditional_flow_layers = models_dict['flow_layers']
         transformations = conditional_flow_layers.transformations
-        batch = [x.to(device) for x in batch]
-        extract_0, extract_1, label = batch
-        log_prob_0,log_prob_1 = train_straight_pair(parameters,transformations,config,extract_0,extract_1)
-
+        log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1 = train_straight_pair(parameters,transformations,config,extract_1,extract_0)
+        #Get change
                 
             
             
