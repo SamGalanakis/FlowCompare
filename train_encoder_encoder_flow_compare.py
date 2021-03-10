@@ -134,12 +134,12 @@ def collate_double_encode(batch,input_dim):
 
 def main(rank, world_size):
 
-    #dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
-    dirs = ["D:/data/cycloData/multi_scan/2018","D:/data/cycloData/multi_scan/2019","D:/data/cycloData/multi_scan/2020"]
+    dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
+    #dirs = ["D:/data/cycloData/multi_scan/2018","D:/data/cycloData/multi_scan/2019","D:/data/cycloData/multi_scan/2020"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     
-    config_path = r"config\config_conditional_encoder.yaml"
+    config_path = r"config/config_conditional_encoder.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
    

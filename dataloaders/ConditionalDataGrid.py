@@ -15,7 +15,7 @@ eps = 1e-8
 
 
 class ConditionalDataGrid(Dataset):
-    def __init__(self, direcories_list,out_path,sample_size=2000,grid_square_size = 4,clearance = 28,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle'):
+    def __init__(self, direcories_list,out_path,sample_size=2000,grid_square_size = 4,clearance = 28,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle',device="cuda"):
         self.sample_size  = sample_size
         self.grid_square_size = grid_square_size
         self.clearance = clearance
@@ -58,7 +58,7 @@ class ConditionalDataGrid(Dataset):
                     
                 for square_index,extract_list in enumerate(list(zip(*grids))):
                     
-                    extract_list = [torch.from_numpy(x.astype(np.float32)) for x in extract_list if x.shape[0]>=self.min_points]
+                    extract_list = [torch.from_numpy(x.astype(np.float32)).to(device) for x in extract_list if x.shape[0]>=self.min_points]
                     #Check mins
                     extract_list = [x for x in extract_list if ((x.max(dim=0)[0][:3]-x.min(dim=0)[0][:3] )>self.minimum_difs).all().item()]
                     

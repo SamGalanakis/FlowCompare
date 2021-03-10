@@ -171,7 +171,7 @@ def main(rank, world_size):
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
     
-    config_path = r"config\config_straight.yaml"
+    config_path = r"config/config_straight.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     
@@ -180,17 +180,18 @@ def main(rank, world_size):
     
     
 
-
+    dirs_challenge = [config['dir_challenge']+year for year in ['2016',"2020"]]
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
     if config['data_loader'] == 'ConditionalDataGridSquare':
-        dataset=ConditionalDataGrid(config['dirs_challenge'],out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+        
+        dataset=ConditionalDataGrid(dirs_challenge,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
     elif config['data_loader'] == 'ConditionalDataGridCircle':
-        dataset=ConditionalDataGrid(config['dirs_challenge'],out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+        dataset=ConditionalDataGrid(dirs_challenge,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     elif config['data_loader']=='ChallengeDataset':
-        dataset = ChallengeDataset(config['dirs_challenge_csv'], config['dirs_challenge'], out_path,subsample="fps",sample_size=config['sample_size'])
+        dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs_challenge, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'])
     else:
         raise Exception('Invalid dataloader type!')
 

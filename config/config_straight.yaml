@@ -34,7 +34,6 @@ grid_square_size:
 radius:
   desc: Radius for challenge dataset
   value: 2
-
 clearance:
   desc: clearance
   value: 20
@@ -86,10 +85,10 @@ normalization:
 load_checkpoint:
   desc: Path to checkpoint or false for new training
   value: false
-dirs_challenge:
+dir_challenge:
   desc: Paths to folders in order of year
-  value: [D:/data/cycloData/2016,D:/data/cycloData/2020]
+  value: /mnt/cm-nas03/synch/students/sam/data/
 dirs_challenge_csv:
   desc: Paths to label csv folder
-  value: D:\data\cycloData\2016-2020_train
+  value: save/2016-2020
 
