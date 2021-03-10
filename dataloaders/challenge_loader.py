@@ -12,7 +12,7 @@ import pandas as pd
 
 
 class ChallengeDataset(Dataset):
-    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='random',normalization='min_max'):
+    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='random',normalization='min_max',device="cuda"):
         self.sample_size  = sample_size
         self.out_path = out_path
         self.subsample = subsample
@@ -20,6 +20,8 @@ class ChallengeDataset(Dataset):
         self.save_name = f"challenge_{self.subsample}_{self.sample_size}_{self.radius}.pt"
         self.normalization = normalization
         self.class_labels = ['nochange','removed',"added",'change',"color_change"]
+        self.class_int_dict = {x:self.class_labels.index(x) for x in self.class_labels}
+        self.int_class_dict = {val:key for key,val in self.class_int_dict.items()}
         if not preload:
             print(f"Recreating challenge dataset, saving to: {self.out_path}")
             csv_path_list = [os.path.join(csv_path,x) for x in os.listdir(csv_path) if x.split('.')[-1]=='csv']
@@ -30,8 +32,7 @@ class ChallengeDataset(Dataset):
             combined_scene_dicts = {x:[scene_dicts[0][x],scene_dicts[1][x]] for x in scene_dicts[0].keys()}
             
             self.pair_dict={}
-            self.class_int_dict = {x:self.class_labels.index(x) for x in self.class_labels}
-            self.int_class_dict = {val:key for key,val in self.class_int_dict.items()}
+            
             pair_id = 0
             for scene_number, df in tqdm(sorted(scene_df_dict.items())):
                 scene_path_list=combined_scene_dicts[scene_number]
@@ -42,8 +43,8 @@ class ChallengeDataset(Dataset):
                     label = self.class_int_dict[row['classification']]
                     center = np.array([row['x'],row["y"]])
 
-                    extract_0 = torch.from_numpy(extract_area(scene_0,center,self.radius,'circle'))
-                    extract_1 = torch.from_numpy(extract_area(scene_0,center,self.radius,'circle'))
+                    extract_0 = torch.from_numpy(extract_area(scene_0,center,self.radius,'circle')).to(device)
+                    extract_1 = torch.from_numpy(extract_area(scene_1,center,self.radius,'circle')).to(device)
 
                     if subsample == 'random':
                         extract_0 = random_subsample(extract_0,sample_size)
@@ -79,7 +80,7 @@ class ChallengeDataset(Dataset):
 
     def view(self,index,point_size=3):
         extract_0,extract_1,label = self.pair_dict[index]
-        label = self.int_class_dict(label.item())
+        label = self.int_class_dict[label.item()]
         print(f"This sample is classified as {label}!")
         view_cloud_plotly(extract_0[:,:3],extract_0[:,3:],point_size=point_size)
         view_cloud_plotly(extract_1[:,:3],extract_1[:,3:],point_size=point_size)
