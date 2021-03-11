@@ -94,5 +94,8 @@ dirs_challenge_csv:
 patience_stopper:
   desc: Patience of early stopper
   value: 2000
+reinitialize_before_reverse:
+  desc: Reset parameters before reverse
+  value: false
 
 

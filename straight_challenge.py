@@ -169,17 +169,19 @@ def log_prob_to_change(log_prob_0,log_prob_1,grads_1_given_0,config,percentile=1
     change = torch.zeros_like(log_prob_1)
     mask = log_prob_1<=percentile
     change[mask] = (torch.abs(log_prob_1-perc)/std_0)[mask]
-    relevant_grads = torch.abs(grads_1_given_0[mask,...])
-    grads_sum_geom = relevant_grads[:,:3].sum(axis=1)
+    abs_grads = torch.abs(grads_1_given_0)
+    grads_sum_geom = abs_grads[:,:3].sum(axis=1)
     
-    grads_sum_rgb = relevant_grads[:,3:].sum(axis=1)
+    grads_sum_rgb = abs_grads[:,3:].sum(axis=1)
     eps= 1e-8
     if config['input_dim']>3:
         geom_rgb_ratio = grads_sum_geom/(grads_sum_rgb+eps)
     else:
         geom_rgb_ratio = grads_sum_geom
+    
+    return change_features_dict
 
-    return change,geom_rgb_ratio
+
 def main(rank, world_size):
 
 
@@ -218,11 +220,11 @@ def main(rank, world_size):
 
     
     torch.autograd.set_detect_anomaly(False)
-
+    full_save_dict ={}
     for index, batch in enumerate(tqdm(dataloader)):
+        print(f"Starting forward!")
         batch = [x.to(device) for x in batch]
         extract_0, extract_1, label = batch
-        #fit_flow(extract_0,extract_1)
         extract_0 , extract_1 = extract_0[:,:config['input_dim']].unsqueeze(0),extract_1[:,:config['input_dim']].unsqueeze(0)
         #Initialize models
         models_dict = initialize_straight_model(config,device,mode='train')
@@ -231,14 +233,32 @@ def main(rank, world_size):
         transformations = conditional_flow_layers.transformations
         log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0 = train_straight_pair(parameters,transformations,config,extract_0,extract_1,device=device)
         change_1,geom_rgb_ratio_1 = log_prob_to_change(log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0,config=config,percentile=1)
-        #Reinitialize models
-        models_dict = initialize_straight_model(config,device,mode='train')
-        parameters = models_dict['parameters']
-        conditional_flow_layers = models_dict['flow_layers']
-        transformations = conditional_flow_layers.transformations
+
+        
+
+        print(f"Starting reverse!")
+        if config['reinitialize_before_reverse']:
+            models_dict = initialize_straight_model(config,device,mode='train')
+            parameters = models_dict['parameters']
+            conditional_flow_layers = models_dict['flow_layers']
+            transformations = conditional_flow_layers.transformations
         log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1 = train_straight_pair(parameters,transformations,config,extract_1,extract_0,device=device)
+
         change_0,geom_rgb_ratio_0 = log_prob_to_change(log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1,config=config,percentile=1)
-        #Get change
+        
+
+        change_features_dict= {
+        "log_prob_0_given_0": log_prob_0_given_0,
+        "log_prob_1_given_0": log_prob_1_given_0,
+        "grads_1_given_0": grads_1_given_0,
+
+        "log_prob_1_given_1": log_prob_1_given_1,
+        "log_prob_0_given_1": log_prob_0_given_1,
+        "grads_0_given_1": grads_0_given_1,
+        "label" : label.item()
+        }
+        full_save_dict[index] = change_features_dict
+    torch.save(full_save_dict,os.path.join(out_path,f"{wandb.run.name}_direct_change_features.pt"))
                 
             
             
