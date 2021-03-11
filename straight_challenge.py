@@ -28,6 +28,7 @@ from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 from models.flow_creator import Conditional_flow_layers
 import functools
+from flow_fitter import fit_flow
 
 def load_transformations(load_dict,conditional_flow_layers):
     for transformation_params,transformation in zip(load_dict['flow_transformations'],conditional_flow_layers.transformations):
@@ -61,7 +62,7 @@ def initialize_straight_model(config,device = 'cuda',mode='train'):
     if flow_type == 'exponential_coupling':
         flow = lambda  : exponential_matrix_coupling(input_dim=flow_input_dim, hidden_dims=hidden_dims, split_dim=None, dim=-1,device='cpu',nonlinearity=coupling_block_nonlinearity)
     elif flow_type == 'spline_coupling':
-        flow = lambda : T.spline_coupling(input_dim)(input_dim=flow_input_dim, hidden_dims=hidden_dims,count_bins=config["count_bins"],bound=3.0)
+        flow = lambda : T.spline_coupling(input_dim=flow_input_dim, hidden_dims=hidden_dims,count_bins=config["count_bins"],bound=3.0)
     elif flow_type == 'spline_autoregressive':
         flow = lambda : T.spline_autoregressive(input_dim=flow_input_dim, hidden_dims=hidden_dims,count_bins=count_bins,bound=3)
     elif flow_type == 'affine_coupling':
@@ -99,12 +100,12 @@ def initialize_straight_model(config,device = 'cuda',mode='train'):
 
     return {'parameters':parameters,"flow_layers":conditional_flow_layers}
 
-def collate_straight(batch,input_dim):
-        extract_0,extract_1 = list(zip(*batch))
+def collate_straight(batch):
+        
 
 
-        return extract_0,extract_1
-def train_straight_pair(parameters,transformations,config,extract_0,extract_1):
+        return batch[0]
+def train_straight_pair(parameters,transformations,config,extract_0,extract_1,device):
     
     
     extract_0,extract_1 = extract_0.to(device),extract_1.to(device)
@@ -117,25 +118,31 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1):
         optimizer = Adamax(parameters, lr=config["lr"],weight_decay=config["weight_decay"],polyak =  0.999)
     elif config["optimizer_type"] == 'AdamW':
         optimizer = torch.optim.AdamW(parameters, lr=config["lr"],weight_decay=config["weight_decay"])
+    elif config["optimizer_type"] == 'SGD':
+        optimizer = torch.optim.SGD(parameters, lr=config["lr"], momentum=0.9)
     else:
         raise Exception('Invalid optimizer type!')
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=config["patience"],threshold=0.0001,min_lr=config["min_lr"])
     
-    early_stopper = Early_stop(patience=config["patience"],min_perc_improvement=0.01)
+    early_stopper = Early_stop(patience=config["patience_stopper"],min_perc_improvement=config['early_stop_margin'])
     for epoch in range(config["n_epochs"]):
         optimizer.zero_grad()
-        input_data = extract_0+torch.randn(extract_0.shape).to(device)*(1e-2)
-
-        loss = -flow_dist.log_prob(input_data)
-
+        input_data = extract_0.clone()
+        input_data += torch.randn_like(input_data).to(device)*(0.01)
+        assert not input_data.isnan().any()
+        loss = -flow_dist.log_prob(input_data.squeeze()).mean()
+        assert not loss.isnan()
+        
         loss.backward()
         optimizer.step()
         
  
         scheduler.step(loss)
         current_lr = optimizer.param_groups[0]['lr']
-        stop_train = early_stopper.log(loss)
+        wandb.log({'loss': loss.item(),"lr" : current_lr})
+        print(loss)
+        stop_train = early_stopper.log(loss.cpu())
         flow_dist.clear_cache()
         if stop_train:
             print(f"Early stopped at epoch: {epoch}!")
@@ -149,21 +156,29 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1):
     extract_1 = nn.Parameter(extract_1,requires_grad=True)
     extract_1.retain_grad()
     with torch.no_grad():
-        log_prob_0 = flow_dist.log_prob(extract_0)
-    log_prob_1 = flow_dist.log_prob(extract_1)
-    log_prob_1.backward()
-    grads_1 = log_prob_1.grad()
+        log_prob_0 = flow_dist.log_prob(extract_0).squeeze()
+    log_prob_1 = flow_dist.log_prob(extract_1).squeeze()
+    log_prob_1.mean().backward()
+    grads_1 = extract_1.grad.squeeze()
     return log_prob_0,log_prob_1,grads_1
 
-def log_prob_to_change(log_prob_0,log_prob_1,grads_1_given_0,percentile=1):
+def log_prob_to_change(log_prob_0,log_prob_1,grads_1_given_0,config,percentile=1):
     std_0 = log_prob_0.std()
-    perc = torch.from_numpy(np.percentile(log_prob_0.cpu().numpy(),percentile))
+    perc = torch.Tensor([np.percentile(log_prob_0.cpu().numpy(),percentile)]).cuda()
     change = torch.zeros_like(log_prob_1)
     mask = log_prob_1<=percentile
     change[mask] = torch.abs(log_prob_1-perc)/std_0
     relevant_grads = torch.abs(grads_1_given_0[mask,...])
     grads_sum_geom = relevant_grads[:,:3].sum(axis=0)
+    
     grads_sum_rgb = relevant_grads[:,3:].sum(axis=0)
+    eps= 1e-8
+    if config['input_dim']>3:
+        geom_rgb_ratio = grads_sum_geom/(grads_sum_rgb+eps)
+    else:
+        geom_rgb_ratio = grads_sum_geom
+
+    return change,geom_rgb_ratio
 def main(rank, world_size):
 
 
@@ -171,7 +186,7 @@ def main(rank, world_size):
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
     
-    config_path = r"config/config_straight.yaml"
+    config_path = r"config\config_straight.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     
@@ -180,23 +195,23 @@ def main(rank, world_size):
     
     
 
-    dirs_challenge = [config['dir_challenge']+year for year in ['2016',"2020"]]
+
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
+    dirs = [config['dir_challenge']+year for year in ["2016","2020"]]
     if config['data_loader'] == 'ConditionalDataGridSquare':
-        
-        dataset=ConditionalDataGrid(dirs_challenge,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+        dataset=ConditionalDataGrid(config['dirs_challenge'],out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
     elif config['data_loader'] == 'ConditionalDataGridCircle':
-        dataset=ConditionalDataGrid(dirs_challenge,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+        dataset=ConditionalDataGrid(config['dirs_challenge'],out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     elif config['data_loader']=='ChallengeDataset':
-        dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs_challenge, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'])
+        dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'],normalization=config['normalization'])
     else:
         raise Exception('Invalid dataloader type!')
 
 
-    dataloader = DataLoader(dataset,shuffle=True,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=collate_straight,pin_memory=True,prefetch_factor=2,drop_last=True)
+    dataloader = DataLoader(dataset,shuffle=False,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=collate_straight,pin_memory=True,prefetch_factor=2,drop_last=False)
 
 
 
@@ -206,18 +221,22 @@ def main(rank, world_size):
     for index, batch in enumerate(tqdm(dataloader)):
         batch = [x.to(device) for x in batch]
         extract_0, extract_1, label = batch
+        #fit_flow(extract_0,extract_1)
+        extract_0 , extract_1 = extract_0[:,:config['input_dim']].unsqueeze(0),extract_1[:,:config['input_dim']].unsqueeze(0)
         #Initialize models
         models_dict = initialize_straight_model(config,device,mode='train')
         parameters = models_dict['parameters']
         conditional_flow_layers = models_dict['flow_layers']
         transformations = conditional_flow_layers.transformations
-        log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0 = train_straight_pair(parameters,transformations,config,extract_0,extract_1)
+        log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0 = train_straight_pair(parameters,transformations,config,extract_0,extract_1,device=device)
+        change_1,geom_rgb_ratio_1 = log_prob_to_change(log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0,config=config,percentile=1)
         #Reinitialize models
         models_dict = initialize_straight_model(config,device,mode='train')
         parameters = models_dict['parameters']
         conditional_flow_layers = models_dict['flow_layers']
         transformations = conditional_flow_layers.transformations
-        log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1 = train_straight_pair(parameters,transformations,config,extract_1,extract_0)
+        log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1 = train_straight_pair(parameters,transformations,config,extract_1,extract_0,device=device)
+        change_0,geom_rgb_ratio_0 = log_prob_to_change(log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1,config=config,percentile=1)
         #Get change
                 
             

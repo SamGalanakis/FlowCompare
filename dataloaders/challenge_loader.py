@@ -60,7 +60,7 @@ class ChallengeDataset(Dataset):
                     extract_1[:,3:] = rgb_to_hsv(extract_1[:,3:])
                     assert not (extract_0.isnan().any().item() or extract_1.isnan().any().item())
                     torch_label = torch.Tensor([label]).long()
-                    self.pair_dict[pair_id]=[extract_0.float(),extract_1.float(),torch_label]
+                    self.pair_dict[pair_id]=[extract_0.float().cpu(),extract_1.float().cpu(),torch_label.cpu()]
                     pair_id +=1
                     
 

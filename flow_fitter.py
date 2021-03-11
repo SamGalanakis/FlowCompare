@@ -17,8 +17,8 @@ def fit_flow(points1,points2):
 
     n_samples=2000 #was 1000
     input_dim=3
-    points1 = points1[:,:input_dim]
-    points2 = points2[:,:input_dim] 
+    points1 = points1[:,:input_dim].cpu()
+    points2 = points2[:,:input_dim].cpu()
     scaler = MinMaxScaler()
     scaler.fit(np.concatenate((points1,points2),axis=0))
 
@@ -41,7 +41,7 @@ def fit_flow(points1,points2):
 
 
     class flow_block:
-        def __init__(self,input_dim,permutations,count_bins,split_dims,device,hidden_dims):
+        def __init__(self,input_dim,permutations,count_bins,split_dims,device,hidden_dims=None):
             self.transformations = []
             self.parameters =[]
             param_dims = lambda split_dimension: [(input_dim - split_dimension) * count_bins,

@@ -160,7 +160,7 @@ class Conditional_exponential_matrix_coupling(ConditionalTransformModule):
 
 
 
-def exponential_matrix_coupling(input_dim,device, hidden_dims=None, split_dim=None, dim=-1, **kwargs):
+def exponential_matrix_coupling(input_dim,device,nonlinearity, hidden_dims=None, split_dim=None, dim=-1):
 
     if not isinstance(input_dim, int):
         if len(input_dim) != -dim:
@@ -179,8 +179,7 @@ def exponential_matrix_coupling(input_dim,device, hidden_dims=None, split_dim=No
 
     hypernet = DenseNN(split_dim * extra_dims,
                        hidden_dims,
-                       [(event_shape[dim] - split_dim) * extra_dims,
-                        (event_shape[dim] - split_dim) * extra_dims])
+                       param_dims = [(event_shape[dim]-split_dim)**2,event_shape[dim]-split_dim],nonlinearity=nonlinearity)
     scale = nn.Parameter(torch.ones(1) / 8).to(device)
     shift = nn.Parameter(torch.zeros(1)).to(device)
     rescale = nn.Parameter(torch.ones(1)).to(device)
