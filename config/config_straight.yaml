@@ -3,7 +3,7 @@ sample_size:
   value: 10000
 n_flow_layers:
   desc: Number of flow layers
-  value: 20
+  value: 10
 data_loader:
   desc: What loader to use
   value: ChallengeDataset
@@ -21,7 +21,7 @@ permuter_type:
   value: Exponential_combiner
 early_stop_margin:
   desc: early_stop_margin
-  value: 0.0003
+  value: 0.01
 count_bins:
   desc: bins for spline
   value: 64
@@ -42,7 +42,7 @@ subsample:
   value: 'random'
 patience:
   desc: patience
-  value: 5
+  value: 25
 preload:
   desc: Preload_dataset
   value: true
@@ -51,7 +51,7 @@ min_points:
   value: 2000
 n_epochs:
   desc: Number of epochs to train for
-  value: 2000
+  value: 2500
 batch_size:
   desc: Batch size
   value: 1 #35
@@ -77,8 +77,8 @@ coupling_block_nonlinearity:
   desc: coupling_block_nonlinearity
   value: ELU
 min_lr:
-  desc: Minimum schedules learning rate
-  value: 0.0001
+  desc: Minimum scheduled learning rate
+  value: 0.00005
 normalization:
   desc: How pairs are normalized
   value: min_max
@@ -93,9 +93,12 @@ dirs_challenge_csv:
   value: save/2016-2020/
 patience_stopper:
   desc: Patience of early stopper
-  value: 2000
+  value: 50
 reinitialize_before_reverse:
   desc: Reset parameters before reverse
   value: false
+points_per_batch:
+  desc: Points per batch
+  value: 500
 
 

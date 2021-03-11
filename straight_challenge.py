@@ -101,10 +101,8 @@ def initialize_straight_model(config,device = 'cuda',mode='train'):
     return {'parameters':parameters,"flow_layers":conditional_flow_layers}
 
 def collate_straight(batch):
-        
-
-
         return batch[0]
+
 def train_straight_pair(parameters,transformations,config,extract_0,extract_1,device):
     
     
@@ -129,7 +127,7 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1,de
     for epoch in range(config["n_epochs"]):
 
         optimizer.zero_grad()
-        input_data =  random_subsample(extract_0.squeeze(),500).unsqueeze(0)
+        input_data =  random_subsample(extract_0.squeeze(),config['points_per_batch']).unsqueeze(0)
         assert not input_data.isnan().any()
         input_with_noise = torch.randn_like(input_data).to(device)*(0.01) + input_data
         loss = -flow_dist.log_prob(input_with_noise.squeeze()).mean()
@@ -142,7 +140,7 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1,de
         scheduler.step(loss)
         current_lr = optimizer.param_groups[0]['lr']
         wandb.log({'loss': loss.item(),"lr" : current_lr})
-        print(loss)
+        
         stop_train = early_stopper.log(loss.cpu())
         flow_dist.clear_cache()
         if stop_train:
@@ -179,7 +177,7 @@ def log_prob_to_change(log_prob_0,log_prob_1,grads_1_given_0,config,percentile=1
     else:
         geom_rgb_ratio = grads_sum_geom
     
-    return change_features_dict
+    return change,geom_rgb_ratio
 
 
 def main(rank, world_size):
@@ -189,7 +187,7 @@ def main(rank, world_size):
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
     
-    config_path = r"config\config_straight.yaml"
+    config_path = r"config/config_straight.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     
@@ -248,13 +246,13 @@ def main(rank, world_size):
         
 
         change_features_dict= {
-        "log_prob_0_given_0": log_prob_0_given_0,
-        "log_prob_1_given_0": log_prob_1_given_0,
-        "grads_1_given_0": grads_1_given_0,
+        "log_prob_0_given_0": log_prob_0_given_0.cpu(),
+        "log_prob_1_given_0": log_prob_1_given_0.cpu(),
+        "grads_1_given_0": grads_1_given_0.cpu(),
 
-        "log_prob_1_given_1": log_prob_1_given_1,
-        "log_prob_0_given_1": log_prob_0_given_1,
-        "grads_0_given_1": grads_0_given_1,
+        "log_prob_1_given_1": log_prob_1_given_1.cpu(),
+        "log_prob_0_given_1": log_prob_0_given_1.cpu(),
+        "grads_0_given_1": grads_0_given_1.cpu(),
         "label" : label.item()
         }
         full_save_dict[index] = change_features_dict

@@ -13,11 +13,13 @@ from pyro.distributions.util import copy_docs_from
 sys.path.append(".")
 from models.nets import ConditionalDenseNN, DenseNN
 from utils import expm
-
+from pyro.distributions import constraints
 eps = 1e-8
 
 class Exponential_matrix_coupling(TransformModule):
-
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective=True
     def __init__(self, split_dim, hypernet,input_dim,scale,shift,rescale,reshift, dim=-1,iterations=10):
         super().__init__(cache_size=1)
         if dim >= 0:
@@ -26,13 +28,22 @@ class Exponential_matrix_coupling(TransformModule):
         self.split_dim = split_dim
         self.nn = hypernet
         self.dim = dim
-        self.event_dim = -dim
+        self.event_dimension = -dim
         self.cached_w_mat = None
         self.input_dim = input_dim
         self.scale = nn.Parameter(scale)
         self.shift = nn.Parameter(shift)
         self.rescale = nn.Parameter(rescale)
         self.reshift = nn.Parameter(reshift)
+        
+
+    # @constraints.dependent_property(is_discrete=False)
+    # def domain(self):
+    #     return constraints.independent(constraints.real, -self.dim)
+
+    # @constraints.dependent_property(is_discrete=False)
+    # def codomain(self):
+    #     return constraints.independent(constraints.real, -self.dim)
 
 
 
@@ -78,7 +89,7 @@ class Exponential_matrix_coupling(TransformModule):
         x1, x2 = x.split([self.split_dim, x.size(self.dim) - self.split_dim], dim=self.dim)
 
         # Now that we can split on an arbitrary dimension, we have do a bit of reshaping...
-        w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,))) 
+        w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dimension] + (-1,))) 
         w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift + eps
         
 
@@ -109,7 +120,7 @@ class Exponential_matrix_coupling(TransformModule):
         x1 = y1
 
         # Now that we can split on an arbitrary dimension, we have do a bit of reshaping...
-        w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
+        w_mat,b_vec = self.nn(x1.reshape(x1.shape[:-self.event_dimension] + (-1,)))
         w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift +eps
         w_mat = w_mat.reshape((w_mat.shape[:-1] + (self.input_dim-self.split_dim,self.input_dim-self.split_dim)))
         
@@ -127,7 +138,7 @@ class Exponential_matrix_coupling(TransformModule):
             w_mat = self.cached_w_mat
         else:
             x1, _ = x.split([self.split_dim, x.size(self.dim) - self.split_dim], dim=self.dim)
-            w_mat, _ = self.nn(x1.reshape(x1.shape[:-self.event_dim] + (-1,)))
+            w_mat, _ = self.nn(x1.reshape(x1.shape[:-self.event_dimension] + (-1,)))
             w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift + eps
             w_mat = w_mat.reshape((w_mat.shape[:-1] + (self.input_dim-self.split_dim,self.input_dim-self.split_dim)))
         # Equivalent to : torch.log(torch.abs(torch.det(torch.matrix_exp(w_mat)))) but faster

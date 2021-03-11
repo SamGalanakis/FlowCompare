@@ -51,6 +51,9 @@ class Full_matrix_combiner(TransformModule):
         return torch.log(torch.abs(torch.det(torch.inverse(self.lin_layer.weight / torch.max(torch.abs(self.lin_layer.weight)))))) #Jacobian=Matrix for lin maps
 
 class Exponential_combiner(TransformModule):
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective=True
     def __init__(self,dim,iterations=8):
         super().__init__()
         self.dim = dim
