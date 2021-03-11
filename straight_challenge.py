@@ -127,11 +127,12 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1,de
     
     early_stopper = Early_stop(patience=config["patience_stopper"],min_perc_improvement=config['early_stop_margin'])
     for epoch in range(config["n_epochs"]):
+
         optimizer.zero_grad()
-        input_data = extract_0.clone()
-        input_data += torch.randn_like(input_data).to(device)*(0.01)
+        input_data =  random_subsample(extract_0.squeeze(),500).unsqueeze(0)
         assert not input_data.isnan().any()
-        loss = -flow_dist.log_prob(input_data.squeeze()).mean()
+        input_with_noise = torch.randn_like(input_data).to(device)*(0.01) + input_data
+        loss = -flow_dist.log_prob(input_with_noise.squeeze()).mean()
         assert not loss.isnan()
         
         loss.backward()
@@ -167,11 +168,11 @@ def log_prob_to_change(log_prob_0,log_prob_1,grads_1_given_0,config,percentile=1
     perc = torch.Tensor([np.percentile(log_prob_0.cpu().numpy(),percentile)]).cuda()
     change = torch.zeros_like(log_prob_1)
     mask = log_prob_1<=percentile
-    change[mask] = torch.abs(log_prob_1-perc)/std_0
+    change[mask] = (torch.abs(log_prob_1-perc)/std_0)[mask]
     relevant_grads = torch.abs(grads_1_given_0[mask,...])
-    grads_sum_geom = relevant_grads[:,:3].sum(axis=0)
+    grads_sum_geom = relevant_grads[:,:3].sum(axis=1)
     
-    grads_sum_rgb = relevant_grads[:,3:].sum(axis=0)
+    grads_sum_rgb = relevant_grads[:,3:].sum(axis=1)
     eps= 1e-8
     if config['input_dim']>3:
         geom_rgb_ratio = grads_sum_geom/(grads_sum_rgb+eps)

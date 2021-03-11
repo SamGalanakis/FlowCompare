@@ -3,7 +3,7 @@ sample_size:
   value: 10000
 n_flow_layers:
   desc: Number of flow layers
-  value: 10
+  value: 20
 data_loader:
   desc: What loader to use
   value: ChallengeDataset
@@ -12,13 +12,13 @@ batchnorm:
   value: false
 flow_type:
   desc: What flow blocks to use
-  value: affine_coupling
+  value: exponential_coupling
 hidden_dims:
   desc: linear layers for flow coupling
   value: [512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
-  value: random_permute
+  value: Exponential_combiner
 early_stop_margin:
   desc: early_stop_margin
   value: 0.0003
@@ -27,7 +27,7 @@ count_bins:
   value: 64
 input_dim:
   desc: Dimension of pointcloud data
-  value: 3
+  value: 6
 grid_square_size:
   desc: Number of f subblocks 
   value: 4
@@ -51,13 +51,13 @@ min_points:
   value: 2000
 n_epochs:
   desc: Number of epochs to train for
-  value: 3000
+  value: 2000
 batch_size:
   desc: Batch size
   value: 1 #35
 lr:
   desc: Initial learning rate for optimizer
-  value: 0.00005
+  value: 0.0001
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/straight_flow_compare/
@@ -93,6 +93,6 @@ dirs_challenge_csv:
   value: save/2016-2020/
 patience_stopper:
   desc: Patience of early stopper
-  value: 3000
+  value: 2000
 
 
