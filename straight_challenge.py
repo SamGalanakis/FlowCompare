@@ -27,8 +27,8 @@ import torch.multiprocessing as mp
 from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 from models.flow_creator import Conditional_flow_layers
-import functools
-from flow_fitter import fit_flow
+import argparse
+
 
 def load_transformations(load_dict,conditional_flow_layers):
     for transformation_params,transformation in zip(load_dict['flow_transformations'],conditional_flow_layers.transformations):
@@ -93,7 +93,7 @@ def initialize_straight_model(config,device = 'cuda',mode='train'):
             else:
                 transform = transform.to(device)
             parameters+= transform.parameters()
-            wandb.watch(transform,log_freq=10)
+            #wandb.watch(transform,log_freq=10)
 
 
 
@@ -180,7 +180,7 @@ def log_prob_to_change(log_prob_0,log_prob_1,grads_1_given_0,config,percentile=1
     return change,geom_rgb_ratio
 
 
-def main(rank, world_size):
+def straight_train(args):
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -188,6 +188,8 @@ def main(rank, world_size):
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
     
     config_path = r"config/config_straight.yaml"
+    if args.WANDB_MODE == "dryrun":
+        os.environ['WANDB_MODE'] = 'dryrun'
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     
@@ -207,10 +209,13 @@ def main(rank, world_size):
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     elif config['data_loader']=='ChallengeDataset':
-        dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'],normalization=config['normalization'])
+        if args.start_index is not None:
+            subset = range(args.start_index,args.end_index)
+        else:
+            subset = None
+        dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'],normalization=config['normalization'],subset=subset)
     else:
         raise Exception('Invalid dataloader type!')
-
 
     dataloader = DataLoader(dataset,shuffle=False,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=collate_straight,pin_memory=True,prefetch_factor=2,drop_last=False)
 
@@ -221,8 +226,8 @@ def main(rank, world_size):
     full_save_dict ={}
     for index, batch in enumerate(tqdm(dataloader)):
         print(f"Starting forward!")
-        batch = [x.to(device) for x in batch]
-        extract_0, extract_1, label = batch
+        extract_0, extract_1, label, idx = batch
+        extract_0,extract_1 = extract_0.to(device),extract_1.to(device)
         extract_0 , extract_1 = extract_0[:,:config['input_dim']].unsqueeze(0),extract_1[:,:config['input_dim']].unsqueeze(0)
         #Initialize models
         models_dict = initialize_straight_model(config,device,mode='train')
@@ -246,6 +251,7 @@ def main(rank, world_size):
         
 
         change_features_dict= {
+        "idx":idx,
         "log_prob_0_given_0": log_prob_0_given_0.cpu(),
         "log_prob_1_given_0": log_prob_1_given_0.cpu(),
         "grads_1_given_0": grads_1_given_0.cpu(),
@@ -255,8 +261,8 @@ def main(rank, world_size):
         "grads_0_given_1": grads_0_given_1.cpu(),
         "label" : label.item()
         }
-        full_save_dict[index] = change_features_dict
-    torch.save(full_save_dict,os.path.join(out_path,f"{wandb.run.name}_direct_change_features.pt"))
+
+        torch.save(change_features_dict,os.path.join(os.path.join(out_path,"straight_features"),f"{args.run_name}_{idx}_direct_change_features.pt"))
                 
             
             
@@ -264,4 +270,10 @@ if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     print('Let\'s use', world_size, 'GPUs!')
     rank=''
-    main(rank,world_size)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run_name",const="arun",nargs='?')
+    parser.add_argument("--start_index",type=int)
+    parser.add_argument("--end_index",type=int)
+    parser.add_argument("--WANDB_MODE",const = 'dryrun',nargs='?')
+    args = parser.parse_args()
+    straight_train(args)

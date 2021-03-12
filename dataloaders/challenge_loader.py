@@ -12,7 +12,7 @@ import pandas as pd
 
 
 class ChallengeDataset(Dataset):
-    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='random',normalization='min_max',device="cuda"):
+    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='random',normalization='min_max',device="cuda",subset= None):
         self.sample_size  = sample_size
         self.out_path = out_path
         self.subsample = subsample
@@ -22,6 +22,7 @@ class ChallengeDataset(Dataset):
         self.class_labels = ['nochange','removed',"added",'change',"color_change"]
         self.class_int_dict = {x:self.class_labels.index(x) for x in self.class_labels}
         self.int_class_dict = {val:key for key,val in self.class_int_dict.items()}
+        self.subset = subset
         if not preload:
             print(f"Recreating challenge dataset, saving to: {self.out_path}")
             csv_path_list = [os.path.join(csv_path,x) for x in os.listdir(csv_path) if x.split('.')[-1]=='csv']
@@ -71,7 +72,11 @@ class ChallengeDataset(Dataset):
         else:
             self.pair_dict = torch.load(os.path.join(self.out_path,self.save_name))
         
-
+        if subset!=None:
+            assert all([x in self.pair_dict.keys() for x in subset]), "Invalid subset"
+            print(f"Using subset: {self.subset}")
+            self.pair_dict = {key:val for key,val in self.pair_dict.items() if key in self.subset}
+            self.subset_map = {x:sorted(self.subset)[x] for x in range(len(self.subset))}
         print('Loaded dataset!')
 
 
@@ -86,6 +91,9 @@ class ChallengeDataset(Dataset):
         view_cloud_plotly(extract_1[:,:3],extract_1[:,3:],point_size=point_size)
 
     def __getitem__(self, idx):
+        if self.subset!=None:
+            idx = self.subset_map[idx]
+
         extract_0,extract_1,label = self.pair_dict[idx]
 
         if self.normalization == 'min_max':
@@ -97,4 +105,4 @@ class ChallengeDataset(Dataset):
         else:
             raise Exception('Invalid normalization type')
         
-        return extract_0,extract_1,label
+        return extract_0,extract_1,label,idx
