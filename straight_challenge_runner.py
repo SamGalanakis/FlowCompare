@@ -8,7 +8,7 @@ n_processes = 10
 indices = list(range(0,dataset_len,587//10))
 indices[-1] = dataset_len
 pairs = [[indices[x],indices[x+1]] for x in range(len(indices)-1) ]
-name = 'direct_run'
+name = 'noground'
 processes = []
 log_files = []
 for index, pair in enumerate(pairs):
@@ -18,8 +18,9 @@ for index, pair in enumerate(pairs):
 while True:
     polls = [process.poll() is not None for process in processes]
     if not all(polls):
-        time.sleep(1)
+        time.sleep(60)
     else:
+        print("Done running!")
         break
 for log_file in log_files:
     log_file.close()

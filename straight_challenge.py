@@ -28,7 +28,8 @@ from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 from models.flow_creator import Conditional_flow_layers
 import argparse
-
+from straight_challenge_classifier import log_prob_to_change
+from time import time
 
 def load_transformations(load_dict,conditional_flow_layers):
     for transformation_params,transformation in zip(load_dict['flow_transformations'],conditional_flow_layers.transformations):
@@ -105,7 +106,7 @@ def collate_straight(batch):
 
 def train_straight_pair(parameters,transformations,config,extract_0,extract_1,device):
     
-    
+    start_time = time()
     extract_0,extract_1 = extract_0.to(device),extract_1.to(device)
     base_dist = dist.Normal(torch.zeros(config["input_dim"]).to(device), torch.ones(config["input_dim"]).to(device))
     flow_dist = dist.TransformedDistribution(base_dist, transformations)
@@ -159,29 +160,14 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1,de
     log_prob_1 = flow_dist.log_prob(extract_1).squeeze()
     log_prob_1.mean().backward()
     grads_1 = extract_1.grad.squeeze()
+    duration = time() - start_time
+    print(f"Took: {duration}")
     return log_prob_0,log_prob_1,grads_1
 
-def log_prob_to_change(log_prob_0,log_prob_1,grads_1_given_0,config,percentile=1):
-    std_0 = log_prob_0.std()
-    perc = torch.Tensor([np.percentile(log_prob_0.cpu().numpy(),percentile)]).cuda()
-    change = torch.zeros_like(log_prob_1)
-    mask = log_prob_1<=percentile
-    change[mask] = (torch.abs(log_prob_1-perc)/std_0)[mask]
-    abs_grads = torch.abs(grads_1_given_0)
-    grads_sum_geom = abs_grads[:,:3].sum(axis=1)
-    
-    grads_sum_rgb = abs_grads[:,3:].sum(axis=1)
-    eps= 1e-8
-    if config['input_dim']>3:
-        geom_rgb_ratio = grads_sum_geom/(grads_sum_rgb+eps)
-    else:
-        geom_rgb_ratio = grads_sum_geom
-    
-    return change,geom_rgb_ratio
+
 
 
 def straight_train(args):
-
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     one_up_path = os.path.dirname(__file__)
@@ -213,10 +199,9 @@ def straight_train(args):
             subset = range(args.start_index,args.end_index)
         else:
             subset = None
-        dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'],normalization=config['normalization'],subset=subset)
+        dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'],normalization=config['normalization'],subset=subset,radius=config['radius'],remove_ground=config['remove_ground'])
     else:
         raise Exception('Invalid dataloader type!')
-
     dataloader = DataLoader(dataset,shuffle=False,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=collate_straight,pin_memory=True,prefetch_factor=2,drop_last=False)
 
 

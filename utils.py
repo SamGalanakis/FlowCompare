@@ -142,7 +142,7 @@ def extract_area(full_cloud,center,clearance,shape= 'circle'):
         mask = np.linalg.norm(full_cloud[:,:2]-center,axis=1) <  clearance
     else:
         raise Exception("Invalid shape")
-    return full_cloud[mask]
+    return mask
 
 def grid_split(points,grid_size,center = False,clearance = 20):
     if isinstance(center,bool):
@@ -196,6 +196,20 @@ def random_subsample(points,n_samples):
     return points
 
 
+
+def ground_remover(points,height_bin=0.3,max_below =1):
+    lengths =np.arange(points[:,2].min(),points[:,2].max(),height_bin).tolist()
+    n_points = []
+    for x in lengths:
+        n_points.append(sum((points[:,2]>x) & (points[:,2]<x+height_bin)).item())
+    zipped = sorted(zip(n_points,lengths),key=lambda x :x[0],reverse=True)
+    for n_point,height in zipped:
+        how_many_below = n_points.index(n_point)
+        if how_many_below<=max_below:
+            break
+    cut_off_height = height + height_bin
+    mask = points[:,2]>cut_off_height
+    return mask
 
     
 
@@ -434,24 +448,7 @@ def rgb_to_hsv(rgb,scale_after=False):
 
 
 if __name__ == '__main__':
-    for x in range(100):
-        batch = [(torch.rand(100000,6),torch.rand(100000,6)) for x in range(20)]
-
-
-        result = collate_voxel(batch=batch,voxel_size=1/2,input_dim=6,start=None,end=None)
-
-
-
-    points = load_las(r'/mnt/cm-nas03/synch/students/sam/data_test/2018/0_0_5D696L9N.las')
-    circles = circle_split(points,2,center = False,clearance = 20)
-    circles = [x for x in circles if x.shape[0]>100]
-    circle_list =[]
-    rand_colors = [np.random.uniform(0,1,(3))+np.zeros_like(x[:,:3]) for x in circles]
-    for index,circle in enumerate(circles):
-        rgb = rand_colors[index]
-        circle[:,3:] = rgb
-        circle_list.append(circle)
+    pass
     
-    all_circles = np.concatenate(circle_list,axis=0)
-    save_las(all_circles[:,:3],'/mnt/cm-nas03/synch/students/sam/test_circles.las',all_circles[:,3:])
+
 

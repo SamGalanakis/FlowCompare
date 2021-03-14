@@ -3,7 +3,7 @@ sample_size:
   value: 10000
 n_flow_layers:
   desc: Number of flow layers
-  value: 10
+  value: 15
 data_loader:
   desc: What loader to use
   value: ChallengeDataset
@@ -87,7 +87,7 @@ load_checkpoint:
   value: false
 dir_challenge:
   desc: Paths to folders in order of year
-  value: D:/data/cycloData/
+  value: save/challenge_data/Shrec_change_detection_dataset_public/
 dirs_challenge_csv:
   desc: Paths to label csv folder
   value: save/2016-2020/
@@ -100,5 +100,7 @@ reinitialize_before_reverse:
 points_per_batch:
   desc: Points per batch
   value: 500
-
+remove_ground:
+  desc: Remove ground
+  value: true
 
