@@ -70,7 +70,12 @@ def visualize_change(dataset,feature_dataset,index,colorscale='Hot',clearance=0.
 
 def summary_stats(dataset,feature_dataset,index):
     feature_dict = feature_dataset[index]
-    change, geom_rgb_ratio = log_prob_to_change(feature_dict['log_prob_0_given_0'],feature_dict['log_prob_1_given_0'],feature_dict['grads_1_given_0'],config)
+    change_given_0, geom_rgb_ratio_given_0 = log_prob_to_change(feature_dict['log_prob_0_given_0'],feature_dict['log_prob_1_given_0'],feature_dict['grads_1_given_0'],config)
+    change_given_1, geom_rgb_ratio_given_1 = log_prob_to_change(feature_dict['log_prob_1_given_1'],feature_dict['log_prob_0_given_1'],feature_dict['grads_0_given_1'],config)
+
+    return change_given_0.mean(),geom_rgb_ratio_given_0.mean(),change_given_1.mean(),geom_rgb_ratio_given_1.mean()
+
+
 
 
 if __name__ == '__main__':

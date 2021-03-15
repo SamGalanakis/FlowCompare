@@ -7,6 +7,12 @@ data/
 emd_loss/
 /models/pct_pytorch/
 local_data/
+
+
+
+!save/2016-2020-test
+!save/2016-2020-train
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
