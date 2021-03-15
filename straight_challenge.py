@@ -198,7 +198,7 @@ def straight_train(args):
             subset = range(args.start_index,args.end_index)
         else:
             subset = None
-        dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'],normalization=config['normalization'],subset=subset,radius=config['radius'],remove_ground=config['remove_ground'])
+        dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'],normalization=config['normalization'],subset=subset,radius=config['radius'],remove_ground=config['remove_ground'],mode = args.mode)
     else:
         raise Exception('Invalid dataloader type!')
     dataloader = DataLoader(dataset,shuffle=False,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=collate_straight,pin_memory=True,prefetch_factor=2,drop_last=False)
@@ -246,7 +246,7 @@ def straight_train(args):
         "label" : label.item()
         }
 
-        torch.save(change_features_dict,os.path.join(os.path.join(out_path,"straight_features"),f"{args.run_name}_{idx}_direct_change_features.pt"))
+        torch.save(change_features_dict,os.path.join(os.path.join(out_path,"straight_features"),f"{args.mode}_{args.run_name}_{idx}_direct_change_features.pt"))
                 
             
             
@@ -259,5 +259,6 @@ if __name__ == "__main__":
     parser.add_argument("--start_index",type=int)
     parser.add_argument("--end_index",type=int)
     parser.add_argument("--WANDB_MODE",const = 'dryrun',nargs='?')
+    parser.add_argument("--mode",const = 'train',nargs='?')
     args = parser.parse_args()
     straight_train(args)
