@@ -111,6 +111,17 @@ class ChallengeDataset(Dataset):
                 else:
                     raise Exception('Invalid normalization type')
         if self.remove_ground:
-            extract_0 = extract_0[ground_remover(extract_0),:]
-            extract_1 = extract_1[ground_remover(extract_1),:]
+            
+            ground_mask_0 = ground_remover(extract_0)
+            ground_mask_1 = ground_remover(extract_1)
+            #Check for empty (only ground) and put dummy
+            if ground_mask_0.sum() == 0:
+                extract_0 = extract_0.mean(axis=0).unsqueeze(0)
+            else:
+                extract_0 = extract_0[ground_mask_0,:]
+            if ground_mask_1.sum() == 0:
+                extract_1 = extract_1.mean(axis=0).unsqueeze(0)
+            else:
+                extract_1 = extract_1[ground_mask_1,:]
+     
         return extract_0,extract_1,label,idx

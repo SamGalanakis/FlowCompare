@@ -13,7 +13,7 @@ processes = []
 log_files = []
 for index, pair in enumerate(pairs):
     log_files.append(open(f'save/direct_logs/name_{index}.txt','w'))
-    processes.append(subprocess.Popen(args = [f"python3","straight_challenge.py",'--run_name',"direct_run",'--start_index',str(pair[0]),'--end_index',str(pair[1]),'--WANDB_MODE',"dryrun"],stdout=log_files[index],universal_newlines=True))
+    processes.append(subprocess.Popen(args = [f"python3","straight_challenge.py",'--run_name',name,'--start_index',str(pair[0]),'--end_index',str(pair[1]),'--WANDB_MODE',"dryrun"],stdout=log_files[index],universal_newlines=True))
 
 while True:
     polls = [process.poll() is not None for process in processes]

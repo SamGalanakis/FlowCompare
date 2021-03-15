@@ -18,7 +18,7 @@ hidden_dims:
   value: [512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
-  value: Exponential_combiner
+  value: random_permute
 early_stop_margin:
   desc: early_stop_margin
   value: 0.01
@@ -42,7 +42,7 @@ subsample:
   value: 'random'
 patience:
   desc: patience
-  value: 25
+  value: 50
 preload:
   desc: Preload_dataset
   value: true
@@ -69,7 +69,7 @@ optimizer_type:
   value: AdamW
 weight_decay:
   desc: weigth decay for optimizer
-  value: 0.0
+  value: 0.0001
 data_parallel:
   desc: Use parallel
   value: true
@@ -99,7 +99,7 @@ reinitialize_before_reverse:
   value: false
 points_per_batch:
   desc: Points per batch
-  value: 500
+  value: 200
 remove_ground:
   desc: Remove ground
   value: true
