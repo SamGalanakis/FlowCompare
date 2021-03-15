@@ -101,16 +101,8 @@ class ChallengeDataset(Dataset):
         if self.subset!=None:
             idx = self.subset_map[idx]
         extract_0,extract_1,label = self.pair_dict[idx]
-        if self.apply_normalization:
-            if self.apply_normalization:
-                if self.normalization == 'min_max':
-                    extract_0[:,:3], extract_1[:,:3] = co_min_max(extract_0[:,:3],extract_1[:,:3])
-                elif self.normalization == 'standardize':
-                    extract_0,extract_1 = co_standardize(extract_0,extract_1)
-                elif self.normalization == 'sep_standardize':
-                    extract_0,extract_1 = sep_standardize(extract_0,extract_1)
-                else:
-                    raise Exception('Invalid normalization type')
+
+        #Remove ground before normalize
         if self.remove_ground:
             
             ground_mask_0 = ground_remover(extract_0)
@@ -124,5 +116,18 @@ class ChallengeDataset(Dataset):
                 extract_1 = extract_1.mean(axis=0).unsqueeze(0)
             else:
                 extract_1 = extract_1[ground_mask_1,:]
+
+        #Normalize
+        if self.apply_normalization:
+            if self.apply_normalization:
+                if self.normalization == 'min_max':
+                    extract_0[:,:3], extract_1[:,:3] = co_min_max(extract_0[:,:3],extract_1[:,:3])
+                elif self.normalization == 'standardize':
+                    extract_0,extract_1 = co_standardize(extract_0,extract_1)
+                elif self.normalization == 'sep_standardize':
+                    extract_0,extract_1 = sep_standardize(extract_0,extract_1)
+                else:
+                    raise Exception('Invalid normalization type')
+        
      
         return extract_0,extract_1,label,idx
