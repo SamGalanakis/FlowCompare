@@ -183,15 +183,12 @@ def circle_split(points,circle_radius,center = False,clearance = 20):
 
 def random_subsample(points,n_samples):
     if points.shape[0]==0:
-        print('No points found at this center replacing with dummy')
+        print('No points found for random sampling, replacing with dummy')
         points = np.zeros((1,points.shape[1]))
     #No point sampling if already 
     if n_samples < points.shape[0]:
         random_indices = np.random.choice(points.shape[0],n_samples, replace=False)
         points = points[random_indices,:]
-    
-    
-    
     
     return points
 

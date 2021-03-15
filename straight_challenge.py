@@ -129,8 +129,7 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1,de
 
         optimizer.zero_grad()
         input_data =  random_subsample(extract_0.squeeze(),config['points_per_batch']).unsqueeze(0)
-        assert not input_data.isnan().any()
-        input_with_noise = torch.randn_like(input_data).to(device)*(0.01) + input_data
+        input_with_noise = torch.randn_like(input_data,device=device)*(0.01) + input_data
         loss = -flow_dist.log_prob(input_with_noise.squeeze()).mean()
         assert not loss.isnan()
         
@@ -139,19 +138,19 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1,de
         
  
         scheduler.step(loss)
-        current_lr = optimizer.param_groups[0]['lr']
-        wandb.log({'loss': loss.item(),"lr" : current_lr})
+        #current_lr = optimizer.param_groups[0]['lr']
+        #wandb.log({'loss': loss.item(),"lr" : current_lr})
         
         stop_train = early_stopper.log(loss.cpu())
         flow_dist.clear_cache()
         if stop_train:
             print(f"Early stopped at epoch: {epoch}!")
             break
-    for transformation in transformations:
-        try:
-            transformation = transformation.eval()
-        except:
-            continue
+    # for transformation in transformations:
+    #     try:
+    #         transformation = transformation.eval()
+    #     except:
+    #         continue
     
     extract_1 = nn.Parameter(extract_1,requires_grad=True)
     extract_1.retain_grad()
@@ -208,7 +207,7 @@ def straight_train(args):
 
     
     torch.autograd.set_detect_anomaly(False)
-    full_save_dict ={}
+    
     for index, batch in enumerate(tqdm(dataloader)):
         print(f"Starting forward!")
         extract_0, extract_1, label, idx = batch
@@ -220,7 +219,7 @@ def straight_train(args):
         conditional_flow_layers = models_dict['flow_layers']
         transformations = conditional_flow_layers.transformations
         log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0 = train_straight_pair(parameters,transformations,config,extract_0,extract_1,device=device)
-        change_1,geom_rgb_ratio_1 = log_prob_to_change(log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0,config=config,percentile=1)
+        #change_1,geom_rgb_ratio_1 = log_prob_to_change(log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0,config=config,percentile=1)
 
         
 
@@ -232,18 +231,18 @@ def straight_train(args):
             transformations = conditional_flow_layers.transformations
         log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1 = train_straight_pair(parameters,transformations,config,extract_1,extract_0,device=device)
 
-        change_0,geom_rgb_ratio_0 = log_prob_to_change(log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1,config=config,percentile=1)
+        #change_0,geom_rgb_ratio_0 = log_prob_to_change(log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1,config=config,percentile=1)
         
 
         change_features_dict= {
         "idx":idx,
-        "log_prob_0_given_0": log_prob_0_given_0.cpu(),
-        "log_prob_1_given_0": log_prob_1_given_0.cpu(),
-        "grads_1_given_0": grads_1_given_0.cpu(),
+        "log_prob_0_given_0": log_prob_0_given_0,
+        "log_prob_1_given_0": log_prob_1_given_0,
+        "grads_1_given_0": grads_1_given_0,
 
-        "log_prob_1_given_1": log_prob_1_given_1.cpu(),
-        "log_prob_0_given_1": log_prob_0_given_1.cpu(),
-        "grads_0_given_1": grads_0_given_1.cpu(),
+        "log_prob_1_given_1": log_prob_1_given_1,
+        "log_prob_0_given_1": log_prob_0_given_1,
+        "grads_0_given_1": grads_0_given_1,
         "label" : label.item()
         }
 

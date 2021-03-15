@@ -2,11 +2,13 @@ import os
 import subprocess
 import time
 
-dataset_len = 587
+dataset_len = 741
 n_processes = 10
 
-indices = list(range(0,dataset_len,587//10))
-indices[-1] = dataset_len
+indices = list(range(0,dataset_len,dataset_len//(n_processes)))
+if len(indices)<(n_processes+1):
+    indices.append(dataset_len)
+
 pairs = [[indices[x],indices[x+1]] for x in range(len(indices)-1) ]
 name = 'noground'
 processes = []
@@ -19,6 +21,7 @@ while True:
     polls = [process.poll() is not None for process in processes]
     if not all(polls):
         time.sleep(60)
+        print("Still running!")
     else:
         print("Done running!")
         break
