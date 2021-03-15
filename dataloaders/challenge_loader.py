@@ -11,12 +11,13 @@ import pandas as pd
 
 
 class ChallengeDataset(Dataset):
-    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='random',normalization='min_max',device="cuda",subset= None,apply_normalization=True,remove_ground=True):
+    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='random',normalization='min_max',device="cuda",subset= None,apply_normalization=True,remove_ground=True,mode='test'):
         self.sample_size  = sample_size
         self.out_path = out_path
         self.subsample = subsample
         self.radius = radius
-        self.save_name = f"challenge_{self.subsample}_{self.sample_size}_{self.radius}.pt"
+        self.mode = mode
+        self.save_name = f"challenge_{self.subsample}_{self.sample_size}_{self.radius}_{self.mode}.pt"
         self.normalization = normalization
         self.class_labels = ['nochange','removed',"added",'change',"color_change"]
         self.class_int_dict = {x:self.class_labels.index(x) for x in self.class_labels}
