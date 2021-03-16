@@ -1,3 +1,4 @@
+from numpy.core.numeric import Inf
 import torch
 import numpy as np
 import time
@@ -197,8 +198,12 @@ def random_subsample(points,n_samples):
 def ground_remover(points,height_bin=0.3,max_below =1):
     lengths =np.arange(points[:,2].min(),points[:,2].max(),height_bin).tolist()
     n_points = []
+
     for x in lengths:
         n_points.append(sum((points[:,2]>x) & (points[:,2]<x+height_bin)).item())
+    if len(n_points)==0:
+        height = 1e+10
+        print('Only one bin, removing all!')
     zipped = sorted(zip(n_points,lengths),key=lambda x :x[0],reverse=True)
     for n_point,height in zipped:
         how_many_below = n_points.index(n_point)
