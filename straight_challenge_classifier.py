@@ -92,7 +92,7 @@ if __name__ == '__main__':
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     dirs = [config['dir_challenge']+year for year in ["2016","2020"]]
-    dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=True,normalization=config['normalization'],subset=None,radius=config['radius'],remove_ground=config['remove_ground'],mode = 'train')
+    dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=True,normalization=config['normalization'],subset=None,radius=config['radius'],remove_ground=config['remove_ground'],mode = 'test')
     feature_dataset = StraightChallengeFeatureLoader("save/processed_dataset/straight_features/")
     X = []
     y=[]
