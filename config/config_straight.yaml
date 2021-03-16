@@ -90,7 +90,11 @@ dir_challenge:
   value: D:/data/cycloData/
 dirs_challenge_csv:
   desc: Paths to label csv folder
+<<<<<<< HEAD
   value: save/2016-2020-test/
+=======
+  value: save/2016-2020-train/
+>>>>>>> 27ca4ef16ea23b89e7c1c9d03d35dcea4418f8e0
 patience_stopper:
   desc: Patience of early stopper
   value: 50

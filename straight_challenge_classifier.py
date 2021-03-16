@@ -11,8 +11,12 @@ from torch.nn.parallel import DataParallel
 from torch import nn
 import argparse
 from utils import ground_remover
-
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score,precision_score,recall_score,confusion_matrix
+from sklearn.model_selection import train_test_split
+from scipy import stats
 def log_prob_to_change(log_prob_0,log_prob_1,grads_1_given_0,config,percentile=1):
+  
     std_0 = log_prob_0.std()
     perc = torch.Tensor([np.percentile(log_prob_0.cpu().numpy(),percentile)]).to(log_prob_0.device)
     change = torch.zeros_like(log_prob_1)
@@ -33,47 +37,46 @@ def visualize_change(dataset,feature_dataset,index,colorscale='Hot',clearance=0.
     extract_0 = dataset[index][0]
     extract_1 = dataset[index][1]
     feature_dict = feature_dataset[index]
-    if remove_ground:
-        ground_mask_0 = ground_remover(extract_0)
-        ground_mask_1 = ground_remover(extract_1)
-    else:
-        ground_mask_0 = torch.ones(extract_0.shape[0]).long()
-        ground_mask_1 = torch.ones(extract_1.shape[0]).long()
-    mean_ground_point_0 = extract_0[~ground_mask_0,:].mean(axis=0)
-    mean_ground_point_1 = extract_1[~ground_mask_1,:].mean(axis=0)
-    mean_log_prob_ground_point_0 = feature_dict['log_prob_0_given_0'].mean()
-    mean_log_prob_ground_point_1 = feature_dict['log_prob_1_given_0'].mean()
-    mean_grad_ground_point_1 = feature_dict['grads_1_given_0'].mean()
-    extract_0 = extract_0[ground_mask_0,:]
-    extract_1 = extract_1[ground_mask_1,:]
-    feature_dict['log_prob_0_given_0'] = feature_dict['log_prob_0_given_0'][ground_mask_0]
-    feature_dict['log_prob_1_given_0'] = feature_dict['log_prob_1_given_0'][ground_mask_1]
-    feature_dict['grads_1_given_0'] = feature_dict['grads_1_given_0'][ground_mask_1]
-    if extract_0.shape[0]==0:
-        extract_0 = mean_ground_point_0.unsqueeze(0)
-        feature_dict['log_prob_0_given_0'] = mean_log_prob_ground_point_0.unsqueeze(0)
-    if extract_1.shape[0]==0:
-        extract_1 = mean_ground_point_1.unsqueeze(0)
-        feature_dict['log_prob_1_given_0'] = mean_log_prob_ground_point_1.unsqueeze(0)
-        feature_dict['grads_1_given_0'] = mean_grad_ground_point_1.unsqueeze(0)
+   
+    
 
-    extract_0[:,:3], extract_1[:,:3] = co_min_max(extract_0[:,:3],extract_1[:,:3])
-    mask_0 = extract_area(extract_0,np.array([0.5,0.5]),clearance)
-    mask_1 = extract_area(extract_1,np.array([0.5,0.5]),clearance)
-    extract_0 = extract_0[mask_0,:]
-    extract_1 = extract_1[mask_1,:]
+   
     
     
     dataset.view(index)
-    change, _ = log_prob_to_change(feature_dict['log_prob_0_given_0'][mask_0],feature_dict['log_prob_1_given_0'][mask_1],feature_dict['grads_1_given_0'][mask_1],config)
+    
+    change, _ = log_prob_to_change(feature_dict['log_prob_0_given_0'],feature_dict['log_prob_1_given_0'],feature_dict['grads_1_given_0'],config)
     return view_cloud_plotly(extract_1[:,:3],change,colorscale = colorscale)
 
 def summary_stats(dataset,feature_dataset,index):
     feature_dict = feature_dataset[index]
-    change_given_0, geom_rgb_ratio_given_0 = log_prob_to_change(feature_dict['log_prob_0_given_0'],feature_dict['log_prob_1_given_0'],feature_dict['grads_1_given_0'],config)
-    change_given_1, geom_rgb_ratio_given_1 = log_prob_to_change(feature_dict['log_prob_1_given_1'],feature_dict['log_prob_0_given_1'],feature_dict['grads_0_given_1'],config)
+    dataset_entry  = dataset[index]
+    extract_0,extract_1,label,_ = dataset_entry
+    
 
-    return change_given_0.mean(),geom_rgb_ratio_given_0.mean(),change_given_1.mean(),geom_rgb_ratio_given_1.mean()
+    added = (extract_0.shape[0] ==1)
+    removed = (extract_1.shape[0] ==1)
+    
+    if not (added or removed):
+        change_given_0, geom_rgb_ratio_given_0 = log_prob_to_change(feature_dict['log_prob_0_given_0'],feature_dict['log_prob_1_given_0'],feature_dict['grads_1_given_0'],config)
+        change_given_1, geom_rgb_ratio_given_1 = log_prob_to_change(feature_dict['log_prob_1_given_1'],feature_dict['log_prob_0_given_1'],feature_dict['grads_0_given_1'],config)
+    else:
+        print('Added' if added else 'Removed')
+        return 'Added' if added else 'Removed'
+    to_be_summarized = [feature_dict['log_prob_0_given_0'],feature_dict['log_prob_1_given_0'],feature_dict['log_prob_1_given_1'],feature_dict['log_prob_0_given_1'],geom_rgb_ratio_given_0,geom_rgb_ratio_given_1]
+    summary_list = []
+    n_changed_1 = (change_given_0!=0).sum().item()
+    n_changed_0 = (change_given_1!=0).sum().item()
+    for tensor in to_be_summarized:
+        tensor=tensor.detach().cpu().numpy()
+        statistics = list(stats.describe(tensor))
+        statistics.extend(list(statistics.pop(1)))
+        summary_list.extend(statistics)
+    summary_list.append(n_changed_1)
+    summary_list.append(n_changed_0)
+    
+
+    return summary_list,label.item()
 
 
 
@@ -89,8 +92,29 @@ if __name__ == '__main__':
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     dirs = [config['dir_challenge']+year for year in ["2016","2020"]]
-    dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'],normalization=config['normalization'],subset=None,apply_normalization=False)
+    dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=True,normalization=config['normalization'],subset=None,radius=config['radius'],remove_ground=config['remove_ground'],mode = 'train')
     feature_dataset = StraightChallengeFeatureLoader("save/processed_dataset/straight_features/")
-    dataset.apply_normalization = False
-    visualize_change(dataset,feature_dataset,10,clearance = 0.7)
+    X = []
+    y=[]
+    for index in range(len(feature_dataset)):
+        summary_out= summary_stats(dataset,feature_dataset,index)
+        if isinstance(summary_out,str): continue
+        X.append(summary_out[0])
+        y.append(summary_out[-1])
+    X=np.array(X)
+    y=np.array(y)
 
+    X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.1, random_state=42)
+
+    clf = RandomForestClassifier(max_depth=2, random_state=0)
+    clf.fit(X_train, y_train)
+    y_pred_test = clf.predict(X_test)
+    y_pred_train = clf.predict(X_train)
+
+    accuracy_test = accuracy_score(y_test,y_pred_test)
+    accuracy_train = accuracy_score(y_train,y_pred_train)
+    # precision = precision_score(y,y_pred)
+    # recall = recall_score(y,y_pred)
+    # confusion = confusion_matrix(y,y_pred)
+    print('Done')
