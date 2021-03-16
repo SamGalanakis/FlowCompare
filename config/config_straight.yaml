@@ -45,7 +45,7 @@ patience:
   value: 50
 preload:
   desc: Preload_dataset
-  value: true
+  value: false
 min_points:
   desc: Minimum sample size
   value: 2000
@@ -87,10 +87,10 @@ load_checkpoint:
   value: false
 dir_challenge:
   desc: Paths to folders in order of year
-  value: save/challenge_data/Shrec_change_detection_dataset_public/
+  value: D:/data/cycloData/
 dirs_challenge_csv:
   desc: Paths to label csv folder
-  value: save/2016-2020/
+  value: save/2016-2020-test/
 patience_stopper:
   desc: Patience of early stopper
   value: 50
