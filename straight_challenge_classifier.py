@@ -15,6 +15,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score,precision_score,recall_score,confusion_matrix
 from sklearn.model_selection import train_test_split
 from scipy import stats
+from sklearn.dummy import DummyClassifier
 def log_prob_to_change(log_prob_0,log_prob_1,grads_1_given_0,config,percentile=1):
   
     std_0 = log_prob_0.std()
@@ -92,11 +93,11 @@ if __name__ == '__main__':
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
     dirs = [config['dir_challenge']+year for year in ["2016","2020"]]
-    dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=True,normalization=config['normalization'],subset=None,radius=config['radius'],remove_ground=config['remove_ground'],mode = 'train')
+    dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=True,normalization=config['normalization'],subset=None,radius=config['radius'],remove_ground=config['remove_ground'],mode = 'train',apply_normalization=False)
     feature_dataset = StraightChallengeFeatureLoader("save/processed_dataset/straight_features/")
     X = []
     y=[]
-    for index in range(len(feature_dataset)):
+    for index in tqdm(range(len(feature_dataset))):
         summary_out= summary_stats(dataset,feature_dataset,index)
         if isinstance(summary_out,str): continue
         X.append(summary_out[0])
@@ -107,11 +108,14 @@ if __name__ == '__main__':
     X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.1, random_state=42)
 
-    clf = RandomForestClassifier(max_depth=2, random_state=0)
+    clf = RandomForestClassifier(random_state=0)
+    dummy_clf = DummyClassifier(strategy='most_frequent')
     clf.fit(X_train, y_train)
+    dummy_clf.fit(X_train, y_train)
     y_pred_test = clf.predict(X_test)
     y_pred_train = clf.predict(X_train)
-
+    dummy_pred_test = dummy_clf.predict(X_test)
+    dummy_accuracy_test = accuracy_score(y_test,dummy_pred_test)
     accuracy_test = accuracy_score(y_test,y_pred_test)
     accuracy_train = accuracy_score(y_train,y_pred_train)
     # precision = precision_score(y,y_pred)

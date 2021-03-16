@@ -195,7 +195,9 @@ def straight_train(args):
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     elif config['data_loader']=='ChallengeDataset':
         if args.start_index is not None:
-            subset = range(args.start_index,args.end_index)
+                subset = range(args.start_index,args.end_index)
+            
+            
         else:
             subset = None
         dataset = ChallengeDataset(config['dirs_challenge_csv'], dirs, out_path,subsample="fps",sample_size=config['sample_size'],preload=config['preload'],normalization=config['normalization'],subset=subset,radius=config['radius'],remove_ground=config['remove_ground'],mode = args.mode)

@@ -45,7 +45,7 @@ patience:
   value: 50
 preload:
   desc: Preload_dataset
-  value: false
+  value: true
 min_points:
   desc: Minimum sample size
   value: 2000
