@@ -25,6 +25,7 @@ class ChallengeDataset(Dataset):
         self.subset = subset
         self.apply_normalization = apply_normalization
         self.remove_ground = remove_ground
+        assert mode in csv_path, 'Possibly invalid csv path for mode'
         if not preload:
             print(f"Recreating challenge dataset, saving to: {self.out_path}")
             csv_path_list = [os.path.join(csv_path,x) for x in os.listdir(csv_path) if x.split('.')[-1]=='csv']

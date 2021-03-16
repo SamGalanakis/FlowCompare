@@ -138,30 +138,29 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1,de
         
  
         scheduler.step(loss)
-        #current_lr = optimizer.param_groups[0]['lr']
-        #wandb.log({'loss': loss.item(),"lr" : current_lr})
-        
+
+    
         stop_train = early_stopper.log(loss.cpu())
         flow_dist.clear_cache()
         if stop_train:
             print(f"Early stopped at epoch: {epoch}!")
             break
-    # for transformation in transformations:
-    #     try:
-    #         transformation = transformation.eval()
-    #     except:
-    #         continue
-    
-    extract_1 = nn.Parameter(extract_1,requires_grad=True)
-    extract_1.retain_grad()
+   
+
+
     with torch.no_grad():
         log_prob_0 = flow_dist.log_prob(extract_0).squeeze()
-    log_prob_1 = flow_dist.log_prob(extract_1).squeeze()
-    log_prob_1.mean().backward()
-    grads_1 = extract_1.grad.squeeze()
+        y =extract_1
+        for transform in reversed(flow_dist.transforms):
+            x = transform.inv(y)
+            y = x
+        full_probs = base_dist.log_prob(y)
+        log_prob_1 = flow_dist.log_prob(extract_1).squeeze()
+
+
     duration = time() - start_time
     print(f"Took: {duration}")
-    return log_prob_0,log_prob_1,grads_1
+    return log_prob_0,log_prob_1,full_probs
 
 
 
@@ -220,8 +219,8 @@ def straight_train(args):
         parameters = models_dict['parameters']
         conditional_flow_layers = models_dict['flow_layers']
         transformations = conditional_flow_layers.transformations
-        log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0 = train_straight_pair(parameters,transformations,config,extract_0,extract_1,device=device)
-        #change_1,geom_rgb_ratio_1 = log_prob_to_change(log_prob_0_given_0,log_prob_1_given_0,grads_1_given_0,config=config,percentile=1)
+        log_prob_0_given_0,log_prob_1_given_0,full_probs_1_given_0 = train_straight_pair(parameters,transformations,config,extract_0,extract_1,device=device)
+   
 
         
 
@@ -231,20 +230,20 @@ def straight_train(args):
             parameters = models_dict['parameters']
             conditional_flow_layers = models_dict['flow_layers']
             transformations = conditional_flow_layers.transformations
-        log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1 = train_straight_pair(parameters,transformations,config,extract_1,extract_0,device=device)
+        log_prob_1_given_1,log_prob_0_given_1,full_probs_0_given_1 = train_straight_pair(parameters,transformations,config,extract_1,extract_0,device=device)
 
-        #change_0,geom_rgb_ratio_0 = log_prob_to_change(log_prob_1_given_1,log_prob_0_given_1,grads_0_given_1,config=config,percentile=1)
+        
         
 
         change_features_dict= {
         "idx":idx,
         "log_prob_0_given_0": log_prob_0_given_0,
         "log_prob_1_given_0": log_prob_1_given_0,
-        "grads_1_given_0": grads_1_given_0,
+        "full_probs_1_given_0": full_probs_1_given_0,
 
         "log_prob_1_given_1": log_prob_1_given_1,
         "log_prob_0_given_1": log_prob_0_given_1,
-        "grads_0_given_1": grads_0_given_1,
+        "full_probs_0_given_1": full_probs_0_given_1,
         "label" : label.item()
         }
 
