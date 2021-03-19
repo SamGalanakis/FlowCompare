@@ -2,13 +2,12 @@ from numpy.lib.function_base import extract
 import torch
 import os
 import numpy as np
-from utils import load_las, random_subsample,view_cloud_plotly,co_min_max,co_standardize,sep_standardize,extract_area,rgb_to_hsv,ground_remover
+from utils import load_las, random_subsample,view_cloud_plotly,co_min_max,co_standardize,sep_standardize,extract_area,rgb_to_hsv,ground_remover,remove_outliers
 from torch.utils.data import Dataset, DataLoader
 from itertools import permutations 
 from torch_geometric.nn import fps
 from tqdm import tqdm
 import pandas as pd
-
 
 class ChallengeDataset(Dataset):
     def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='random',normalization='min_max',device="cuda",subset= None,apply_normalization=True,remove_ground=True,mode='test'):
@@ -106,8 +105,8 @@ class ChallengeDataset(Dataset):
         #Remove ground before normalize
         if self.remove_ground:
             
-            ground_mask_0 = ground_remover(extract_0)
-            ground_mask_1 = ground_remover(extract_1)
+            ground_mask_0 = ground_remover(extract_0,height_bin=0.35)
+            ground_mask_1 = ground_remover(extract_1,height_bin=0.35)
             #Check for empty (only ground) and put dummy
             if ground_mask_0.sum() == 0:
                 extract_0 = extract_0.mean(axis=0).unsqueeze(0)
@@ -117,7 +116,8 @@ class ChallengeDataset(Dataset):
                 extract_1 = extract_1.mean(axis=0).unsqueeze(0)
             else:
                 extract_1 = extract_1[ground_mask_1,:]
-
+        extract_0 = remove_outliers(extract_0,10)
+        extract_1 = remove_outliers(extract_1,10)
         #Normalize
         if self.apply_normalization:
             if self.apply_normalization:

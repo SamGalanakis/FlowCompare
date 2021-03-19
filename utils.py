@@ -25,6 +25,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data,Batch
 from torch_geometric.nn import voxel_grid
 from torch_geometric.nn.pool.consecutive import consecutive_cluster
+import open3d
 #Losses from original repo
 
 eps = 1e-8
@@ -80,9 +81,14 @@ def load_las(path,extra_dim_list=None,scale_colors = True):
     return points
 
 
-
-
-def view_cloud_plotly(points,rgb=None,fig=None,point_size=8,show=True,axes=False,show_scale=False,colorscale=None):
+def remove_outliers(array,n_neighbors=10,std_ratio=2.0):
+    array=array.numpy()
+    pcd = open3d.geometry.PointCloud()
+    pcd.points = open3d.utility.Vector3dVector(array[:,:3])
+    pcd.remove_statistical_outlier(nb_neighbors=n_neighbors,std_ratio=std_ratio)
+    array[:,:3] = np.asarray(pcd.points)
+    return torch.from_numpy(array)
+def view_cloud_plotly(points,rgb=None,fig=None,point_size=8,show=True,axes=False,show_scale=True,colorscale=None):
     if  isinstance(points,torch.Tensor):
         points = points.cpu()
         points = points.detach().numpy()
@@ -420,6 +426,9 @@ class Adamax(torch.optim.Optimizer):
                 p.data = state['exp_avg_param']
                 state['exp_avg_param'] = new
 
+
+
+
 def rgb_to_hsv(rgb,scale_after=False):
     hsv = torch.zeros_like(rgb)
     r = rgb[:,0]
@@ -450,7 +459,11 @@ def rgb_to_hsv(rgb,scale_after=False):
 
 
 if __name__ == '__main__':
-    pass
+    test_hsv = torch.Tensor([[1,10,20],[5,30,3],[255,6,1]])
+    print(test_hsv)
+    test_hsv /= 255
     
+    print(rgb_to_hsv(test_hsv,scale_after=True))
+
 
 

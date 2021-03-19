@@ -129,14 +129,14 @@ def train_straight_pair(parameters,transformations,config,extract_0,extract_1,de
 
         optimizer.zero_grad()
         input_data =  random_subsample(extract_0.squeeze(),config['points_per_batch']).unsqueeze(0)
-        input_with_noise = torch.randn_like(input_data,device=device)*(0.01) + input_data
+        input_with_noise = torch.randn_like(input_data,device=device)*(0.001) + input_data
         loss = -flow_dist.log_prob(input_with_noise.squeeze()).mean()
         assert not loss.isnan()
         
         loss.backward()
         optimizer.step()
         
- 
+    
         scheduler.step(loss)
 
     
