@@ -63,11 +63,11 @@ class Pointnet2(torch.nn.Module):
     def forward(self, data):
         x,pos,batch = data.x,data.pos,data.batch
         sa1_out = self.sa1_module(x,pos,batch)
-        assert all([not z.isnan().any() for z in sa1_out]), "nan"
+
         sa2_out = self.sa2_module(*sa1_out)
-        assert all([not z.isnan().any() for z in sa2_out]), "nan"
+
         sa3_out = self.sa3_module(*sa2_out)
-        assert all([not z.isnan().any() for z in sa3_out]), "nan"
+
         x, pos, batch = sa3_out
         #print(x.min(),x.max())
         x = F.relu(self.lin1(x))
@@ -109,24 +109,14 @@ def test(loader):
 
 if __name__ == '__main__':
     
-    
-
-
-    path = osp.join(
-        osp.dirname(osp.realpath(__file__)), '..', 'data/ModelNet10')
-    pre_transform, transform = T.NormalizeScale(), T.SamplePoints(1024)
-    train_dataset = ModelNet(path, '10', True, transform, pre_transform)
-    test_dataset = ModelNet(path, '10', False, transform, pre_transform)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True,
-                              num_workers=6)
-    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False,
-                             num_workers=6)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = Pointnet2(feature_dim=0).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-    for epoch in range(1, 201):
-        train(epoch)
-        test_acc = test(test_loader)
-        print('Epoch: {:03d}, Test: {:.4f}'.format(epoch, test_acc))
+    class inputs:
+        def __init__(self):
+            pass
+    x = inputs()
+    inputs = x.pos = torch.randn((100,3)).to(device)
+    x.x = None
+    x.batch = torch.zeros(100).to(device).long()
+    y = model(x)
