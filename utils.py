@@ -177,13 +177,13 @@ def circle_split(points,circle_radius,center = False,clearance = 20):
     
     center_x = center[0]
     center_y= center[1]
-    x = np.arange(center_x-clearance, center_x+clearance, circle_radius*2) 
-    y = np.arange(center_y-clearance, center_y+clearance, circle_radius*2) 
+    x = torch.arange(center_x-clearance, center_x+clearance, circle_radius*2,device = points.device) 
+    y = torch.arange(center_y-clearance, center_y+clearance, circle_radius*2,device = points.device) 
    
     circles_list = []
     for x_val in x:
         for y_val in y:
-            tile = points[np.linalg.norm(points[:,:2]-np.array([x_val,y_val]),axis=1)<circle_radius]
+            tile = points[torch.linalg.norm(points[:,:2]-torch.Tensor([x_val,y_val]).to(points.device),dim=1,ord=2)<circle_radius]
             circles_list.append(tile)
     return circles_list
 

@@ -11,12 +11,13 @@ from torch.nn.parallel import DataParallel
 from torch import nn
 import argparse
 from utils import ground_remover
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier,AdaBoostClassifier
 from sklearn.metrics import accuracy_score,precision_score,recall_score,confusion_matrix
 from sklearn.model_selection import train_test_split
 from scipy import stats
 from sklearn.dummy import DummyClassifier
 import pickle
+from sklearn.linear_model import LogisticRegression
 
 
 
@@ -197,25 +198,25 @@ if __name__ == '__main__':
 
 
 
-    clf = RandomForestClassifier(class_weight='balanced')
-    dummy_clf = DummyClassifier(strategy='most_frequent')
-    clf.fit(X_train, y_train)
-    dummy_clf.fit(X_test,y_test)
-    y_pred_test = clf.predict(X_test)
-    y_pred_train = clf.predict(X_train)
+    randforest = RandomForestClassifier(class_weight='balanced',max_features=30,n_estimators=1000)
+    adaboost = AdaBoostClassifier()
+    logistic = LogisticRegression()
+    clfs = [randforest,adaboost,logistic]
+    for clf in clfs:
+        
+        clf.fit(X_train, y_train)
+ 
+        y_pred_test = clf.predict(X_test)
+        y_pred_train = clf.predict(X_train)
 
-    y_test = np.concatenate((y_test,y_preclassified_test))
-    y_train = np.concatenate((y_train,y_preclassified_train))
-    y_pred_test = np.concatenate((y_pred_test,y_preclassified_predicted_test))
-    y_pred_train = np.concatenate((y_pred_train,y_preclassified_predicted_train))
+        y_test_comb = np.concatenate((y_test,y_preclassified_test))
+        y_train_comb = np.concatenate((y_train,y_preclassified_train))
+        y_pred_test_comb = np.concatenate((y_pred_test,y_preclassified_predicted_test))
+        y_pred_train_comb = np.concatenate((y_pred_train,y_preclassified_predicted_train))
 
-    dummy_pred_test = dummy_clf.predict(X_test)
-    dummy_pred_test = np.concatenate((dummy_pred_test,y_preclassified_predicted_test))
-    dummy_accuracy_test = accuracy_score(y_test,dummy_pred_test)
-    accuracy_test = accuracy_score(y_test,y_pred_test)
-
-    accuracy_train = accuracy_score(y_train,y_pred_train)
-
+        accuracy_test = accuracy_score(y_test_comb,y_pred_test_comb)
+        accuracy_train = accuracy_score(y_train_comb,y_pred_train_comb)
+        print(f"{type(clf)}: train: {accuracy_train} test: {accuracy_test}")
     
     # precision = precision_score(y,y_pred)
     # recall = recall_score(y,y_pred)

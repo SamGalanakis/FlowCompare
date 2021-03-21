@@ -24,7 +24,7 @@ class ConditionalDataGrid(Dataset):
         self.extract_id_dict = {}
         self.subsample = subsample
         self.height_min_dif = height_min_dif
-        self.minimum_difs = torch.Tensor([self.grid_square_size*0.95,self.grid_square_size*0.95,self.height_min_dif])
+        self.minimum_difs = torch.Tensor([self.grid_square_size*0.95,self.grid_square_size*0.95,self.height_min_dif]).to(device)
         self.grid_type = grid_type
         self.save_name = f"extract_id_dict_{grid_type}_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}.pt"
         self.normalization = normalization
@@ -45,7 +45,7 @@ class ConditionalDataGrid(Dataset):
 
             extract_id = -1
             for scene_number, path_list in tqdm(scene_dict.items()):
-                full_clouds = [load_las(path) for path in path_list]
+                full_clouds = [torch.from_numpy(load_las(path)).float().to(device) for path in path_list]
                 center = full_clouds[0][:,:2].mean(axis=0)
                 if self.grid_type == 'square':
                     grids = [grid_split(cloud,self.grid_square_size,center=center,clearance = self.clearance) for cloud in full_clouds]
@@ -58,7 +58,7 @@ class ConditionalDataGrid(Dataset):
                     
                 for square_index,extract_list in enumerate(list(zip(*grids))):
                     
-                    extract_list = [torch.from_numpy(x.astype(np.float32)).to(device) for x in extract_list if x.shape[0]>=self.min_points]
+                    extract_list = [x for x in extract_list if x.shape[0]>=self.min_points]
                     #Check mins
                     extract_list = [x for x in extract_list if ((x.max(dim=0)[0][:3]-x.min(dim=0)[0][:3] )>self.minimum_difs).all().item()]
                     
@@ -70,11 +70,13 @@ class ConditionalDataGrid(Dataset):
                     elif self.subsample=='fps':
                         extract_list = [ random_subsample(x,sample_size*5) for x in extract_list]
                         extract_list = [ x[fps(x,ratio = self.sample_size/x.shape[0])] if 0<self.sample_size/x.shape[0]<1 else x for x in extract_list]
-                        #extract_list = [x.cpu() for x in extract_list]
+                        
                     else:
                         raise Exception("Invalid subsampling type")
                     #Check mins again
                     extract_list = [x for x in extract_list if ((x.max(dim=0)[0][:3]-x.min(dim=0)[0][:3] )>self.minimum_difs).all().item()]
+                    #Put on cpy before saving:
+                    extract_list = [x.cpu() for x in extract_list]
                     for scan_index,extract in enumerate(extract_list):
                         
                         if not extract_id in self.extract_id_dict:
