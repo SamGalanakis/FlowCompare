@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split,co_standardize,sep_standardize
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split,co_standardize,sep_standardize,unit_sphere,co_unit_sphere
 from torch.utils.data import Dataset, DataLoader
 from itertools import permutations 
 from torch_geometric.nn import fps
@@ -136,6 +136,8 @@ class ConditionalDataGrid(Dataset):
 
         if self.normalization == 'min_max':
             tensor_0[:,:3], tensor_1[:,:3] = co_min_max(tensor_0[:,:3],tensor_1[:,:3])
+        if self.normalization == 'co_unit_sphere':
+            tensor_0,tensor_1 = co_unit_sphere(tensor_0,tensor_1)
         elif self.normalization == 'standardize':
             tensor_0,tensor_1 = co_standardize(tensor_0,tensor_1)
         elif self.normalization == 'sep_standardize':

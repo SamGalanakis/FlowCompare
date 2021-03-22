@@ -307,6 +307,17 @@ def co_min_max(tensor_0,tensor_1):
 
 
     return tensor_0,tensor_1
+def unit_sphere(points):
+    points[:,:3] -= points[:,:3].mean(axis=0)
+    furthest_distance = torch.max(torch.sqrt(torch.sum(torch.abs(points[:,:3])**2,axis=-1)))
+    points[:,:3] = points[:,:3] / furthest_distance
+    return points
+
+def co_unit_sphere(points_0,points_1):
+    l_0 = points_0.shape[0]
+
+    joint = unit_sphere(torch.cat((points_0,points_1)))
+    return joint[:l_0,:] , joint[l_0:]
 def co_standardize(tensor_0,tensor_1):
     concatenated = torch.cat((tensor_0,tensor_1),dim=0)
     concatenated = (concatenated-concatenated.mean(axis=0))/(concatenated.std(axis=0)+eps)

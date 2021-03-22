@@ -29,7 +29,8 @@ conditional_exponential_matrix_coupling,
 GCNEncoder,
 ConditionalDenseNN, 
 DenseNN,
-Pointnet2
+Pointnet2,
+Conditional_flow_layers
 )
 
 
@@ -84,7 +85,7 @@ def initialize_encoder_models(config,device = 'cuda',mode='train'):
     else:
         raise Exception(f'Invalid permuter type: {permuter_type}')
 
-    conditional_flow_layers = Conditional_flow_layers(flow,config['n_flow_layers'],flow_input_dim,config['context_dim'],device,permuter,config['hidden_dims'],config['batchnorm'])
+    conditional_flow_layers = Conditional_flow_layers(flow,config['n_flow_layers'],flow_input_dim,device,permuter,config['hidden_dims'],config['batchnorm'])
 
     for transform in conditional_flow_layers.transformations:
         if isinstance(transform,torch.nn.Module):
@@ -97,7 +98,7 @@ def initialize_encoder_models(config,device = 'cuda',mode='train'):
             else:
                 transform = transform.to(device)
             parameters+= transform.parameters()
-            wandb.watch(transform,log_freq=10)
+
 
     if config['encoder_type'] == 'pointnet2':
         encoder = Pointnet2(feature_dim=config["input_dim"]-3,out_dim=config["context_dim"])
@@ -126,6 +127,8 @@ def initialize_encoder_models(config,device = 'cuda',mode='train'):
             batchnorm_encoder.train()
         else:
             batchnorm_encoder.eval()
+    else:
+        batchnorm_encoder =None
 
     return {'parameters':parameters,"flow_layers":conditional_flow_layers,'batchnorm_encoder':batchnorm_encoder,'encoder':encoder}
 
@@ -232,11 +235,11 @@ def main(rank, world_size):
 
             optimizer.zero_grad()
             batch = batch.to(device)
-            encodings = encoder(batch.to_data_list())
+            encodings = encoder(batch)
             assert not encodings.isnan().any(), "Nan in encoder"
             encoding_0, encoding_1 = torch.split(encodings,config["batch_size"])
     
-            if batchnorm_encoder:
+            if batchnorm_encoder!=None:
                 encoding_0 = batchnorm_encoder(encoding_0)
             
             
@@ -246,7 +249,7 @@ def main(rank, world_size):
 
             assert not loss.isnan(), "Nan loss!"
             loss.backward()
-            #torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.0)
+            torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.0)
             
             optimizer.step()
             
@@ -254,12 +257,15 @@ def main(rank, world_size):
             
             scheduler.step(loss)
             current_lr = optimizer.param_groups[0]['lr']
-            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/30)  == 0):
+            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/3)  == 0):
                 print(f'Making samples and saving!')
                 with torch.no_grad():
 
                     wandb.log({'loss':loss.item(),'lr':current_lr})
-                    save_dict = {"optimizer": optimizer.state_dict(),'encoder':encoder.state_dict(),"scheduler":scheduler.state_dict(),'batchnorm_encoder':batchnorm_encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
+                    
+                    batchnorm_dict = batchnorm_encoder.state_dict() if batchnorm_encoder!=None else None
+                    save_dict = {"optimizer": optimizer.state_dict(),'encoder':encoder.state_dict(),"scheduler":scheduler.state_dict(),'batchnorm_encoder':batchnorm_dict,'flow_transformations':conditional_flow_layers.make_save_list()}
+                    
                     torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_{batch_ind}_model_dict.pt"))
             else:
                 wandb.log({'loss':loss.item(),'lr':current_lr})

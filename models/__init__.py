@@ -4,4 +4,4 @@ from .gcn_encoder import GCNEncoder
 from .nets import DenseNN, ConditionalDenseNN
 from .permuters import Exponential_combiner, Learned_permuter, Full_matrix_combiner
 from .pointnet2_partial import Pointnet2Partial
-from pytorch_geometric_pointnet2 import Pointnet2
+from .pytorch_geometric_pointnet2 import Pointnet2
