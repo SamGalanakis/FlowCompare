@@ -28,26 +28,39 @@ class Pointnet2Partial(torch.nn.Module):
         self.lin2 = Lin(512, 256)
         self.lin3 = Lin(256, self.out_dim)
 
-    def forward(self, data):
-        x,pos,batch = data.x,data.pos,data.batch
-        sa1_out = self.sa1_module(x,pos,batch)
+    def forward(self,data_0,data_1):
+        x_0,pos_0,batch_0 = data_0.x,data_0.pos,data_0.batch
+        x_1,pos_1,batch_1 = data_1.x,data_1.pos,data_1.batch
 
-        sa2_out = self.sa2_module(*sa1_out)
+        sa1_out_0 = self.sa1_module(x_0,pos_0,batch_0)
+        centers_0 = sa1_out_0[1]
+      
+        batch_centers_0 = sa1_out_0[2]
 
-        return sa2_out
+
+        sa2_out_0 = self.sa2_module(*sa1_out_0)
+        centers_1 = sa2_out_0[1]
+        batch_centers_1 = sa2_out_0[2]
+  
+        
+        sa1_out_1 = self.sa1_module(x_1,pos_1,batch_1,centers_0,batch_centers_0)
+        
+        sa2_out_1 = self.sa1_module(*sa1_out_1,centers_1,batch_centers_1)
+
+        return sa2_out_0,sa2_out_1
 
 
 
 if __name__ == '__main__':
     
 
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = Pointnet2Partial(feature_dim=0).to(device)
     class inputs:
         def __init__(self):
-            pass
-    x = inputs()
-    inputs = x.pos = torch.randn((100,3)).to(device)
-    x.x = None
-    x.batch = torch.zeros(100).to(device).long()
-    y = model(x)
+            self.x = None
+            self.pos = torch.randn((100,3)).to(device)
+            self.batch = torch.zeros(100).to(device).long()
+
+    y = model(inputs(),inputs())

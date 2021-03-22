@@ -15,13 +15,18 @@ class SAModule(torch.nn.Module):
         self.r = r
         self.conv = PointConv(nn,)
 
-    def forward(self, x, pos, batch):
-        idx = fps(pos, batch, ratio=self.ratio)
-        row, col = radius(pos, pos[idx], self.r, batch, batch[idx],
+    def forward(self, x, pos, batch,centers = None,centers_batch=None):
+        if centers==None:
+            idx = fps(pos, batch, ratio=self.ratio)
+            centers = pos[idx]
+            centers_batch = batch[idx]
+        
+        
+        row, col = radius(pos, centers, self.r, batch, centers_batch,
                           max_num_neighbors=64)
         edge_index = torch.stack([col, row], dim=0)
-        x = self.conv(x, (pos, pos[idx]), edge_index)
-        pos, batch = pos[idx], batch[idx]
+        x = self.conv(x, (pos, centers), edge_index)
+        pos, batch = centers, centers_batch
         return x, pos, batch
 
 
