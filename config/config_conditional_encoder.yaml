@@ -3,7 +3,7 @@ sample_size:
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
-  value: 15
+  value: 24
 data_loader:
   desc: What loader to use
   value: ConditionalDataGridCircle
@@ -12,16 +12,13 @@ batchnorm:
   value: true
 flow_type:
   desc: What flow blocks to use
-  value: exponential_coupling
+  value: affine_coupling
 hidden_dims:
   desc: linear layers for flow coupling
   value: [512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
   value: random_permute
-scaler_type:
-  desc: How to scale after permute
-  value: Sigmoid_scaler
 early_stop_margin:
   desc: early_stop_margin
   value: 0.0003
@@ -30,34 +27,34 @@ count_bins:
   value: 64
 input_dim:
   desc: Dimension of pointcloud data
-  value: 3
+  value: 6
 grid_square_size:
   desc: Number of f subblocks 
-  value: 4
+  value: 2
 clearance:
   desc: clearance
-  value: 20
+  value: 28
 subsample:
   desc: How to subsample
   value: 'fps'
 patience:
   desc: patience
-  value: 300
+  value: 1000
 preload:
   desc: Preload_dataset
-  value: false
+  value: true
 min_points:
   desc: Minimum sample size
   value: 2000
 n_epochs:
   desc: Number of epochs to train for
-  value: 3000
+  value: 10000
 context_dim:
   desc: Dimension of embedding w (encoder output) ,e (conditioner)
-  value: 220
+  value: 512
 batch_size:
   desc: Batch size
-  value: 9 #35
+  value: 30 #35
 lr:
   desc: Initial learning rate for optimizer
   value: 0.0001
@@ -69,7 +66,7 @@ num_workers:
   value: 2
 optimizer_type:
   desc: optimizer type
-  value: Adam
+  value: AdamW
 batchnorm_encodings:
   desc: batchnorm after output of encoder
   value: true
@@ -78,19 +75,19 @@ encoder_type:
   value: gcn
 weight_decay:
   desc: weigth decay for optimizer
-  value: 0.01
+  value: 0.001
 data_parallel:
   desc: Use parallel
-  value: true
+  value: false
 coupling_block_nonlinearity:
   desc: coupling_block_nonlinearity
   value: ELU
 min_lr:
   desc: Minimum schedules learning rate
-  value: 0.00001
+  value: 0.0001
 normalization:
   desc: How pairs are normalized
-  value: sep_standardize
+  value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
   value: false

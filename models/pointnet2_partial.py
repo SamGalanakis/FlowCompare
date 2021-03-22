@@ -6,7 +6,7 @@ from torch_geometric.datasets import ModelNet
 import torch_geometric.transforms as T
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import PointConv, fps, radius, global_max_pool
-from pytorch_geometric_pointnet2 import SAModule,MLP
+from .pytorch_geometric_pointnet2 import SAModule,MLP
 
 
 

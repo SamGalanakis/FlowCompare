@@ -1,7 +1,8 @@
 from torch import nn
 import torch
-from models.batchnorm import BatchNorm
 import pyro 
+from pyro.distributions.transforms import BatchNorm
+
 class Conditional_flow_layers:
         def __init__(self,flow,n_flow_layers,input_dim,device,permuter,hidden_dims,batchnorm):
             self.transformations = []
