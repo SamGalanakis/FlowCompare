@@ -21,6 +21,7 @@ import torch.multiprocessing as mp
 from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 import functools
+import pandas as pd
 from models import (
 Full_matrix_combiner,
 Exponential_combiner,
@@ -153,15 +154,19 @@ def main(rank, world_size):
     torch.backends.cudnn.benchmark = True
     flow_input_dim = config['context_dim']
 
-    
-
+    if config['preselected_points']:
+        scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(os.path.join(config['dirs_challenge_csv'],x)) for x in os.listdir(config['dirs_challenge_csv']) }
+        preselected_points_dict = {key:val[['x','y']].values for key,val in scene_df_dict.items()}
+        preselected_points_dict = { key:(val.unsqueeze(0) if len(val.shape)==1 else val) for key,val in preselected_points_dict.items() }
+    else: 
+        preselected_points_dict= None
 
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
     if config['data_loader'] == 'ConditionalDataGridSquare':
-        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'],grid_square_size=config['grid_square_size'],preselected_points=preselected_points_dict)
     elif config['data_loader'] == 'ConditionalDataGridCircle':
-        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'],preselected_points=preselected_points_dict)
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     else:

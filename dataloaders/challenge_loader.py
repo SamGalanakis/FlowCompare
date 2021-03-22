@@ -2,7 +2,7 @@ from numpy.lib.function_base import extract
 import torch
 import os
 import numpy as np
-from utils import load_las, random_subsample,view_cloud_plotly,co_min_max,co_standardize,sep_standardize,extract_area,rgb_to_hsv,ground_remover,remove_outliers
+from utils import load_las, random_subsample,view_cloud_plotly,co_min_max,co_standardize,sep_standardize,extract_area,rgb_to_hsv,ground_remover,remove_outliers,co_unit_sphere
 from torch.utils.data import Dataset, DataLoader
 from itertools import permutations 
 from torch_geometric.nn import fps
@@ -123,6 +123,8 @@ class ChallengeDataset(Dataset):
             if self.apply_normalization:
                 if self.normalization == 'min_max':
                     extract_0[:,:3], extract_1[:,:3] = co_min_max(extract_0[:,:3],extract_1[:,:3])
+                elif self.normalization == 'co_unit_sphere':
+                    tensor_0,tensor_1 = co_unit_sphere(tensor_0,tensor_1)
                 elif self.normalization == 'standardize':
                     extract_0,extract_1 = co_standardize(extract_0,extract_1)
                 elif self.normalization == 'sep_standardize':
