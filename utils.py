@@ -88,7 +88,7 @@ def remove_outliers(array,n_neighbors=10,std_ratio=2.0):
     pcd.remove_statistical_outlier(nb_neighbors=n_neighbors,std_ratio=std_ratio)
     array[:,:3] = np.asarray(pcd.points)
     return torch.from_numpy(array)
-def view_cloud_plotly(points,rgb=None,fig=None,point_size=8,show=True,axes=False,show_scale=True,colorscale=None):
+def view_cloud_plotly(points,rgb=None,fig=None,point_size=8,show=True,axes=False,show_scale=False,colorscale=None):
     if  isinstance(points,torch.Tensor):
         points = points.cpu()
         points = points.detach().numpy()
@@ -146,7 +146,7 @@ def extract_area(full_cloud,center,clearance,shape= 'circle'):
         y_mask = ((center[1]+clearance)>full_cloud[:,1]) &   (full_cloud[:,1] >(center[1]-clearance))
         mask = x_mask & y_mask
     elif shape == 'circle':
-        mask = np.linalg.norm(full_cloud[:,:2]-center,axis=1) <  clearance
+        mask = torch.linalg.norm(full_cloud[:,:2]-center,axis=1) <  clearance
     else:
         raise Exception("Invalid shape")
     return mask

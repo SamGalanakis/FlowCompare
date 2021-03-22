@@ -18,10 +18,7 @@ hidden_dims:
   value: [512,512,512,512,512,512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
-  value: Exponential_combiner
-scaler_type:
-  desc: How to scale after permute
-  value: Sigmoid_scaler
+  value: random_permute
 early_stop_margin:
   desc: early_stop_margin
   value: 0.0003
@@ -32,7 +29,7 @@ input_dim:
   desc: Dimension of pointcloud data
   value: 6
 grid_square_size:
-  desc: Number of f subblocks 
+  desc: grid_square_size
   value: 2
 clearance:
   desc: clearance
@@ -84,4 +81,10 @@ data_parallel:
   value: false
 normalization:
   desc: How pairs are normalized
-  value: min_max
+  value: co_unit_sphere
+preselected_points:
+  desc: Use preselected points
+  value: true
+dirs_challenge_csv:
+  desc: Paths to label csv folder
+  value: save/2016-2020-train/

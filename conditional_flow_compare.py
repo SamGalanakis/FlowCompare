@@ -4,17 +4,15 @@ import pyro.distributions as dist
 import pyro.distributions.transforms as T
 import os
 import numpy as np
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner
-from torch.utils.data import Dataset,DataLoader
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch_geometric.data import Data,Batch
 from torch_geometric.nn import fps
 from dataloaders import ConditionalDataGrid, ShapeNetLoader
 import wandb
-import torch.multiprocessing as mp
 from torch.nn.parallel import DataParallel
-import torch.distributed as distributed
+import pandas as pd
 from models import (
 Full_matrix_combiner,
 Exponential_combiner,
@@ -62,22 +60,26 @@ def main(rank, world_size):
 
 
 
+    if config['preselected_points']:
+        scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(os.path.join(config['dirs_challenge_csv'],x)) for x in os.listdir(config['dirs_challenge_csv']) }
+        preselected_points_dict = {key:val[['x','y']].values for key,val in scene_df_dict.items()}
+        preselected_points_dict = { key:(val.unsqueeze(0) if len(val.shape)==1 else val) for key,val in preselected_points_dict.items() }
+    else: 
+        preselected_points_dict= None
+
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path,r"save/processed_dataset")
-
     if config['data_loader'] == 'ConditionalDataGridSquare':
-        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'],grid_square_size=config['grid_square_size'],preselected_points=preselected_points_dict)
     elif config['data_loader'] == 'ConditionalDataGridCircle':
-        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+        dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'],preselected_points=preselected_points_dict)
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     else:
         raise Exception('Invalid dataloader type!')
 
-    shuffle=True
-    #SET PIN MEM TRUE
-
-    dataloader = DataLoader(dataset,shuffle=shuffle,batch_size=config["batch_size"],num_workers=config['num_workers'],collate_fn=collate_grid,pin_memory=True,prefetch_factor=2)
+  
+    dataloader = DataLoader(dataset,shuffle=True,batch_size=config["batch_size"],num_workers=config['num_workers'],collate_fn=collate_grid,pin_memory=True,prefetch_factor=2)
 
 
 
@@ -278,7 +280,7 @@ def main(rank, world_size):
             
             scheduler.step(loss)
             current_lr = optimizer.param_groups[0]['lr']
-            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/100)  == 0):
+            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/5)  == 0):
                 print(f'Making samples and saving!')
                 with torch.no_grad():
                     cond_nump,gen_sample = numpy_samples(conditioned,data_list_0)

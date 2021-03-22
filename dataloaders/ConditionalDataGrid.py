@@ -3,11 +3,11 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split,co_standardize,sep_standardize,unit_sphere,co_unit_sphere
-from torch.utils.data import Dataset, DataLoader
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split,co_standardize,sep_standardize,unit_sphere,co_unit_sphere,extract_area
 from itertools import permutations 
 from torch_geometric.nn import fps
 from tqdm import tqdm
+from torch.utils.data import Dataset
 
 
 eps = 1e-8
@@ -15,7 +15,7 @@ eps = 1e-8
 
 
 class ConditionalDataGrid(Dataset):
-    def __init__(self, direcories_list,out_path,sample_size=2000,grid_square_size = 4,clearance = 28,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle',device="cuda"):
+    def __init__(self, direcories_list,out_path,sample_size=2000,grid_square_size = 4,clearance = 28,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle',device="cuda",preselected_points=None):
         self.sample_size  = sample_size
         self.grid_square_size = grid_square_size
         self.clearance = clearance
@@ -28,6 +28,9 @@ class ConditionalDataGrid(Dataset):
         self.grid_type = grid_type
         self.save_name = f"extract_id_dict_{grid_type}_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}.pt"
         self.normalization = normalization
+        self.preselected_points = preselected_points
+        if self.preselected_points !=None:
+            self.save_name = 'preselected_' + self.save_name
         if not preload:
             print(f"Recreating dataset, saving to: {self.out_path}")
             file_path_lists  = [[os.path.join(path,x) for x in os.listdir(path) if x.split('.')[-1]=='las'] for path in direcories_list]
@@ -46,14 +49,17 @@ class ConditionalDataGrid(Dataset):
             extract_id = -1
             for scene_number, path_list in tqdm(scene_dict.items()):
                 full_clouds = [torch.from_numpy(load_las(path)).float().to(device) for path in path_list]
-                center = full_clouds[0][:,:2].mean(axis=0)
-                if self.grid_type == 'square':
-                    grids = [grid_split(cloud,self.grid_square_size,center=center,clearance = self.clearance) for cloud in full_clouds]
-                elif self.grid_type== "circle":
-                    #Radius half of grid square size 
-                    grids = [circle_split(cloud,self.grid_square_size/2,center=center,clearance = self.clearance) for cloud in full_clouds]
+                if self.preselected_points==None:
+                    center = full_clouds[0][:,:2].mean(axis=0)
+                    if self.grid_type == 'square':
+                        grids = [grid_split(cloud,self.grid_square_size,center=center,clearance = self.clearance) for cloud in full_clouds]
+                    elif self.grid_type== "circle":
+                        #Radius half of grid square size 
+                        grids = [circle_split(cloud,self.grid_square_size/2,center=center,clearance = self.clearance) for cloud in full_clouds]
+                    else:
+                        raise Exception("Invalid grid type")
                 else:
-                    raise Exception("Invalid grid type")
+                    grids = [[cloud[extract_area(cloud,center = torch.from_numpy(center).to(device),clearance = self.grid_square_size/2,shape=self.grid_type),:] for center in (self.preselected_points[scene_number] if scene_number in self.preselected_points else [])] for cloud in full_clouds]
 
                     
                 for square_index,extract_list in enumerate(list(zip(*grids))):
@@ -136,7 +142,7 @@ class ConditionalDataGrid(Dataset):
 
         if self.normalization == 'min_max':
             tensor_0[:,:3], tensor_1[:,:3] = co_min_max(tensor_0[:,:3],tensor_1[:,:3])
-        if self.normalization == 'co_unit_sphere':
+        elif self.normalization == 'co_unit_sphere':
             tensor_0,tensor_1 = co_unit_sphere(tensor_0,tensor_1)
         elif self.normalization == 'standardize':
             tensor_0,tensor_1 = co_standardize(tensor_0,tensor_1)
