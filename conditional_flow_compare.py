@@ -79,7 +79,7 @@ def main(rank, world_size):
         raise Exception('Invalid dataloader type!')
 
   
-    dataloader = DataLoader(dataset,shuffle=True,batch_size=config["batch_size"],num_workers=config['num_workers'],collate_fn=collate_grid,pin_memory=True,prefetch_factor=2)
+    dataloader = DataLoader(dataset,shuffle=True,batch_size=config["batch_size"],num_workers=config['num_workers'],collate_fn=collate_grid,pin_memory=True,prefetch_factor=2,drop_last=True)
 
 
 
@@ -280,13 +280,13 @@ def main(rank, world_size):
             
             scheduler.step(loss)
             current_lr = optimizer.param_groups[0]['lr']
-            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/5)  == 0):
+            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/2)  == 0):
                 print(f'Making samples and saving!')
                 with torch.no_grad():
                     cond_nump,gen_sample = numpy_samples(conditioned,data_list_0)
                     wandb.log({'loss':loss.item(),"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(gen_sample),'lr':current_lr})
                     
-                    if (batch_ind % int(len(dataloader)/5)  == 0):
+                    if (batch_ind % int(len(dataloader)/2)  == 0):
                         save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
                         torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
 
