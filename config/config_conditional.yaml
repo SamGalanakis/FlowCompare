@@ -3,7 +3,7 @@ sample_size:
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
-  value: 20
+  value: 25
 data_loader:
   desc: What loader to use
   value: ConditionalDataGridCircle
@@ -15,7 +15,7 @@ flow_type:
   value: exponential_coupling
 hidden_dims:
   desc: linear layers for flow coupling
-  value: [512,512,512,512,512,512,512,512]
+  value: [512,512,512,512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
   value: random_permute
@@ -39,13 +39,16 @@ subsample:
   value: 'fps'
 patience:
   desc: patience
-  value: 110
+  value: 150
 preload:
   desc: Preload_dataset
   value: true
 min_points:
   desc: Minimum sample size
   value: 2000
+min_lr:
+  desc: Minimum schedules learning rate
+  value: 0.00005
 n_epochs:
   desc: Number of epochs to train for
   value: 10000
@@ -57,7 +60,7 @@ batch_size:
   value: 25 #35
 lr:
   desc: Initial learning rate for optimizer
-  value: 0.001
+  value: 0.0005
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
