@@ -201,6 +201,16 @@ def main(rank, world_size):
         for layer in layers:
             temp_dict = {}
             for key,val in layer:
+                if isinstance(val,nn.Module):
+                    save = val.state_dict()
+                elif isinstance(val,pyro.distributions.pyro.distributions.transforms.Permute):
+                    save = val.permutation
+                else:
+                    raise Exception('How to load?')
+                temp_dict[key] = save
+            dicts.append(temp_dict)
+        return dicts
+           
 
 
     for epoch in range(config["n_epochs"]):
@@ -257,7 +267,7 @@ def main(rank, world_size):
 
                     wandb.log({'loss':loss.item(),'lr':current_lr})
           
-                    save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),}
+                    save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),layers:layer_saver(layers),initial_attn:initial_attn,input_embedder:input_embedder.state_dict()}
                     
                     torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_{batch_ind}_model_dict.pt"))
             else:
