@@ -16,11 +16,12 @@ Learned_permuter,
 conditional_exponential_matrix_coupling,
 ConditionalDenseNN, 
 DenseNN,
+exponential_matrix_coupling
 )
 
 from torch_geometric.data import Data,Batch
 from torch_geometric.nn import fps
-from dataloaders import ConditionalDataGrid, ShapeNetLoader, ConditionalVoxelGrid,ChallengeDataset
+from dataloaders import ConditionalDataGrid, ShapeNetLoader,ChallengeDataset
 import wandb
 import torch.multiprocessing as mp
 from torch.nn.parallel import DataParallel

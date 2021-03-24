@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pct_utils import sample_and_group 
+from .pct_utils import sample_and_group 
 
 # Code sourced from : https://github.com/uyzhang/PCT_Pytorch
 
@@ -141,6 +141,37 @@ class SA_Layer(nn.Module):
         x = x + x_r
         return x
 
+    
+# My adaptations
+
+class NeighborhoodEmbedder(nn.Module):
+    def __init__(self,input_dim,in_channels=[128,256],out_channels=[128,256]):
+        super().__init__()
+        self.input_dim = input_dim
+        self.conv1 = nn.Conv1d(input_dim, 64, kernel_size=1, bias=False)
+        self.conv2 = nn.Conv1d(64, 64, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm1d(64)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.gather_local_0 = Local_op(in_channels=in_channels[0], out_channels=out_channels[0])
+        self.gather_local_1 = Local_op(in_channels=in_channels[1], out_channels=out_channels[1])
+
+        
+    def forward(self, x):
+        xyz = x.permute(0, 2, 1)
+        batch_size, _, _ = x.size()
+        # B, D, N
+        x = F.relu(self.bn1(self.conv1(x)))
+        # B, D, N
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = x.permute(0, 2, 1)
+        new_xyz, new_feature = sample_and_group(npoint=512, radius=0.15, nsample=32, xyz=xyz, points=x)         
+        feature_0 = self.gather_local_0(new_feature)
+        feature = feature_0.permute(0, 2, 1)
+        new_xyz, new_feature = sample_and_group(npoint=256, radius=0.2, nsample=32, xyz=new_xyz, points=feature) 
+        feature_1 = self.gather_local_1(new_feature)
+
+        return feature_1
+
 if __name__ == '__main__':
     class args:
         def __init__(self,dropout):
@@ -148,7 +179,7 @@ if __name__ == '__main__':
 
 
     argsz = args(0.5)
-    model = Pct(argsz,40).cuda()
-    points  = torch.randn((10,3,2000)).cuda()
+    model = NeighborhoodEmbedder(6).cuda()
+    points  = torch.randn((5,6,2000)).cuda()
     result = model(points)
     pass

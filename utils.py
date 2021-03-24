@@ -25,7 +25,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data,Batch
 from torch_geometric.nn import voxel_grid
 from torch_geometric.nn.pool.consecutive import consecutive_cluster
-import open3d
+
 #Losses from original repo
 
 eps = 1e-8
