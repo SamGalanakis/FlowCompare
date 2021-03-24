@@ -29,9 +29,24 @@ Pointnet2
 from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 
+
+def load_transformations(load_dict,conditional_flow_layers):
+        for transformation_params,transformation in zip(load_dict['flow_transformations'],conditional_flow_layers.transformations):
+            if isinstance(transformation,nn.Module):
+                transformation.load_state_dict(transformation_params)
+            elif isinstance(transformation,pyro.distributions.pyro.distributions.transforms.Permute):
+                transformation.permutation = transformation_params
+            else:
+                raise Exception('How to load?')
+    
+        return conditional_flow_layers
+
+
+
+
 def main(rank, world_size):
 
-
+    
 
 
     dirs = [r'/media/nfs/2_raid/sam/data_test/2018',r'/media/nfs/2_raid/sam/data_test/2019',r"/media/nfs/2_raid/sam/data_test/2020"]
@@ -170,6 +185,9 @@ def main(rank, world_size):
     
     conditional_flow_layers = Conditional_flow_layers(flow,config['n_flow_layers'],config['input_dim'],device,permuter,config['batchnorm'])
 
+
+
+
     
     parameters=[]
 
@@ -209,12 +227,8 @@ def main(rank, world_size):
             parameters+= transform.parameters()
             wandb.watch(transform,log_freq=10)
 
-
-
-    flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
-    
     if config["optimizer_type"] =='Adam':
-        optimizer = torch.optim.Adam(parameters, lr=config["lr"],weight_decay=config["weight_decay"]) 
+            optimizer = torch.optim.Adam(parameters, lr=config["lr"],weight_decay=config["weight_decay"]) 
     elif config["optimizer_type"] == 'Adamax':
         optimizer = torch.optim.Adamax(parameters, lr=config["lr"])
     elif config["optimizer_type"] == 'AdamW':
@@ -225,6 +239,22 @@ def main(rank, world_size):
     
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=config["patience"],threshold=0.0001,min_lr=0.00005)
+
+    if config['load_checkpoint']:
+        print(f"Loading from checkpoint: {config['load_checkpoint']}")
+        checkpoint_dict = torch.load(config['load_checkpoint'])
+        conditional_flow_layers = load_transformations(checkpoint_dict,conditional_flow_layers)
+        encoder.load_state_dict(checkpoint_dict['encoder'])
+        if config['batchnorm_encodings']:
+            batchnorm_encoder.load_state_dict(checkpoint_dict['batchnorm_encoder'])
+        scheduler.load_state_dict(checkpoint_dict['scheduler'])
+        optimizer.load_state_dict(checkpoint_dict['optimizer'])
+    else:
+        print("Starting training from scratch!")
+
+    flow_dist = dist.ConditionalTransformedDistribution(base_dist, transformations)
+    
+
     save_model_path = r'save/conditional_flow_compare'
     
 
@@ -287,8 +317,8 @@ def main(rank, world_size):
                     wandb.log({'loss':loss.item(),"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(gen_sample),'lr':current_lr})
                     
                     if (batch_ind % int(len(dataloader)/2)  == 0):
-                        save_dict = {"optimizer_dict": optimizer.state_dict(),'encoder_dict':encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list()}
-                        torch.save(save_dict,os.path.join(save_model_path,f"{epoch}_{batch_ind}_model_dict.pt"))
+                        save_dict = {"optimizer": optimizer.state_dict(),'encoder':encoder.state_dict(),'flow_transformations':conditional_flow_layers.make_save_list(),'scheduler':scheduler.state_dict()}
+                        torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_{batch_ind}_model_dict.pt"))
 
             else:
                 wandb.log({'loss':loss.item(),'lr':current_lr})

@@ -91,3 +91,6 @@ preselected_points:
 dirs_challenge_csv:
   desc: Paths to label csv folder
   value: save/2016-2020-train/
+load_checkpoint:
+  desc: path to save checkpoint or false
+  value: save/conditional_flow_compare/sandy-elevator-1193_3_112_model_dict.pt
