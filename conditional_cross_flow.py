@@ -5,7 +5,7 @@ import pyro.distributions.transforms as T
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner,Adamax
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner,_sum_rightmost
 from torch.utils.data import Dataset,DataLoader
 from itertools import permutations, combinations
 from tqdm import tqdm
@@ -25,10 +25,6 @@ import pandas as pd
 from models import (
 Exponential_combiner,
 Learned_permuter,
-GCNEncoder,
-ConditionalDenseNN, 
-DenseNN,
-Pointnet2,
 exponential_matrix_coupling_attn,
 NeighborhoodEmbedder,
 get_cross_attn,
@@ -59,8 +55,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
 
     flow = lambda : exponential_matrix_coupling_attn(config['input_dim'],config['attn_dim'],coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
-
-    attn = lambda : get_cross_attn(config['attn_dim'],config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
+    #Input size for prev attn + split of point
+    attn = lambda : get_cross_attn(config['attn_dim'],config['attn_dim']+config['input_dim']//2,config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
 
     if permuter_type == 'Exponential_combiner':
         permuter = lambda : Exponential_combiner(flow_input_dim)
@@ -77,13 +73,14 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     layers = []
     
     #Add transformations to list
-    for index in range(config['n_flow_blocks']):
+    for index in range(config['n_flow_layers']):
         layer_dict = {}
         layer_dict['flow'] = flow()
-        #Don't put on last
-        if index != config['n_flow_blocks']-1:
+        layer_dict['attn'] = attn()
+        #Don't put on first (last on reverse)
+        if index != 0:
             layer_dict['permuter'] = permuter()
-            layer_dict['attn'] = attn()
+        layers.append(layer_dict)
         
     for layer in layers:
         for module in layer.values():
@@ -111,8 +108,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
     
     parameters += input_embedder.parameters()
-    initial_attn = nn.Parameter(torch.randn((config['batch_size'],config['n_points'],config['attn_dim']))).to(device)
-    parameters += initial_attn
+    initial_attn = nn.Parameter(torch.randn((config['batch_size'],config['sample_size'],config['attn_dim']),device=device),requires_grad=True)
+    parameters += [initial_attn]
 
     return {'parameters':parameters,"layers":layers,'input_embedder':input_embedder,'initial_attn':initial_attn}
 
@@ -123,12 +120,11 @@ def main(rank, world_size):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     
-    config_path = r"config/config_conditional_encoder.yaml"
+    config_path = r"config/config_conditional_cross.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
    
     torch.backends.cudnn.benchmark = True
-    flow_input_dim = config['context_dim']
 
     if config['preselected_points']:
         scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(os.path.join(config['dirs_challenge_csv'],x)) for x in os.listdir(config['dirs_challenge_csv']) }
@@ -152,7 +148,7 @@ def main(rank, world_size):
     dataloader = DataLoader(dataset,shuffle=True,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=None,pin_memory=True,prefetch_factor=2,drop_last=True)
 
 
-    base_dist = dist.Normal(torch.zeros(flow_input_dim).to(device), torch.ones(flow_input_dim).to(device))
+    base_dist = dist.Normal(torch.zeros(config['input_dim']).to(device), torch.ones(config['input_dim']).to(device))
 
     models_dict = initialize_cross_flow(config,device,mode='train')
     
@@ -188,10 +184,6 @@ def main(rank, world_size):
     if config['load_checkpoint']:
         print(f"Loading from checkpoint: {config['load_checkpoint']}")
         checkpoint_dict = torch.load(config['load_checkpoint'])
-        conditional_flow_layers = load_transformations(checkpoint_dict,conditional_flow_layers)
-        encoder.load_state_dict(checkpoint_dict['encoder'])
-        if config['batchnorm_encodings']:
-            batchnorm_encoder.load_state_dict(checkpoint_dict['batchnorm_encoder'])
         scheduler.load_state_dict(checkpoint_dict['scheduler'])
         optimizer.load_state_dict(checkpoint_dict['optimizer'])
     else:
@@ -199,34 +191,62 @@ def main(rank, world_size):
     #Override min lr to allow for changing after checkpointing
     scheduler.min_lrs = [config['min_lr']]
     #Watch models:
-    wandb.watch(encoder,idx=0)
-    wandb.watch(conditional_flow_layers.transformations[0],idx=1)
+
 
     torch.autograd.set_detect_anomaly(False)
 
 
+    def layer_saver(layers):
+        dicts = []
+        for layer in layers:
+            temp_dict = {}
+            for key,val in layer:
 
 
     for epoch in range(config["n_epochs"]):
         print(f"Starting epoch: {epoch}")
         for batch_ind,batch in enumerate(tqdm(dataloader)):
             optimizer.zero_grad()
-            
-            for idx,layer in layers:
-                input_embeddings = input_embedder()
+
+
+            batch = [x.to(device) for x in batch]
+            extract_0,extract_1 = batch
+
+
+            attn_emb = initial_attn
+            input_embeddings = input_embedder(extract_0)
+            y = extract_1
+            log_prob = 0.0
+            for idx,layer in enumerate(reversed(layers)):
+                flow = layer['flow']
+                y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
+                prev_attn_and_non_change_part = torch.cat((attn_emb,y1),dim=-1)
+                attn_emb = layer['attn'](prev_attn_and_non_change_part,context = input_embeddings)
                 
+                x = flow._inverse(y,attn_emb=attn_emb)
+                
+                log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
+                                                 1 - flow.domain.event_dim)
+                y=x
+                if idx!=(len(layers)-1):
+                    
+                    permuter = layer['permuter']
+                    x = permuter.inv(y)
+                    log_prob = log_prob - _sum_rightmost(permuter.log_abs_det_jacobian(x, y),
+                                                 1 - permuter.domain.event_dim)
+                    y=x
 
-
-
-
-
+            log_prob = log_prob + _sum_rightmost(base_dist.log_prob(y),
+                                             1 - len(base_dist.event_shape))
+                
+            loss = -log_prob.mean()
 
             loss.backward()
             torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.0)
             
             optimizer.step()
             
-            flow_dist.clear_cache()
+            #flow_dist.clear_cache()
             
             scheduler.step(loss)
             current_lr = optimizer.param_groups[0]['lr']
@@ -237,7 +257,7 @@ def main(rank, world_size):
 
                     wandb.log({'loss':loss.item(),'lr':current_lr})
           
-                    save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict()}
+                    save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),}
                     
                     torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_{batch_ind}_model_dict.pt"))
             else:

@@ -24,7 +24,6 @@ class Exponential_matrix_coupling(TransformModule):
         super().__init__(cache_size=1)
         if dim >= 0:
             raise ValueError("'dim' keyword argument must be negative")
-        self.iterations = iterations
         self.split_dim = split_dim
         self.nn = hypernet
         self.dim = dim
@@ -36,15 +35,6 @@ class Exponential_matrix_coupling(TransformModule):
         self.rescale = nn.Parameter(rescale)
         self.reshift = nn.Parameter(reshift)
         
-
-    # @constraints.dependent_property(is_discrete=False)
-    # def domain(self):
-    #     return constraints.independent(constraints.real, -self.dim)
-
-    # @constraints.dependent_property(is_discrete=False)
-    # def codomain(self):
-    #     return constraints.independent(constraints.real, -self.dim)
-
 
 
 
@@ -273,7 +263,7 @@ class ExponentialMatrixCouplngAttn(TransformModule):
 
 
 
-    def _call(self, x,prev_attn):
+    def _call(self, x,attn_emb):
         """
         :param x: the input into the bijection
         :type x: torch.Tensor
@@ -285,8 +275,8 @@ class ExponentialMatrixCouplngAttn(TransformModule):
         x1, x2 = x.split([self.split_dim, x.size(self.dim) - self.split_dim], dim=self.dim)
 
         # Now that we can split on an arbitrary dimension, we have do a bit of reshaping...
-        nn_input = torch.cat( (x1.reshape(x1.shape[:-self.event_dimension] + (-1,)),prev_attn),dim=-1 )
-        w_mat,b_vec = self.nn(nn_input) 
+       
+        w_mat,b_vec = self.nn(attn_emb) 
         w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift + eps
         
 
@@ -303,7 +293,7 @@ class ExponentialMatrixCouplngAttn(TransformModule):
 
         return torch.cat([y1, y2], dim=self.dim)
 
-    def _inverse(self, y,prev_attn):
+    def _inverse(self, y,attn_emb):
         """
         :param y: the output of the bijection
         :type y: torch.Tensor
@@ -315,8 +305,8 @@ class ExponentialMatrixCouplngAttn(TransformModule):
         x1 = y1
 
         # Now that we can split on an arbitrary dimension, we have do a bit of reshaping...
-        nn_input = torch.cat( (x1.reshape(x1.shape[:-self.event_dimension] + (-1,)),prev_attn),dim=-1 )
-        w_mat,b_vec = self.nn(nn_input) 
+     
+        w_mat,b_vec = self.nn(attn_emb) 
         w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift +eps
         w_mat = w_mat.reshape((w_mat.shape[:-1] + (self.input_dim-self.split_dim,self.input_dim-self.split_dim)))
         
@@ -325,7 +315,7 @@ class ExponentialMatrixCouplngAttn(TransformModule):
         x2 = torch.matmul(w_mat,(y2-b_vec).unsqueeze(-1)).squeeze(-1)
         return torch.cat([x1, x2], dim=self.dim)
 
-    def log_abs_det_jacobian(self, x, y):
+    def log_abs_det_jacobian(self,x,y,attn_emb):
         """
         Calculates the elementwise determinant of the log jacobian
         """
@@ -334,7 +324,7 @@ class ExponentialMatrixCouplngAttn(TransformModule):
             w_mat = self.cached_w_mat
         else:
             x1, _ = x.split([self.split_dim, x.size(self.dim) - self.split_dim], dim=self.dim)
-            w_mat, _ = self.nn(x1.reshape(x1.shape[:-self.event_dimension] + (-1,)))
+            w_mat, _ = self.nn(attn_emb)
             w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift + eps
             w_mat = w_mat.reshape((w_mat.shape[:-1] + (self.input_dim-self.split_dim,self.input_dim-self.split_dim)))
         # Equivalent to : torch.log(torch.abs(torch.det(torch.matrix_exp(w_mat)))) but faster
@@ -364,7 +354,7 @@ def exponential_matrix_coupling_attn(input_dim,attn_dim,nonlinearity, hidden_dim
     if hidden_dims is None:
         hidden_dims = [10 * event_shape[dim] * extra_dims]
 
-    hypernet = DenseNN(split_dim +attn_dim ,
+    hypernet = DenseNN(attn_dim,
                        hidden_dims,
                        param_dims = [(event_shape[dim]-split_dim)**2,event_shape[dim]-split_dim],nonlinearity=nonlinearity)
 

@@ -94,14 +94,24 @@ def positional_encode_cloud(xyz,max_freq=256, num_bands = 6, base = 2):
 
 
     return enc_pos
+class AttentionControlledOut(nn.Module):
+    def __init__(self,out_dim,latent_dim, input_dim, heads, dim_head, dropout):
+        super().__init__()
+        self.attention = Attention(latent_dim, input_dim, heads , dim_head , dropout )
+        self.lin = nn. Linear(latent_dim,out_dim)
+    
+    def forward(self, x, context = None, mask = None):
+        return self.lin(self.attention(x, context = context, mask = mask))
 
-get_cross_attn = lambda latent_dim,input_dim,cross_heads,cross_dim_head,attn_dropout: PreNorm(latent_dim, Attention(latent_dim, input_dim, heads = cross_heads, dim_head = cross_dim_head, dropout = attn_dropout), context_dim = input_dim)
+    
+
+get_cross_attn = lambda out_dim ,latent_dim,input_dim,cross_heads,cross_dim_head,attn_dropout: PreNorm(latent_dim, AttentionControlledOut(out_dim,latent_dim, input_dim, heads = cross_heads, dim_head = cross_dim_head, dropout = attn_dropout), context_dim = input_dim)
 
 if __name__ == '__main__':
     test_data = torch.rand((10,2048,3))*2 -1
     test_data = test_data.reshape((10,64,32,3))
     enc_pos = positional_encode_cloud(test_data)
-    cross_attn = get_cross_attn(50,256,1,64,0.0).cuda()
+    cross_attn = get_cross_attn(49,50,256,1,64,0.0).cuda()
     prev_attn_and_curr_points = torch.randn((10,2048,50)).cuda()
     context_data = torch.randn((10,256,256)).cuda()
     emb = cross_attn(prev_attn_and_curr_points,context = context_data)

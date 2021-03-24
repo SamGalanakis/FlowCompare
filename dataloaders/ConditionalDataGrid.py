@@ -140,6 +140,9 @@ class ConditionalDataGrid(Dataset):
             tensor_0 = relevant_tensors[combination_entry[1]]
             tensor_1 = relevant_tensors[combination_entry[2]].clone()
 
+        #Remove pesky extra points due to fps ratio
+        tensor_0 = tensor_0[:self.sample_size,:]
+        tensor_1 = tensor_1[:self.sample_size,:]
         if self.normalization == 'min_max':
             tensor_0[:,:3], tensor_1[:,:3] = co_min_max(tensor_0[:,:3],tensor_1[:,:3])
         elif self.normalization == 'co_unit_sphere':

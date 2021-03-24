@@ -157,7 +157,9 @@ class NeighborhoodEmbedder(nn.Module):
 
         
     def forward(self, x):
-        xyz = x.permute(0, 2, 1)
+        xyz = x
+        x = x.permute(0, 2, 1)
+        
         batch_size, _, _ = x.size()
         # B, D, N
         x = F.relu(self.bn1(self.conv1(x)))
