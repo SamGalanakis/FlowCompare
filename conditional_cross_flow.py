@@ -23,7 +23,7 @@ from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 import functools
 import pandas as pd
-from time import time
+from time import time,perf_counter
 from models import (
 Exponential_combiner,
 Learned_permuter,
@@ -232,6 +232,7 @@ def main(rank, world_size):
     torch.autograd.set_detect_anomaly(False)
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
+
     def layer_saver(layers):
         dicts = []
         for layer in layers:
@@ -254,20 +255,20 @@ def main(rank, world_size):
         for batch_ind,batch in enumerate(tqdm(dataloader)):
             with torch.cuda.amp.autocast(enabled=config['amp']):
                 torch.cuda.synchronize()
-                t0 = time()
+                t0 = perf_counter()
                 batch = [x.to(device) for x in batch]
                 extract_0,extract_1 = batch
                 torch.cuda.synchronize()
-                t1 = time()
+                t1 = perf_counter()
                 loss, _ = inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config)
                 torch.cuda.synchronize()
-                time_inner = time() - t1
+                time_inner = perf_counter() - t1
                 torch.cuda.synchronize()
-                t2 =time()
+                t2 =perf_counter()
             
             scaler.scale(loss).backward()
             torch.cuda.synchronize()
-            time_backward = time() - t2
+            time_backward = perf_counter() - t2
 
             torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.0)
             scaler.step(optimizer)
@@ -278,7 +279,7 @@ def main(rank, world_size):
             optimizer.zero_grad(set_to_none=True)
             current_lr = optimizer.param_groups[0]['lr']
             torch.cuda.synchronize()
-            time_batch = time() - t0
+            time_batch = perf_counter() - t0
 
             wandb.log({'loss':loss.item(),'lr':current_lr,'time_batch':time_batch,'time_inner':time_inner,"time_backward":time_backward})
           

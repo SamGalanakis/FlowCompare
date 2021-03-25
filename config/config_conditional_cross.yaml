@@ -12,10 +12,10 @@ batchnorm:
   value: true
 flow_type:
   desc: What flow blocks to use
-  value: affine_coupling
+  value: exponential_coupling
 hidden_dims:
   desc: linear layers for flow coupling
-  value: [512,512,512,512,512]
+  value: [512,512,512,512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
   value: random_permute
@@ -60,13 +60,13 @@ save_model_path:
   value: save/conditional_flow_compare/
 num_workers:
   desc: num_workers
-  value: 2
+  value: 4
 optimizer_type:
   desc: optimizer type
   value: AdamW
 weight_decay:
   desc: weigth decay for optimizer
-  value: 0.0
+  value: 0.001
 data_parallel:
   desc: Use parallel
   value: false
@@ -105,4 +105,4 @@ attn_dropout:
   value: 0.0
 amp:
   desc: Automatic mixed precision
-  value: False
+  value: false

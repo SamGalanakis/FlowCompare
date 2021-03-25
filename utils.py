@@ -325,8 +325,35 @@ def co_standardize(tensor_0,tensor_1):
 def sep_standardize(tensor_0,tensor_1):
     return (tensor_0-tensor_0.mean(axis=0))/tensor_0.std(axis=0),(tensor_1-tensor_1.mean(axis=0))/tensor_1.std(axis=0)
 
-def expm(x):
-    return torch.matrix_exp(x)
+
+
+def exp_from_paper(x):
+    """
+    compute the matrix exponential: \sum_{k=0}^{\infty}\frac{x^{k}}{k!}
+    """
+    scale = int(np.ceil(np.log2(np.max([torch.norm(x, p=1, dim=-1).max().item(), 0.5]))) + 1)
+    x = x / (2 ** scale)
+    s = torch.eye(x.size(-1), device=x.device)
+    t = x
+    k = 2
+    while torch.norm(t, p=1, dim=-1).max().item() > eps:
+        s = s + t
+        t = torch.matmul(x, t) / k
+        k = k + 1
+    for i in range(scale):
+        s = torch.matmul(s, s)
+    return s
+
+
+
+
+def expm(x,algo='torch'):
+    if algo=='torch':
+        return torch.matrix_exp(x)
+    else:
+        return exp_from_paper(x)
+
+
 
 def feature_assigner(x,input_dim):
     return None if input_dim==3 else x[:,3:]

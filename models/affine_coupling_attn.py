@@ -1,12 +1,12 @@
 import torch
 from torch.distributions.utils import _sum_rightmost
-from pyro.nn import ConditionalDenseNN, DenseNN
+#from pyro.nn import ConditionalDenseNN, DenseNN
 from pyro.distributions.torch_transform import TransformModule
 from pyro.distributions.transforms.utils import clamp_preserve_gradients
 from pyro.distributions import constraints
 from functools import partial, reduce
 import operator
-
+from models.nets import ConditionalDenseNN, DenseNN
 class AffineCouplingAttn(TransformModule):
    
 
