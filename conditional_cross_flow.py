@@ -258,30 +258,26 @@ def main(rank, world_size):
                 t0 = perf_counter()
                 batch = [x.to(device) for x in batch]
                 extract_0,extract_1 = batch
-                torch.cuda.synchronize()
-                t1 = perf_counter()
+    
+      
                 loss, _ = inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config)
-                torch.cuda.synchronize()
-                time_inner = perf_counter() - t1
-                torch.cuda.synchronize()
-                t2 =perf_counter()
+    
             
             scaler.scale(loss).backward()
-            torch.cuda.synchronize()
-            time_backward = perf_counter() - t2
+      
 
-            torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.0)
+
+            torch.nn.utils.clip_grad_norm_(parameters,max_norm=10)
             scaler.step(optimizer)
             scaler.update()
 
-            #optimizer.step()
             scheduler.step(loss)
             optimizer.zero_grad(set_to_none=True)
             current_lr = optimizer.param_groups[0]['lr']
             torch.cuda.synchronize()
             time_batch = perf_counter() - t0
 
-            wandb.log({'loss':loss.item(),'lr':current_lr,'time_batch':time_batch,'time_inner':time_inner,"time_backward":time_backward})
+            wandb.log({'loss':loss.item(),'lr':current_lr,'time_batch':time_batch})
           
         
         save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"initial_attn":models_dict['initial_attn'].detach(),"input_embedder":models_dict['input_embedder'].state_dict()}
