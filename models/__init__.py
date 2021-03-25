@@ -7,3 +7,4 @@ from .pointnet2_partial import Pointnet2Partial
 from .pytorch_geometric_pointnet2 import Pointnet2
 from .perceiver import get_cross_attn
 from .pct import NeighborhoodEmbedder
+from .affine_coupling_attn import affine_coupling_attn

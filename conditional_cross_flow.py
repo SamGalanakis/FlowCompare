@@ -5,8 +5,9 @@ import pyro.distributions.transforms as T
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner,_sum_rightmost
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner
 from torch.utils.data import Dataset,DataLoader
+from torch.distributions.utils import _sum_rightmost
 from itertools import permutations, combinations
 from tqdm import tqdm
 from torch_geometric.data import Data,Batch
@@ -22,6 +23,7 @@ from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 import functools
 import pandas as pd
+from time import time
 from models import (
 Exponential_combiner,
 Learned_permuter,
@@ -29,6 +31,7 @@ exponential_matrix_coupling_attn,
 NeighborhoodEmbedder,
 get_cross_attn,
 Full_matrix_combiner,
+affine_coupling_attn
 )
 
 
@@ -63,8 +66,12 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         raise Exception("Invalid coupling_block_nonlinearity")
 
 
-
-    flow = lambda : exponential_matrix_coupling_attn(config['input_dim'],config['attn_dim'],coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
+    if config['flow_type'] == 'affine_coupling':
+        flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
+    elif config['flow_type'] == 'exponential_coupling':
+        flow = lambda : exponential_matrix_coupling_attn(config['input_dim'],config['attn_dim'],coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
+    else:
+        raise Exception('Invalid flow type')
     #Input size for prev attn + split of point
     attn = lambda : get_cross_attn(config['attn_dim'],config['attn_dim']+config['input_dim']//2,config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
 
@@ -123,31 +130,33 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
     return {'parameters':parameters,"layers":layers,'input_embedder':input_embedder,'initial_attn':initial_attn}
 def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
-        attn_emb = models_dict['initial_attn'].repeat((config['batch_size'],config['sample_size'],1))
-        input_embeddings = models_dict["input_embedder"](extract_0)
-        y = extract_1
-        log_prob = 0.0
-        for idx,layer in enumerate(reversed(models_dict['layers'])):
-            flow = layer['flow']
-            y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
-            prev_attn_and_non_change_part = torch.cat((attn_emb,y1),dim=-1)
-            attn_emb = layer['attn'](prev_attn_and_non_change_part,context = input_embeddings)
+    attn_emb = models_dict['initial_attn'].repeat((config['batch_size'],config['sample_size'],1))
+    input_embeddings = models_dict["input_embedder"](extract_0)
+    y = extract_1
+    log_prob = 0.0
+    for idx,layer in enumerate(reversed(models_dict['layers'])):
+        flow = layer['flow']
+        y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
+        prev_attn_and_non_change_part = torch.cat((attn_emb,y1),dim=-1)
+        attn_emb = layer['attn'](prev_attn_and_non_change_part,context = input_embeddings)
+        
+        x = flow._inverse(y,attn_emb=attn_emb)
+        
+        log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
+                                        1 - flow.domain.event_dim)
+        y=x
+        if idx!=(len(models_dict['layers'])-1):
             
-            x = flow._inverse(y,attn_emb=attn_emb)
-            
-            log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
-                                            1 - flow.domain.event_dim)
+            permuter = layer['permuter']
+            x = permuter.inv(y)
+            log_prob = log_prob - _sum_rightmost(permuter.log_abs_det_jacobian(x, y),
+                                        1 - permuter.domain.event_dim)
             y=x
-            if idx!=(len(models_dict['layers'])-1):
-                
-                permuter = layer['permuter']
-                x = permuter.inv(y)
-                log_prob = log_prob - _sum_rightmost(permuter.log_abs_det_jacobian(x, y),
-                                            1 - permuter.domain.event_dim)
-                y=x
-        #Log prob 1 given 0
-        log_prob = log_prob + _sum_rightmost(base_dist.log_prob(y),
-                                        1 - len(base_dist.event_shape))
+    #Log prob 1 given 0
+    log_prob = log_prob + _sum_rightmost(base_dist.log_prob(y),
+                                    1 - len(base_dist.event_shape))
+    loss = -log_prob.mean()
+    return loss,log_prob
 def main(rank, world_size):
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
@@ -159,7 +168,6 @@ def main(rank, world_size):
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
    
-    torch.backends.cudnn.benchmark = True
 
     if config['preselected_points']:
         scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(os.path.join(config['dirs_challenge_csv'],x)) for x in os.listdir(config['dirs_challenge_csv']) }
@@ -190,15 +198,7 @@ def main(rank, world_size):
 
 
     parameters = models_dict['parameters']
-    input_embedder = models_dict['input_embedder']
-    
-    layers = models_dict['layers']
-    
-    
-
-
-
-    
+  
     
     
     if config["optimizer_type"] =='Adam':
@@ -230,8 +230,8 @@ def main(rank, world_size):
 
 
     torch.autograd.set_detect_anomaly(False)
-
-
+    torch.backends.cudnn.deterministic = False
+    torch.backends.cudnn.benchmark = True
     def layer_saver(layers):
         dicts = []
         for layer in layers:
@@ -248,44 +248,43 @@ def main(rank, world_size):
         return dicts
            
     
-            
-        loss = -log_prob.mean()
-        return loss, log_prob
-
+    scaler = torch.cuda.amp.GradScaler(enabled=config['amp'])
     for epoch in range(config["n_epochs"]):
         print(f"Starting epoch: {epoch}")
         for batch_ind,batch in enumerate(tqdm(dataloader)):
-            optimizer.zero_grad()
-
-
-            batch = [x.to(device) for x in batch]
-            extract_0,extract_1 = batch
-
+            with torch.cuda.amp.autocast(enabled=config['amp']):
+                torch.cuda.synchronize()
+                t0 = time()
+                batch = [x.to(device) for x in batch]
+                extract_0,extract_1 = batch
+                torch.cuda.synchronize()
+                t1 = time()
+                loss, _ = inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config)
+                torch.cuda.synchronize()
+                time_inner = time() - t1
+                torch.cuda.synchronize()
+                t2 =time()
             
-            loss, _ = inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config)
-            loss.backward()
+            scaler.scale(loss).backward()
+            torch.cuda.synchronize()
+            time_backward = time() - t2
+
             torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.0)
-            
-            optimizer.step()
-            
-            #flow_dist.clear_cache()
-            
+            scaler.step(optimizer)
+            scaler.update()
+
+            #optimizer.step()
             scheduler.step(loss)
+            optimizer.zero_grad(set_to_none=True)
             current_lr = optimizer.param_groups[0]['lr']
+            torch.cuda.synchronize()
+            time_batch = time() - t0
 
-            if batch_ind!=0 and  (batch_ind % int(len(dataloader)/3)  == 0):
-                print(f'Making samples and saving!')
-                with torch.no_grad():
-
-                    wandb.log({'loss':loss.item(),'lr':current_lr})
+            wandb.log({'loss':loss.item(),'lr':current_lr,'time_batch':time_batch,'time_inner':time_inner,"time_backward":time_backward})
           
-                    save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(layers),"initial_attn":initial_attn,"input_embedder":input_embedder.state_dict()}
-                    
-                    torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_{batch_ind}_model_dict.pt"))
-            else:
-                wandb.log({'loss':loss.item(),'lr':current_lr})
-                
-            
+        
+        save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"initial_attn":models_dict['initial_attn'].detach(),"input_embedder":models_dict['input_embedder'].state_dict()}
+        torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
             
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()

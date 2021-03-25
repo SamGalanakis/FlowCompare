@@ -25,7 +25,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data,Batch
 from torch_geometric.nn import voxel_grid
 from torch_geometric.nn.pool.consecutive import consecutive_cluster
-
+import open3d
 #Losses from original repo
 
 eps = 1e-8
@@ -79,20 +79,6 @@ def load_las(path,extra_dim_list=None,scale_colors = True):
         pass
     
     return points
-
-
-def _sum_rightmost(value, dim):
-    r"""
-    Sum out ``dim`` many rightmost dimensions of a given tensor.
-
-    Args:
-        value (Tensor): A tensor of ``.dim()`` at least ``dim``.
-        dim (int): The number of rightmost dims to sum out.
-    """
-    if dim == 0:
-        return value
-    required_shape = value.shape[:-dim] + (-1,)
-    return value.reshape(required_shape).sum(-1)
 
 def remove_outliers(array,n_neighbors=10,std_ratio=2.0):
     array=array.numpy()
