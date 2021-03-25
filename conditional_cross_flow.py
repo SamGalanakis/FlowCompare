@@ -32,8 +32,18 @@ Full_matrix_combiner,
 )
 
 
-def load_cross_flow(load_dict):
-    pass
+def load_cross_flow(load_dict,initialized_cross_flow):
+    initialized_cross_flow['initial_attn']= load_dict['initial_attn']
+    initialized_cross_flow['input_embedder'].load_state_dict(load_dict['input_embedder'])
+    for layer_dicts,layer in zip(load_dict['layers'],initialized_cross_flow['layers']):
+        for key,val in layer.items():
+                if isinstance(val,nn.Module):
+                    val.load_state_dict(layer_dicts[key])
+                elif isinstance(val,pyro.distributions.pyro.distributions.transforms.Permute):
+                    val.permutation = layer_dicts[key]
+                else:
+                    raise Exception('How to load?')
+    return initialized_cross_flow
 
 
 
@@ -116,7 +126,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 def main(rank, world_size):
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
-    #dirs = ["D:/data/cycloData/multi_scan/2018","D:/data/cycloData/multi_scan/2019","D:/data/cycloData/multi_scan/2020"]
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     
@@ -169,7 +179,7 @@ def main(rank, world_size):
     if config["optimizer_type"] =='Adam':
         optimizer = torch.optim.Adam(parameters, lr=config["lr"],weight_decay=config["weight_decay"]) 
     elif config["optimizer_type"] == 'Adamax':
-        optimizer = Adamax(parameters, lr=config["lr"],weight_decay=config["weight_decay"],polyak =  0.999)
+        optimizer = torch.optim.Adamax(parameters, lr=config["lr"],weight_decay=config["weight_decay"],polyak =  0.999)
     elif config["optimizer_type"] == 'AdamW':
         optimizer = torch.optim.AdamW(parameters, lr=config["lr"],weight_decay=config["weight_decay"])
     else:
@@ -184,6 +194,7 @@ def main(rank, world_size):
     if config['load_checkpoint']:
         print(f"Loading from checkpoint: {config['load_checkpoint']}")
         checkpoint_dict = torch.load(config['load_checkpoint'])
+        models_dict = load_cross_flow(checkpoint_dict,models_dict)
         scheduler.load_state_dict(checkpoint_dict['scheduler'])
         optimizer.load_state_dict(checkpoint_dict['optimizer'])
     else:
@@ -200,7 +211,7 @@ def main(rank, world_size):
         dicts = []
         for layer in layers:
             temp_dict = {}
-            for key,val in layer:
+            for key,val in layer.items():
                 if isinstance(val,nn.Module):
                     save = val.state_dict()
                 elif isinstance(val,pyro.distributions.pyro.distributions.transforms.Permute):
@@ -267,7 +278,7 @@ def main(rank, world_size):
 
                     wandb.log({'loss':loss.item(),'lr':current_lr})
           
-                    save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),layers:layer_saver(layers),initial_attn:initial_attn,input_embedder:input_embedder.state_dict()}
+                    save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(layers),"initial_attn":initial_attn,"input_embedder":input_embedder.state_dict()}
                     
                     torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_{batch_ind}_model_dict.pt"))
             else:
