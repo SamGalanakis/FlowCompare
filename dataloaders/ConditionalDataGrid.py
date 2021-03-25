@@ -127,19 +127,8 @@ class ConditionalDataGrid(Dataset):
             if (tensor_0.isnan().any() or tensor_1.isnan().any()).item():
                 raise Exception(f"Found nan at index {i}!")
 
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-        combination_entry = self.combinations_list[idx]
-        relevant_tensors = self.extract_id_dict[combination_entry[0]]
-        #CLONE THE TENSOR IF SAME, OTHERWISE POINT TO SAME MEMORY, PROBLEMS IN NORMALIZATION
-        if combination_entry[1]!=combination_entry[2]:
-            tensor_0 = relevant_tensors[combination_entry[1]]
-            tensor_1 = relevant_tensors[combination_entry[2]]
-        else:
-            tensor_0 = relevant_tensors[combination_entry[1]]
-            tensor_1 = relevant_tensors[combination_entry[2]].clone()
 
+    def last_processing(self,tensor_0,tensor_1):
         #Remove pesky extra points due to fps ratio
         tensor_0 = tensor_0[:self.sample_size,:]
         tensor_1 = tensor_1[:self.sample_size,:]
@@ -153,5 +142,22 @@ class ConditionalDataGrid(Dataset):
             tensor_0,tensor_1 = sep_standardize(tensor_0,tensor_1)
         else:
             raise Exception('Invalid normalization type')
+        return tensor_0,tensor_1
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        combination_entry = self.combinations_list[idx]
+        relevant_tensors = self.extract_id_dict[combination_entry[0]]
+        #CLONE THE TENSOR IF SAME, OTHERWISE POINT TO SAME MEMORY, PROBLEMS IN NORMALIZATION
+        if combination_entry[1]!=combination_entry[2]:
+            tensor_0 = relevant_tensors[combination_entry[1]]
+            tensor_1 = relevant_tensors[combination_entry[2]]
+        else:
+            tensor_0 = relevant_tensors[combination_entry[1]]
+            tensor_1 = relevant_tensors[combination_entry[2]].clone()
+
+        tensor_0,tensor_1 = self.last_processing(tensor_0,tensor_1)
+
+        
         
         return tensor_0,tensor_1
