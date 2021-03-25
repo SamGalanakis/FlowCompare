@@ -11,13 +11,12 @@ from models.pytorch_geometric_pointnet2 import Pointnet2
 from models.nets import ConditionalDenseNN, DenseNN
 from torch_geometric.data import Data,Batch
 from torch_geometric.nn import fps
-from dataloaders import ConditionalDataGrid, ShapeNetLoader, ConditionalVoxelGrid
+from dataloaders import ConditionalDataGrid, ShapeNetLoader
 import wandb
 import torch.multiprocessing as mp
 from torch.nn.parallel import DataParallel
 import torch.distributed as distributed
 from models.permuters import Full_matrix_combiner,Exponential_combiner,Learned_permuter
-from models.batchnorm import BatchNorm
 from torch.autograd import Variable, Function
 from models.Exponential_matrix_flow import conditional_exponential_matrix_coupling
 from models.gcn_encoder import GCNEncoder

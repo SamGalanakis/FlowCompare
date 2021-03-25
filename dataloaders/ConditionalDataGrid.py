@@ -128,17 +128,16 @@ class ConditionalDataGrid(Dataset):
                 raise Exception(f"Found nan at index {i}!")
 
 
-    def last_processing(self,tensor_0,tensor_1):
-        #Remove pesky extra points due to fps ratio
-        tensor_0 = tensor_0[:self.sample_size,:]
-        tensor_1 = tensor_1[:self.sample_size,:]
-        if self.normalization == 'min_max':
+    def last_processing(self,tensor_0,tensor_1,normalization):
+        
+        
+        if normalization == 'min_max':
             tensor_0[:,:3], tensor_1[:,:3] = co_min_max(tensor_0[:,:3],tensor_1[:,:3])
-        elif self.normalization == 'co_unit_sphere':
+        elif normalization == 'co_unit_sphere':
             tensor_0,tensor_1 = co_unit_sphere(tensor_0,tensor_1)
-        elif self.normalization == 'standardize':
+        elif normalization == 'standardize':
             tensor_0,tensor_1 = co_standardize(tensor_0,tensor_1)
-        elif self.normalization == 'sep_standardize':
+        elif normalization == 'sep_standardize':
             tensor_0,tensor_1 = sep_standardize(tensor_0,tensor_1)
         else:
             raise Exception('Invalid normalization type')
@@ -155,8 +154,10 @@ class ConditionalDataGrid(Dataset):
         else:
             tensor_0 = relevant_tensors[combination_entry[1]]
             tensor_1 = relevant_tensors[combination_entry[2]].clone()
-
-        tensor_0,tensor_1 = self.last_processing(tensor_0,tensor_1)
+        #Remove pesky extra points due to fps ratio
+        tensor_0 = tensor_0[:self.sample_size,:]
+        tensor_1 = tensor_1[:self.sample_size,:]
+        tensor_0,tensor_1 = self.last_processing(tensor_0,tensor_1,self.normalization)
 
         
         

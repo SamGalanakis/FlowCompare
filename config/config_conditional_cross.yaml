@@ -81,7 +81,7 @@ normalization:
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: save/conditional_flow_compare/smart-elevator-1246_53_186_model_dict.pt
+  value: false
 preselected_points:
   desc: Use preselected points
   value: true

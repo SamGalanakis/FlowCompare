@@ -118,11 +118,36 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
     
     parameters += input_embedder.parameters()
-    initial_attn = nn.Parameter(torch.randn((config['batch_size'],config['sample_size'],config['attn_dim']),device=device),requires_grad=True)
+    initial_attn = nn.Parameter(torch.randn((config['attn_dim']),device=device),requires_grad=True)
     parameters += [initial_attn]
 
     return {'parameters':parameters,"layers":layers,'input_embedder':input_embedder,'initial_attn':initial_attn}
-
+def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
+        attn_emb = models_dict['initial_attn'].repeat((config['batch_size'],config['sample_size'],1))
+        input_embeddings = models_dict["input_embedder"](extract_0)
+        y = extract_1
+        log_prob = 0.0
+        for idx,layer in enumerate(reversed(models_dict['layers'])):
+            flow = layer['flow']
+            y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
+            prev_attn_and_non_change_part = torch.cat((attn_emb,y1),dim=-1)
+            attn_emb = layer['attn'](prev_attn_and_non_change_part,context = input_embeddings)
+            
+            x = flow._inverse(y,attn_emb=attn_emb)
+            
+            log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
+                                            1 - flow.domain.event_dim)
+            y=x
+            if idx!=(len(models_dict['layers'])-1):
+                
+                permuter = layer['permuter']
+                x = permuter.inv(y)
+                log_prob = log_prob - _sum_rightmost(permuter.log_abs_det_jacobian(x, y),
+                                            1 - permuter.domain.event_dim)
+                y=x
+        #Log prob 1 given 0
+        log_prob = log_prob + _sum_rightmost(base_dist.log_prob(y),
+                                        1 - len(base_dist.event_shape))
 def main(rank, world_size):
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
@@ -166,7 +191,7 @@ def main(rank, world_size):
 
     parameters = models_dict['parameters']
     input_embedder = models_dict['input_embedder']
-    initial_attn = models_dict['initial_attn']
+    
     layers = models_dict['layers']
     
     
@@ -222,7 +247,10 @@ def main(rank, world_size):
             dicts.append(temp_dict)
         return dicts
            
-
+    
+            
+        loss = -log_prob.mean()
+        return loss, log_prob
 
     for epoch in range(config["n_epochs"]):
         print(f"Starting epoch: {epoch}")
@@ -233,35 +261,8 @@ def main(rank, world_size):
             batch = [x.to(device) for x in batch]
             extract_0,extract_1 = batch
 
-
-            attn_emb = initial_attn
-            input_embeddings = input_embedder(extract_0)
-            y = extract_1
-            log_prob = 0.0
-            for idx,layer in enumerate(reversed(layers)):
-                flow = layer['flow']
-                y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
-                prev_attn_and_non_change_part = torch.cat((attn_emb,y1),dim=-1)
-                attn_emb = layer['attn'](prev_attn_and_non_change_part,context = input_embeddings)
-                
-                x = flow._inverse(y,attn_emb=attn_emb)
-                
-                log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
-                                                 1 - flow.domain.event_dim)
-                y=x
-                if idx!=(len(layers)-1):
-                    
-                    permuter = layer['permuter']
-                    x = permuter.inv(y)
-                    log_prob = log_prob - _sum_rightmost(permuter.log_abs_det_jacobian(x, y),
-                                                 1 - permuter.domain.event_dim)
-                    y=x
-
-            log_prob = log_prob + _sum_rightmost(base_dist.log_prob(y),
-                                             1 - len(base_dist.event_shape))
-                
-            loss = -log_prob.mean()
-
+            
+            loss, _ = inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.0)
             
