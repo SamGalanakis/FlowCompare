@@ -130,7 +130,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
     return {'parameters':parameters,"layers":layers,'input_embedder':input_embedder,'initial_attn':initial_attn}
 def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
-    attn_emb = models_dict['initial_attn'].repeat((config['batch_size'],config['sample_size'],1))
+
+    attn_emb = models_dict['initial_attn'].repeat((extract_0.shape[0],config['sample_size'],1))
     input_embeddings = models_dict["input_embedder"](extract_0)
     y = extract_1
     log_prob = 0.0

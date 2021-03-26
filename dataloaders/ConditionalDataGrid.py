@@ -15,7 +15,7 @@ eps = 1e-8
 
 
 class ConditionalDataGrid(Dataset):
-    def __init__(self, direcories_list,out_path,sample_size=2000,grid_square_size = 4,clearance = 28,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle',device="cuda",preselected_points=None):
+    def __init__(self, direcories_list,out_path,sample_size=2000,grid_square_size = 4,clearance = 28,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle',device="cuda",preselected_points=None,mode='train'):
         self.sample_size  = sample_size
         self.grid_square_size = grid_square_size
         self.clearance = clearance
@@ -30,7 +30,7 @@ class ConditionalDataGrid(Dataset):
         self.normalization = normalization
         self.preselected_points = preselected_points
         if self.preselected_points !=None:
-            self.save_name = 'preselected_' + self.save_name
+            self.save_name = f'preselected_{mode}_' + self.save_name
         if not preload:
             print(f"Recreating dataset, saving to: {self.out_path}")
             file_path_lists  = [[os.path.join(path,x) for x in os.listdir(path) if x.split('.')[-1]=='las'] for path in direcories_list]
