@@ -5,7 +5,7 @@ import pyro.distributions.transforms as T
 import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,extract_area,co_min_max,feature_assigner,bits_per_dim
 from torch.utils.data import Dataset,DataLoader
 from torch.distributions.utils import _sum_rightmost
 from itertools import permutations, combinations

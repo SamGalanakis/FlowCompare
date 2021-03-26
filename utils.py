@@ -79,6 +79,10 @@ def load_las(path,extra_dim_list=None,scale_colors = True):
         pass
     
     return points
+def bits_per_dim(log_likelihood,dims_prod):
+    multiplier = torch.log(torch.Tensor([2])).to(log_likelihood.device)
+    bpd = -log_likelihood * multiplier / dims_prod
+    return bpd
 
 def remove_outliers(array,n_neighbors=10,std_ratio=2.0):
     array=array.numpy()

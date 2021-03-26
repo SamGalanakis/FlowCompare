@@ -1,5 +1,5 @@
 import torch
-from conditional_cross_flow import initialize_cross_flow,load_cross_flow,inner_loop_cross
+from conditional_cross_flow import initialize_cross_flow,load_cross_flow,inner_loop_cross,bits_per_dim
 from dataloaders import ConditionalDataGrid, ShapeNetLoader
 import wandb
 import os
@@ -12,7 +12,7 @@ os.environ["WANDB_MODE"] = "dryrun"
 config_path = r"config/config_conditional_cross.yaml"
 wandb.init(project="flow_change",config = config_path)
 config = wandb.config
-load_path =r"save/conditional_flow_compare/visionary-armadillo-1298_98_model_dict.pt"
+load_path =r"save/conditional_flow_compare/polar-energy-1299_314_model_dict.pt"
 save_dict = torch.load(load_path)
 model_dict = initialize_cross_flow(config,device,mode='test')
 model_dict = load_cross_flow(save_dict,model_dict)
@@ -50,11 +50,12 @@ for index in range(len(dataset)):
     extract_0, extract_1 = dataset[index]
     extract_0, extract_1 = extract_0.to(device),extract_1.to(device)
     log_prob_1_given_0 = calc_change(extract_0, extract_1,model_dict,config,preprocess=False)
+    bpd = bits_per_dim(log_prob_1_given_0,6)
     log_prob_0_given_0 = calc_change(extract_0, extract_0,model_dict,config,preprocess=False)
     log_prob_0_given_1 = calc_change(extract_1, extract_0,model_dict,config,preprocess=False)
     log_prob_1_given_1 = calc_change(extract_1, extract_1,model_dict,config,preprocess=False)
-    view_cloud_plotly(extract_0[:,:3],extract_0[:,3:])
-    view_cloud_plotly(extract_1[:,:3],extract_1[:,3:])
+    #view_cloud_plotly(extract_0[:,:3],extract_0[:,3:])
+    #view_cloud_plotly(extract_1[:,:3],extract_1[:,3:])
 
   
     change_1_given_0 = log_prob_to_color(log_prob_1_given_0,log_prob_0_given_0)
