@@ -81,7 +81,7 @@ normalization:
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: save/conditional_flow_compare/visionary-armadillo-1298_98_model_dict.pt
+  value: save/conditional_flow_compare/polar-energy-1299_314_model_dict.pt
 preselected_points:
   desc: Use preselected points
   value: true
