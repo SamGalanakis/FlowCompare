@@ -48,7 +48,7 @@ min_points:
   value: 2000
 n_epochs:
   desc: Number of epochs to train for
-  value: 10000
+  value: 2000
 batch_size:
   desc: Batch size
   value: 30 #35
@@ -66,7 +66,7 @@ optimizer_type:
   value: AdamW
 weight_decay:
   desc: weigth decay for optimizer
-  value: 0.0001
+  value: 0.0005
 data_parallel:
   desc: Use parallel
   value: false
@@ -81,7 +81,7 @@ normalization:
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: save/conditional_flow_compare/polar-energy-1299_314_model_dict.pt
+  value: false
 preselected_points:
   desc: Use preselected points
   value: true
@@ -90,7 +90,7 @@ dirs_challenge_csv:
   value: save/2016-2020-train/
 attn_dim:
   desc: Dimension of cross attention embedding fed to coupling block MLP
-  value: 100
+  value: 512
 input_embedding_dim:
   desc: Dimension of input embeddings, part of input for attention
   value: 256
@@ -106,3 +106,6 @@ attn_dropout:
 amp:
   desc: Automatic mixed precision
   value: false
+lr_scheduler:
+  desc: Type of lr scheduling
+  value: OneCycleLR

@@ -73,6 +73,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     else:
         raise Exception('Invalid flow type')
     #Input size for prev attn + split of point
+    #out_dim ,latent_dim,input_dim,cross_heads,cross_dim_head,attn_dropout
     attn = lambda : get_cross_attn(config['attn_dim'],config['attn_dim']+config['input_dim']//2,config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
 
     if permuter_type == 'Exponential_combiner':
@@ -212,8 +213,13 @@ def main(rank, world_size):
         raise Exception('Invalid optimizer type!')
 
     
-
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=config["patience"],threshold=0.0001,min_lr=config["min_lr"])
+    if config['lr_scheduler'] == 'ReduceLROnPlateau':
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=config["patience"],threshold=0.0001,min_lr=config["min_lr"])
+    elif config['lr_scheduler'] == 'OneCycleLR':
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr = config['lr'], epochs=config['n_epochs'], steps_per_epoch=len(dataloader))
+    else:
+        raise Exception('Invalid cheduler')
+    
     save_model_path = r'save/conditional_flow_compare'
 
     #Load checkpoint params if specified path

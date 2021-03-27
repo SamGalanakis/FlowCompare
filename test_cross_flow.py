@@ -67,7 +67,7 @@ def dataset_view(dataset,index,multiple =3.):
     fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=False,title='fig_1_given_0')
     return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1
 if __name__ == '__main__':
-    visualize_change(lambda x : dataset_view(dataset,x),range(len(dataset)))
+    visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple),range(len(dataset)))
     
 
 

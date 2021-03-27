@@ -15,7 +15,9 @@ def visualize_change(fig_getter,index_range):
 
     
     index_selector_options = [{'label':key,'value':key} for key in index_range]
-
+    global multiple
+    global index
+    multiple = 3.
     
 
     app.layout = html.Div([
@@ -24,13 +26,15 @@ def visualize_change(fig_getter,index_range):
         multi=False,
         value = '0',
         style ={'width':'20%'}),
-        # dcc.Slider(
-        #     id='percentile_slider',
-        #     min=0,
-        #     max=100,
-        #     step=0.2,
-        #     value=10,
-        # ),
+         html.Div([
+        dcc.Slider(
+            id='multiple_slider',
+            min=0.,
+            max=5.,
+            step=0.1,
+            value=3.),
+            html.Div(id='slider-output-container')] ,style ={'width':'10%'}),
+        html.Div(id="hidden_div", style={'display':"none"}),
         html.Div([
             dcc.Graph(id='graph_0', figure={}),
             dcc.Graph(id='graph_1', figure={}),
@@ -46,9 +50,15 @@ def visualize_change(fig_getter,index_range):
 
     
 
-    # @app.callback(Output(component_id='graph_t2', component_property='figure'),
-    # Input(component_id='percentile_slider', component_property='value'),
-    # prevent_initial_call=True)
+    @app.callback(
+    Output('slider-output-container', 'children'),
+    Input(component_id='multiple_slider', component_property='value'),
+    prevent_initial_call=False)
+
+    def set_slider(value):
+        global multiple
+        multiple = float(value)
+        return f"std multiple: {multiple}"
 
     
 
@@ -60,10 +70,14 @@ def visualize_change(fig_getter,index_range):
     Input(component_id='index_selector', component_property='value'),
     prevent_initial_call=False)
 
-    def index_chooser(index):
-        index = int(index)
+    def index_chooser(value):
+        global index
+        index = int(value)
+        
+        
         print(f'Loading index {index}!')
-        return fig_getter(index)
+        print(multiple)
+        return fig_getter(index,multiple)
 
 
        
