@@ -32,6 +32,7 @@ NeighborhoodEmbedder,
 get_cross_attn,
 Full_matrix_combiner,
 affine_coupling_attn,
+DGCNNembedder,
 GCNembedder
 )
 
@@ -115,9 +116,11 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
                 parameters+= module.parameters()
 
     if config['input_embedder'] == 'NeighborhoodEmbedder':
-        input_embedder = NeighborhoodEmbedder(config['input_dim'])
-    elif config['input_embedder'] == 'GCNembedder':
-        input_embedder = GCNembedder(config['input_dim'],config['input_embedding_dim'])
+        input_embedder = NeighborhoodEmbedder(config['input_dim'],out_dim = config['input_embedding_dim'])
+    elif config['input_embedder'] == 'DGCNNembedder':
+        input_embedder = DGCNNembedder(emb_dim= config['input_embedding_dim'])
+    else:
+        raise Exception('Invalid input embeder!')
 
     if mode == 'train':
         input_embedder.train()

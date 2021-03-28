@@ -78,7 +78,7 @@ class GCNEncoder(torch.nn.Module):
 if __name__ == '__main__':
     encoder = GCNembedder(6,40)
     x = torch.randn((20,10,6))
-    batch = torch.cat([torch.ones(x.shape[1])*i for i in range(0,x.shape[0])]).long()
-    x = x.reshape(-1,x.shape[-1])
-    result = encoder(x[...,3:],x[...,:3],batch)
+  
+    
+    result = encoder(x)
     pass

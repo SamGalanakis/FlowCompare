@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pct_utils import sample_and_group 
+from .pct_utils import sample_and_group 
 
 # Code sourced from : https://github.com/uyzhang/PCT_Pytorch
 
@@ -145,9 +145,10 @@ class SA_Layer(nn.Module):
 # My adaptations
 
 class NeighborhoodEmbedder(nn.Module):
-    def __init__(self,input_dim,in_channels=[128,256],out_channels=[128,256]):
+    def __init__(self,input_dim,in_channels=[128,256],out_channels=[128,256],out_dim=40):
         super().__init__()
         self.input_dim = input_dim
+        self.out_dim = out_dim
         self.out_channels = out_channels
         self.in_channels = in_channels
         self.conv1 = nn.Conv1d(input_dim, 64, kernel_size=1, bias=False)
@@ -156,7 +157,7 @@ class NeighborhoodEmbedder(nn.Module):
         self.bn2 = nn.BatchNorm1d(64)
         self.gather_local_0 = Local_op(in_channels=in_channels[0], out_channels=out_channels[0])
         self.gather_local_1 = Local_op(in_channels=in_channels[1], out_channels=out_channels[1])
-        self.final_linear  = nn.Sequential(nn.Linear(out_channels[1],out_channels[1]),nn.ReLU(),nn.Linear(out_channels[1],out_channels[1]),nn.ReLU(),nn.Linear(out_channels[1],out_channels[1]))
+        self.final_linear  = nn.Sequential(nn.Linear(out_channels[1],out_channels[1]),nn.ReLU(),nn.Linear(out_channels[1],out_channels[1]),nn.ReLU(),nn.Linear(out_channels[1],self.out_dim))
         
     def forward(self, x):
         xyz = x
