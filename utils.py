@@ -402,8 +402,16 @@ def rgb_to_hsv(rgb,scale_after=False):
     return hsv
 
 
-
+def time_labeling(extract_0,extract_1):
+    n_points_0 = extract_0.shape[1]
+    n_points_1 = extract_1.shape[1]
+    batch_size = extract_0.shape[0]
+    label_points = torch.cat((torch.ones(n_points_0),-torch.ones(n_points_1))).to(extract_0.device)
+    label_points = label_points.expand((batch_size,1,200)).permute((0,2,1))
+    return torch.cat( (torch.cat((extract_0,extract_1),dim=1),label_points),dim=-1)
 if __name__ == '__main__':
+    extract_0,extract_1 = torch.randn(10,100,6),torch.randn(10,100,6)
+    combined = time_labeling(extract_0,extract_1)
     test_hsv = torch.Tensor([[1,10,20],[5,30,3],[255,6,1]])
     print(test_hsv)
     test_hsv /= 255
