@@ -154,7 +154,7 @@ class NeighborhoodEmbedder(nn.Module):
         self.bn2 = nn.BatchNorm1d(64)
         self.gather_local_0 = Local_op(in_channels=in_channels[0], out_channels=out_channels[0])
         self.gather_local_1 = Local_op(in_channels=in_channels[1], out_channels=out_channels[1])
-
+        self.final_linear  = nn.Sequential(nn.Linear(out_channels[1],out_channels[1]),nn.ReLU(),nn.Linear(out_channels[1],out_channels[1]),nn.ReLU(),nn.Linear(out_channels[1],out_channels[1]))
         
     def forward(self, x):
         xyz = x
@@ -171,7 +171,7 @@ class NeighborhoodEmbedder(nn.Module):
         feature = feature_0.permute(0, 2, 1)
         new_xyz, new_feature = sample_and_group(npoint=256, radius=0.2, nsample=32, xyz=new_xyz, points=feature) 
         feature_1 = self.gather_local_1(new_feature)
-
+        feature_1 = self.final_linear(feature_1)
         return feature_1
 
 if __name__ == '__main__':

@@ -51,7 +51,7 @@ n_epochs:
   value: 2000
 batch_size:
   desc: Batch size
-  value: 30 #35
+  value: 20 #35
 lr:
   desc: Initial learning rate for optimizer
   value: 0.0001
@@ -66,7 +66,7 @@ optimizer_type:
   value: AdamW
 weight_decay:
   desc: weigth decay for optimizer
-  value: 0.0005
+  value: 0.0001
 data_parallel:
   desc: Use parallel
   value: false
@@ -90,16 +90,16 @@ dirs_challenge_csv:
   value: save/2016-2020-train/
 attn_dim:
   desc: Dimension of cross attention embedding fed to coupling block MLP
-  value: 512
+  value: 124
 input_embedding_dim:
   desc: Dimension of input embeddings, part of input for attention
-  value: 256
+  value: 20
 cross_heads:
   desc: Number of attn heads
   value: 1
 cross_dim_head:
   desc: Dimension of cross dim head
-  value: 64
+  value: 32
 attn_dropout:
   desc: Dropout rate in attn module
   value: 0.0
@@ -108,4 +108,7 @@ amp:
   value: false
 lr_scheduler:
   desc: Type of lr scheduling
-  value: OneCycleLR
+  value: ReduceLROnPlateau
+input_embedder:
+  desc: input_embedder type
+  value: GCNembedder
