@@ -13,7 +13,7 @@ os.environ["WANDB_MODE"] = "dryrun"
 config_path = r"config/config_conditional_cross.yaml"
 wandb.init(project="flow_change",config = config_path)
 config = wandb.config
-load_path =r"save/conditional_flow_compare/toasty-meadow-1301_405_model_dict.pt"
+load_path =r"save/conditional_flow_compare/treasured-sound-1382_100_model_dict.pt"
 save_dict = torch.load(load_path)
 model_dict = initialize_cross_flow(config,device,mode='test')
 model_dict = load_cross_flow(save_dict,model_dict)

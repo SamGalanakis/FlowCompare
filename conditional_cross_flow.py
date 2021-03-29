@@ -32,6 +32,7 @@ NeighborhoodEmbedder,
 get_cross_attn,
 Full_matrix_combiner,
 affine_coupling_attn,
+exponential_matrix_coupling,
 DGCNNembedder,
 GCNembedder
 )
@@ -53,7 +54,7 @@ def load_cross_flow(load_dict,initialized_cross_flow):
 
 
 def initialize_cross_flow(config,device = 'cuda',mode='train'):
-    flow_input_dim = config['input_dim']
+    
     flow_type = config['flow_type']
     permuter_type = config['permuter_type']
     data_parallel = config['data_parallel']
@@ -71,21 +72,21 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     if config['flow_type'] == 'affine_coupling':
         flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
     elif config['flow_type'] == 'exponential_coupling':
-        flow = lambda : exponential_matrix_coupling_attn(config['input_dim'],config['attn_dim'],coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
+        flow = lambda : exponential_matrix_coupling_attn(config['latent_dim'],config['attn_dim'],coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
     else:
         raise Exception('Invalid flow type')
     #Input size for prev attn + split of point
-    #out_dim ,latent_dim,input_dim,cross_heads,cross_dim_head,attn_dropout
-    attn = lambda : get_cross_attn(config['attn_dim'],config['attn_dim']+config['input_dim']//2,config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
+    #out_dim,query_dim, context_dim, heads, dim_head, dropout
+    attn = lambda : get_cross_attn(config['attn_dim'],config['latent_dim']//2,config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
 
     if permuter_type == 'Exponential_combiner':
-        permuter = lambda : Exponential_combiner(flow_input_dim)
+        permuter = lambda : Exponential_combiner(config['latent_dim'])
     elif permuter_type == 'Learned_permuter':
-        permuter = lambda : Learned_permuter(flow_input_dim)
+        permuter = lambda : Learned_permuter(config['latent_dim'])
     elif permuter_type == 'Full_matrix_combiner':
-        permuter = lambda : Full_matrix_combiner(flow_input_dim)
+        permuter = lambda : Full_matrix_combiner(config['latent_dim'])
     elif permuter_type == "random_permute":
-        permuter = lambda : T.Permute(torch.randperm(flow_input_dim, dtype=torch.long).to(device))
+        permuter = lambda : T.Permute(torch.randperm(config['latent_dim'], dtype=torch.long).to(device))
     else:
         raise Exception(f'Invalid permuter type: {permuter_type}')
 
@@ -94,6 +95,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
     #Add transformations to list
     for index in range(config['n_flow_layers']):
+        
         layer_dict = {}
         layer_dict['flow'] = flow()
         layer_dict['attn'] = attn()
@@ -115,6 +117,18 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
                     transform = module.to(device)
                 parameters+= module.parameters()
 
+    blow_up_mlp = nn.Sequential(nn.Linear(config['input_dim'],config['latent_dim']//2),coupling_block_nonlinearity,nn.Linear(config['latent_dim']//2,config['latent_dim']))
+    
+    if mode == 'train':
+        blow_up_mlp.train()
+    else:
+        blow_up_mlp.eval()
+    if data_parallel:
+        input_embedder = nn.DataParallel(blow_up_mlp).to(device)
+    else:
+        input_embedder = blow_up_mlp.to(device)
+    parameters+=blow_up_mlp.parameters()
+
     if config['input_embedder'] == 'NeighborhoodEmbedder':
         input_embedder = NeighborhoodEmbedder(config['input_dim'],out_dim = config['input_embedding_dim'])
     elif config['input_embedder'] == 'DGCNNembedder':
@@ -133,23 +147,23 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
     
     parameters += input_embedder.parameters()
-    initial_attn = nn.Parameter(torch.randn((config['attn_dim']),device=device),requires_grad=True)
-    parameters += [initial_attn]
+    #initial_attn = nn.Parameter(torch.randn((config['attn_dim']),device=device),requires_grad=True)
+    #parameters += [initial_attn]
 
-    return {'parameters':parameters,"layers":layers,'input_embedder':input_embedder,'initial_attn':initial_attn}
+    return {'parameters':parameters,"layers":layers,'input_embedder':input_embedder,'blow_up_mlp':blow_up_mlp}
 def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
 
-    attn_emb = models_dict['initial_attn'].repeat((extract_0.shape[0],config['sample_size'],1))
+    
     input_embeddings = models_dict["input_embedder"](extract_0)
-    y = extract_1
+    y = models_dict['blow_up_mlp'](extract_1)
     log_prob = 0.0
     for idx,layer in enumerate(reversed(models_dict['layers'])):
         flow = layer['flow']
         y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
-        prev_attn_and_non_change_part = torch.cat((attn_emb,y1),dim=-1)
-        attn_emb = layer['attn'](prev_attn_and_non_change_part,context = input_embeddings)
         
-        x = flow._inverse(y,attn_emb=attn_emb)
+        attn_emb = layer['attn'](y1,context = input_embeddings)
+        
+        x = flow._inverse(y,attn_emb)
         
         log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
                                         1 - flow.domain.event_dim)
@@ -200,7 +214,7 @@ def main(rank, world_size):
     dataloader = DataLoader(dataset,shuffle=True,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=None,pin_memory=True,prefetch_factor=2,drop_last=True)
 
 
-    base_dist = dist.Normal(torch.zeros(config['input_dim']).to(device), torch.ones(config['input_dim']).to(device))
+    base_dist = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device))
 
     models_dict = initialize_cross_flow(config,device,mode='train')
     
