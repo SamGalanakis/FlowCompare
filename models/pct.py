@@ -28,7 +28,7 @@ class Pct(nn.Module):
     def __init__(self, args, output_channels=40):
         super(Pct, self).__init__()
         self.args = args
-        self.conv1 = nn.Conv1d(3, 64, kernel_size=1, bias=False)
+        self.conv1 = nn.Conv1d(6, 64, kernel_size=1, bias=False)
         self.conv2 = nn.Conv1d(64, 64, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(64)
@@ -77,9 +77,8 @@ class Pct(nn.Module):
         return x
 
 class Point_Transformer_Last(nn.Module):
-    def __init__(self, args, channels=256):
+    def __init__(self, channels=256):
         super(Point_Transformer_Last, self).__init__()
-        self.args = args
         self.conv1 = nn.Conv1d(channels, channels, kernel_size=1, bias=False)
         self.conv2 = nn.Conv1d(channels, channels, kernel_size=1, bias=False)
 
@@ -144,26 +143,37 @@ class SA_Layer(nn.Module):
     
 # My adaptations
 
+
+
+
 class NeighborhoodEmbedder(nn.Module):
     def __init__(self,input_dim,in_channels=[128,256],out_channels=[128,256],out_dim=40):
         super().__init__()
-        self.input_dim = input_dim
-        self.out_dim = out_dim
-        self.out_channels = out_channels
-        self.in_channels = in_channels
         self.conv1 = nn.Conv1d(input_dim, 64, kernel_size=1, bias=False)
         self.conv2 = nn.Conv1d(64, 64, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(64)
-        self.gather_local_0 = Local_op(in_channels=in_channels[0], out_channels=out_channels[0])
-        self.gather_local_1 = Local_op(in_channels=in_channels[1], out_channels=out_channels[1])
-        self.final_linear  = nn.Sequential(nn.Linear(out_channels[1],out_channels[1]),nn.ReLU(),nn.Linear(out_channels[1],out_channels[1]),nn.ReLU(),nn.Linear(out_channels[1],self.out_dim))
+        self.gather_local_0 = Local_op(in_channels=128, out_channels=128)
+        self.gather_local_1 = Local_op(in_channels=256, out_channels=256)
+
+        self.pt_last = Point_Transformer_Last()
+
+        self.conv_fuse = nn.Sequential(nn.Conv1d(1280, 1024, kernel_size=1, bias=False),
+                                    nn.BatchNorm1d(1024),
+                                    nn.LeakyReLU(negative_slope=0.2))
+
+
+        self.mlp_out = nn.Sequential(nn.Linear(2048, 1024),nn.LeakyReLU(negative_slope=0.2),
+        nn.Linear(1024, 512),nn.LeakyReLU(negative_slope=0.2),
+        nn.Linear(512, 256),nn.LeakyReLU(negative_slope=0.2),
+        nn.Linear(256, out_dim))
         
+
     def forward(self, x):
+        batch_size, n_points, _ = x.size()
         xyz = x
-        x = x.permute(0, 2, 1)
+        x= x.permute((0,2,1))
         
-        batch_size, input_dim, n_points = x.size()
         # B, D, N
         x = F.relu(self.bn1(self.conv1(x)))
         # B, D, N
@@ -174,9 +184,14 @@ class NeighborhoodEmbedder(nn.Module):
         feature = feature_0.permute(0, 2, 1)
         new_xyz, new_feature = sample_and_group(npoint=n_points, radius=0.2, nsample=32, xyz=new_xyz, points=feature) 
         feature_1 = self.gather_local_1(new_feature)
-        feature_1 = self.final_linear(feature_1.reshape((batch_size,n_points,self.out_channels[1])))
-        
-        return feature_1
+
+        x = self.pt_last(feature_1)
+        x = torch.cat([x, feature_1], dim=1)
+        local_feats = self.conv_fuse(x)
+        global_feats = F.adaptive_max_pool1d(local_feats, 1).view(batch_size, -1)
+        combined_feats = torch.cat([global_feats.unsqueeze(-1).expand((-1,-1,n_points)), local_feats], dim=1).permute((0,2,1))
+        combined_feats = self.mlp_out(combined_feats)
+        return combined_feats
 
 if __name__ == '__main__':
     class args:

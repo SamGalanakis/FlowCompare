@@ -285,8 +285,8 @@ def main(rank, world_size):
             extract_0 =[x.to(device) for x in extract_0]
             data_list_0 = [Data(x=feature_assigner(x,config["input_dim"]),pos=x[:,:3]) for x in extract_0]
             extract_1 = extract_1.to(device)
-            
-            encodings = encoder(Batch.from_data_list(data_list_0))
+            batch = Batch.from_data_list(data_list_0)
+            encodings = encoder(batch.x,batch.pos,batch.batch)
             if config["batchnorm_encodings"]:
                 encodings = batchnorm_encoder(encodings)
             assert not encodings.isnan().any(), "Nan in encoder"

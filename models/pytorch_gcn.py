@@ -55,7 +55,7 @@ class DGCNNembedder(nn.Module):
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(128)
         self.bn4 = nn.BatchNorm2d(256)
-        self.bn5 = nn.BatchNorm1d(emb_dim)
+        self.bn5 = nn.BatchNorm1d(512)
   
 
         self.conv1 = nn.Sequential(nn.Conv2d(12, 64, kernel_size=1, bias=False),
@@ -70,13 +70,13 @@ class DGCNNembedder(nn.Module):
         self.conv4 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),
                                    self.bn4,
                                    nn.LeakyReLU(negative_slope=0.2))
-        self.conv5 = nn.Sequential(nn.Conv1d(512, emb_dim, kernel_size=1, bias=False),
+        self.conv5 = nn.Sequential(nn.Conv1d(512, 512, kernel_size=1, bias=False),
                                    self.bn5,
                                    nn.LeakyReLU(negative_slope=0.2))
         
-        self.out_mlp = nn.Sequential(nn.Linear(emb_dim,emb_dim),
-                                   nn.LeakyReLU(negative_slope=0.2),nn.Linear(emb_dim,emb_dim),nn.LeakyReLU(negative_slope=0.2),
-                                   nn.Linear(emb_dim,emb_dim))
+        self.out_mlp = nn.Sequential(nn.Linear(512,512),
+                                   nn.LeakyReLU(negative_slope=0.2),nn.Linear(512,512),nn.LeakyReLU(negative_slope=0.2),
+                                   nn.Linear(512,emb_dim))
     def forward(self, x):
         batch_size = x.size(0)
         x = x.permute((0,2,1))
