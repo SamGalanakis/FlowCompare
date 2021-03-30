@@ -39,7 +39,7 @@ GCNembedder
 
 
 def load_cross_flow(load_dict,initialized_cross_flow):
-    initialized_cross_flow['initial_attn']= load_dict['initial_attn']
+    initialized_cross_flow['blow_up_mlp'].load_state_dict(load_dict['blow_up_mlp'])
     initialized_cross_flow['input_embedder'].load_state_dict(load_dict['input_embedder'])
     for layer_dicts,layer in zip(load_dict['layers'],initialized_cross_flow['layers']):
         for key,val in layer.items():
@@ -308,7 +308,7 @@ def main(rank, world_size):
             wandb.log({'loss':loss.item(),'lr':current_lr,'time_batch':time_batch})
           
         
-        save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"initial_attn":models_dict['initial_attn'].detach(),"input_embedder":models_dict['input_embedder'].state_dict()}
+        save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"blow_up_mlp":models_dict['blow_up_mlp'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
         torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
             
 if __name__ == "__main__":

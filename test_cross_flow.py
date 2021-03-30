@@ -13,7 +13,7 @@ os.environ["WANDB_MODE"] = "dryrun"
 config_path = r"config/config_conditional_cross.yaml"
 wandb.init(project="flow_change",config = config_path)
 config = wandb.config
-load_path =r"save/conditional_flow_compare/treasured-sound-1382_100_model_dict.pt"
+load_path =r"save/conditional_flow_compare/wild-star-1415_194_model_dict.pt"
 save_dict = torch.load(load_path)
 model_dict = initialize_cross_flow(config,device,mode='test')
 model_dict = load_cross_flow(save_dict,model_dict)
@@ -32,7 +32,7 @@ dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=True,subsample=config
 def calc_change(extract_0,extract_1,model_dict,config,colorscale='Hot',preprocess=False):
     if preprocess:
         extract_0, extract_1 = ConditionalDataGrid.last_processing(extract_0, extract_1,config['normalization'])
-    base_dist = dist.Normal(torch.zeros(config['input_dim']).to(device), torch.ones(config['input_dim']).to(device))
+    base_dist = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device))
   
     loss,log_prob_1_given_0 = inner_loop_cross(extract_0.unsqueeze(0),extract_1.unsqueeze(0),model_dict,base_dist,config)
 
@@ -47,7 +47,7 @@ def log_prob_to_color(log_prob_1_given_0,log_prob_0_given_0,multiple=3.):
 
 
 
-def dataset_view(dataset,index,multiple =3.):
+def dataset_view(dataset,index,multiple =3.,show=False):
     
     extract_0, extract_1 = dataset[index]
     extract_0, extract_1 = extract_0.to(device),extract_1.to(device)
@@ -56,17 +56,18 @@ def dataset_view(dataset,index,multiple =3.):
     log_prob_0_given_0 = calc_change(extract_0, extract_0,model_dict,config,preprocess=False)
     log_prob_0_given_1 = calc_change(extract_1, extract_0,model_dict,config,preprocess=False)
     log_prob_1_given_1 = calc_change(extract_1, extract_1,model_dict,config,preprocess=False)
-    fig_0 = view_cloud_plotly(extract_0[:,:3],extract_0[:,3:],show=False,title='fig_0')
-    fig_1 = view_cloud_plotly(extract_1[:,:3],extract_1[:,3:],show=False,title='fig_1')
+    fig_0 = view_cloud_plotly(extract_0[:,:3],extract_0[:,3:],show=show,title='fig_0')
+    fig_1 = view_cloud_plotly(extract_1[:,:3],extract_1[:,3:],show=show,title='fig_1')
 
   
     change_1_given_0 = log_prob_to_color(log_prob_1_given_0,log_prob_0_given_0,multiple = multiple)
     change_0_given_1 = log_prob_to_color(log_prob_0_given_1,log_prob_1_given_1,multiple = multiple)
 
-    fig_0_given_1 = view_cloud_plotly(extract_0[:,:3],change_0_given_1,colorscale='Bluered',show_scale=True,show=False,title='fig_0_given_1')
-    fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=False,title='fig_1_given_0')
+    fig_0_given_1 = view_cloud_plotly(extract_0[:,:3],change_0_given_1,colorscale='Bluered',show_scale=True,show=show,title='fig_0_given_1')
+    fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=show,title='fig_1_given_0')
     return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1
 if __name__ == '__main__':
+    dataset_view(dataset,0)
     visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple),range(len(dataset)))
     
 

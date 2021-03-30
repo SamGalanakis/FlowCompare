@@ -11,7 +11,7 @@ view_cloud_plotly
 
 def visualize_change(fig_getter,index_range):
 
-    app = dash.Dash(__name__,suppress_callback_exceptions = True)
+    app = dash.Dash(__name__,suppress_callback_exceptions = False)
 
     
     index_selector_options = [{'label':key,'value':key} for key in index_range]
