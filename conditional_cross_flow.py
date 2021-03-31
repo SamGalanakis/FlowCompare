@@ -23,6 +23,7 @@ from torch_geometric.nn import DataParallel as geomDataParallel
 from torch import nn
 import functools
 import pandas as pd
+
 from time import time,perf_counter
 from models import (
 Exponential_combiner,
@@ -40,6 +41,7 @@ GCNembedder
 
 def load_cross_flow(load_dict,initialized_cross_flow):
     initialized_cross_flow['blow_up_mlp'].load_state_dict(load_dict['blow_up_mlp'])
+    initialized_cross_flow['pre_attention_mlp'].load_state_dict(load_dict['pre_attention_mlp'])
     initialized_cross_flow['input_embedder'].load_state_dict(load_dict['input_embedder'])
     for layer_dicts,layer in zip(load_dict['layers'],initialized_cross_flow['layers']):
         for key,val in layer.items():
@@ -75,10 +77,11 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         flow = lambda : exponential_matrix_coupling_attn(config['latent_dim'],config['attn_dim'],coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
     else:
         raise Exception('Invalid flow type')
-    #Input size for prev attn + split of point
+    
+    
     #out_dim,query_dim, context_dim, heads, dim_head, dropout
-    attn = lambda : get_cross_attn(config['attn_dim'],config['latent_dim']//2,config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
-
+    attn = lambda : get_cross_attn(config['attn_dim'],config['attn_input_dim'],config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
+    pre_attention_mlp = lambda : nn.Sequential(nn.Linear(config['input_dim']//2,config['attn_input_dim']//2),coupling_block_nonlinearity,nn.Linear(config['attn_input_dim']//2,config['attn_input_dim']))
     if permuter_type == 'Exponential_combiner':
         permuter = lambda : Exponential_combiner(config['latent_dim'])
     elif permuter_type == 'Learned_permuter':
@@ -99,6 +102,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         layer_dict = {}
         layer_dict['flow'] = flow()
         layer_dict['attn'] = attn()
+        layer_dict['pre_attention_mlp'] = pre_attention_mlp()
         #Don't put on first (last on reverse)
         if index != 0:
             layer_dict['permuter'] = permuter()
@@ -118,7 +122,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
                 parameters+= module.parameters()
 
     blow_up_mlp = nn.Sequential(nn.Linear(config['input_dim'],config['latent_dim']//2),coupling_block_nonlinearity,nn.Linear(config['latent_dim']//2,config['latent_dim']))
-    
+    blow_up_mlp = nn.Identity()
     if mode == 'train':
         blow_up_mlp.train()
     else:
@@ -133,19 +137,25 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         input_embedder = NeighborhoodEmbedder(config['input_dim'],out_dim = config['input_embedding_dim'])
     elif config['input_embedder'] == 'DGCNNembedder':
         input_embedder = DGCNNembedder(emb_dim= config['input_embedding_dim'])
+    elif config['input_embedder'] == 'idenity':
+        input_embedder = nn.Identity()
     else:
         raise Exception('Invalid input embeder!')
 
     if mode == 'train':
         input_embedder.train()
+     
     else:
         input_embedder.eval()
+        pre_attention_mlp.eval()
     if data_parallel:
         input_embedder = nn.DataParallel(input_embedder).to(device)
+
     else:
         input_embedder = input_embedder.to(device)
+
     
-    
+  
     parameters += input_embedder.parameters()
     #initial_attn = nn.Parameter(torch.randn((config['attn_dim']),device=device),requires_grad=True)
     #parameters += [initial_attn]
@@ -161,14 +171,14 @@ def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
         flow = layer['flow']
         y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
         
-        attn_emb = layer['attn'](y1,context = input_embeddings)
+        attn_emb = layer['attn'](layer['pre_attention_mlp'](y1),context = input_embeddings)
         
         x = flow._inverse(y,attn_emb)
         
         log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
                                         1 - flow.domain.event_dim)
         y=x
-        if idx!=(len(models_dict['layers'])-1):
+        if "permuter" in layer:
             
             permuter = layer['permuter']
             x = permuter.inv(y)
@@ -180,6 +190,26 @@ def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
                                     1 - len(base_dist.event_shape))
     loss = -log_prob.mean()
     return loss,log_prob
+def sample_cross(n_samples,extract_0,models_dict,base_dist,config):
+    input_embeddings = models_dict["input_embedder"](extract_0)
+    x = base_dist.sample([config['batch_size'],2000])
+    
+    for idx,layer in enumerate(models_dict['layers']):
+        flow = layer['flow']
+        if "permuter" in layer:
+            
+            permuter = layer['permuter']
+            x = permuter._call(x)
+        x1, x2 = x.split([flow.split_dim, x.size(flow.dim) - flow.split_dim], dim=flow.dim)
+        
+        
+        
+        attn_emb = layer['attn'](layer['pre_attention_mlp'](x1),context = input_embeddings)
+        x = flow._call(x,attn_emb)
+
+        
+    return x
+
 def main(rank, world_size):
 
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
@@ -278,6 +308,7 @@ def main(rank, world_size):
            
     
     scaler = torch.cuda.amp.GradScaler(enabled=config['amp'])
+
     for epoch in range(config["n_epochs"]):
         print(f"Starting epoch: {epoch}")
         for batch_ind,batch in enumerate(tqdm(dataloader)):
@@ -287,7 +318,7 @@ def main(rank, world_size):
                 batch = [x.to(device) for x in batch]
                 extract_0,extract_1 = batch
     
-      
+
                 loss, _ = inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config)
     
             
@@ -310,7 +341,13 @@ def main(rank, world_size):
         
         save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"blow_up_mlp":models_dict['blow_up_mlp'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
         torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
-            
+        with torch.no_grad():
+            sample = sample_cross(2000,extract_0,models_dict,base_dist,config)[0]
+            sample = sample.cpu().numpy().squeeze()
+            sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
+            cond_nump = extract_0.cpu().numpy()[0]
+            cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
+            wandb.log({"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(sample)})
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     print('Let\'s use', world_size, 'GPUs!')

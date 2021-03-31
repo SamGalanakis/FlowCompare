@@ -224,7 +224,6 @@ class ExponentialMatrixCouplngAttn(TransformModule):
         super().__init__(cache_size=1)
         if dim >= 0:
             raise ValueError("'dim' keyword argument must be negative")
-
         self.split_dim = split_dim
         self.nn = hypernet
         self.dim = dim
