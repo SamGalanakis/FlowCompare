@@ -306,7 +306,7 @@ def main(rank, world_size):
     #Watch models:
 
 
-    torch.autograd.set_detect_anomaly(False)
+    torch.autograd.set_detect_anomaly(True)
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
 

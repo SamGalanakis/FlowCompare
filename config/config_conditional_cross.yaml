@@ -63,7 +63,7 @@ optimizer_type:
   value: AdamW
 weight_decay:
   desc: weigth decay for optimizer
-  value: 0.0001
+  value: 0.0
 data_parallel:
   desc: Use parallel
   value: false
