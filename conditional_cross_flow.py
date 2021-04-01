@@ -41,7 +41,6 @@ GCNembedder
 
 def load_cross_flow(load_dict,initialized_cross_flow):
     initialized_cross_flow['blow_up_mlp'].load_state_dict(load_dict['blow_up_mlp'])
-    initialized_cross_flow['pre_attention_mlp'].load_state_dict(load_dict['pre_attention_mlp'])
     initialized_cross_flow['input_embedder'].load_state_dict(load_dict['input_embedder'])
     for layer_dicts,layer in zip(load_dict['layers'],initialized_cross_flow['layers']):
         for key,val in layer.items():
@@ -74,7 +73,9 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     if config['flow_type'] == 'affine_coupling':
         flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
     elif config['flow_type'] == 'exponential_coupling':
-        flow = lambda : exponential_matrix_coupling_attn(config['latent_dim'],config['attn_dim'],coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
+        flow_with_attn = lambda : exponential_matrix_coupling_attn(config['latent_dim'],config['attn_dim'],coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
+        plain_flow = lambda : exponential_matrix_coupling(input_dim=config['latent_dim'], hidden_dims=config['hidden_dims'], split_dim=None, dim=-1,device='cpu',nonlinearity=coupling_block_nonlinearity)
+        
     else:
         raise Exception('Invalid flow type')
     
@@ -82,6 +83,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     #out_dim,query_dim, context_dim, heads, dim_head, dropout
     attn = lambda : get_cross_attn(config['attn_dim'],config['attn_input_dim'],config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
     pre_attention_mlp = lambda : nn.Sequential(nn.Linear(config['input_dim']//2,config['attn_input_dim']//2),coupling_block_nonlinearity,nn.Linear(config['attn_input_dim']//2,config['attn_input_dim']))
+
     if permuter_type == 'Exponential_combiner':
         permuter = lambda : Exponential_combiner(config['latent_dim'])
     elif permuter_type == 'Learned_permuter':
@@ -100,9 +102,13 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     for index in range(config['n_flow_layers']):
         
         layer_dict = {}
-        layer_dict['flow'] = flow()
-        layer_dict['attn'] = attn()
-        layer_dict['pre_attention_mlp'] = pre_attention_mlp()
+        if index % config['attention_frequency'] == 0:
+            layer_dict['pre_attention_mlp'] = pre_attention_mlp()
+            layer_dict['flow_with_attn'] = flow_with_attn()
+            layer_dict['attn'] = attn()
+        else:
+            layer_dict['plain_flow'] = plain_flow()
+        
         #Don't put on first (last on reverse)
         if index != 0:
             layer_dict['permuter'] = permuter()
@@ -157,8 +163,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
   
     parameters += input_embedder.parameters()
-    #initial_attn = nn.Parameter(torch.randn((config['attn_dim']),device=device),requires_grad=True)
-    #parameters += [initial_attn]
+
 
     return {'parameters':parameters,"layers":layers,'input_embedder':input_embedder,'blow_up_mlp':blow_up_mlp}
 def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
@@ -168,16 +173,24 @@ def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
     y = models_dict['blow_up_mlp'](extract_1)
     log_prob = 0.0
     for idx,layer in enumerate(reversed(models_dict['layers'])):
-        flow = layer['flow']
-        y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
         
-        attn_emb = layer['attn'](layer['pre_attention_mlp'](y1),context = input_embeddings)
-        
-        x = flow._inverse(y,attn_emb)
-        
-        log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
-                                        1 - flow.domain.event_dim)
-        y=x
+        if 'attn' in layer:
+            flow=layer['flow_with_attn']
+            y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
+            
+            attn_emb = layer['attn'](layer['pre_attention_mlp'](y1),context = input_embeddings)
+            
+            x = flow._inverse(y,attn_emb)
+            
+            log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
+                                            1 - flow.domain.event_dim)
+            y=x
+        else:
+            flow=layer['plain_flow']
+            x = flow._inverse(y)
+            log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y),
+                                            1 - flow.domain.event_dim)
+            y=x
         if "permuter" in layer:
             
             permuter = layer['permuter']
@@ -195,19 +208,25 @@ def sample_cross(n_samples,extract_0,models_dict,base_dist,config):
     x = base_dist.sample([config['batch_size'],2000])
     
     for idx,layer in enumerate(models_dict['layers']):
-        flow = layer['flow']
+       
         if "permuter" in layer:
             
             permuter = layer['permuter']
             x = permuter._call(x)
-        x1, x2 = x.split([flow.split_dim, x.size(flow.dim) - flow.split_dim], dim=flow.dim)
+    
         
-        
-        
-        attn_emb = layer['attn'](layer['pre_attention_mlp'](x1),context = input_embeddings)
-        x = flow._call(x,attn_emb)
-
-        
+    
+        if 'attn' in layer:
+                flow=layer['flow_with_attn']
+                x1, x2 = x.split([flow.split_dim, x.size(flow.dim) - flow.split_dim], dim=flow.dim)
+                
+                attn_emb = layer['attn'](layer['pre_attention_mlp'](x1),context = input_embeddings)
+                
+                x = flow._call(x,attn_emb)
+            
+        else:
+            flow=layer['plain_flow']
+            x = flow._call(x)
     return x
 
 def main(rank, world_size):
