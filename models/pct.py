@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .pct_utils import sample_and_group 
-
+from .nets import MLP
 # Code sourced from : https://github.com/uyzhang/PCT_Pytorch
 
 class Local_op(nn.Module):
@@ -147,7 +147,7 @@ class SA_Layer(nn.Module):
 
 
 class NeighborhoodEmbedder(nn.Module):
-    def __init__(self,input_dim,in_channels=[128,256],out_channels=[128,256],out_dim=40):
+    def __init__(self,input_dim,in_channels=[128,256],out_channels=[128,256],out_dim_feat=40,out_dim_global=124):
         super().__init__()
         self.conv1 = nn.Conv1d(input_dim, 64, kernel_size=1, bias=False)
         self.conv2 = nn.Conv1d(64, 64, kernel_size=1, bias=False)
@@ -163,10 +163,13 @@ class NeighborhoodEmbedder(nn.Module):
                                     nn.LeakyReLU(negative_slope=0.2))
 
 
-        self.mlp_out = nn.Sequential(nn.Linear(2048, 1024),nn.LeakyReLU(negative_slope=0.2),
+        self.mlp_out_feats = nn.Sequential(nn.Linear(2048, 1024),nn.LeakyReLU(negative_slope=0.2),
         nn.Linear(1024, 512),nn.LeakyReLU(negative_slope=0.2),
         nn.Linear(512, 256),nn.LeakyReLU(negative_slope=0.2),
-        nn.Linear(256, out_dim))
+        nn.Linear(256, out_dim_feat))
+
+        self.mlp_out_feats = MLP(2048,)
+        self.mlp_out_global = 0
         
 
     def forward(self, x):
@@ -190,7 +193,7 @@ class NeighborhoodEmbedder(nn.Module):
         local_feats = self.conv_fuse(x)
         global_feats = F.adaptive_max_pool1d(local_feats, 1).view(batch_size, -1)
         combined_feats = torch.cat([global_feats.unsqueeze(-1).expand((-1,-1,n_points)), local_feats], dim=1).permute((0,2,1))
-        combined_feats = self.mlp_out(combined_feats)
+        combined_feats = self.mlp_out_feats(combined_feats)
         return combined_feats
 
 if __name__ == '__main__':

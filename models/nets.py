@@ -52,7 +52,8 @@ class ConditionalDenseNN(torch.nn.Module):
 
     def _forward(self, x): 
         #Go through first layer
-        h = self.layers[0](x)
+        h = self.f(self.layers[0](x))
+
         #Go through middle layers
         for index, layer in enumerate(self.layers[1:-1]):
             if ((index % 2) == 0):
@@ -98,3 +99,30 @@ class DenseNN(ConditionalDenseNN):
 
     def forward(self, x):
         return self._forward(x)
+class MLP(nn.Module):
+    def __init__(self,in_dim,sizes,out_dim,nonlin,residual=True):
+        super().__init__()
+        self.in_dim = in_dim
+        self.sizes = sizes
+        self.out_dim = out_dim
+        self.nonlin = nonlin
+        self.residual = residual
+        self.in_layer = nn.Linear(in_dim,self.sizes[0])
+        self.out_layer = nn.Linear(self.sizes[-1],out_dim)
+        self.layers = nn.ModuleList([nn.Linear(sizes[index],sizes[index+1]) for index in range(len(sizes)-1)])
+
+    def forward(self,x):
+        x = self.nonlin(self.in_layer(x))
+
+        for index, layer in enumerate(self.layers):
+            if ((index % 2) == 0):
+                residual = x
+                x = self.nonlin(layer(x))
+            else:
+                x = self.nonlin(residual+layer(x))
+
+        x = self.out_layer(x)
+        return x
+if __name__ == '__main__':
+    mlp = MLP(10,[100,100,100],20,nonlin=nn.ELU())
+    print(mlp(torch.randn(35,10)).shape)

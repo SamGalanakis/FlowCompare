@@ -357,8 +357,10 @@ def exp_from_paper(x):
 def expm(x,algo='torch'):
     if algo=='torch':
         return torch.matrix_exp(x)
-    else:
+    elif algo=='original':
         return exp_from_paper(x)
+    else:
+        raise Exception('Invalid expm algo!')
 
 
 

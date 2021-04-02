@@ -35,7 +35,8 @@ Full_matrix_combiner,
 affine_coupling_attn,
 exponential_matrix_coupling,
 DGCNNembedder,
-GCNembedder
+GCNembedder,
+MLP
 )
 
 
@@ -82,8 +83,9 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
     #out_dim,query_dim, context_dim, heads, dim_head, dropout
     attn = lambda : get_cross_attn(config['attn_dim'],config['attn_input_dim'],config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
-    pre_attention_mlp = lambda : nn.Sequential(nn.Linear(config['input_dim']//2,config['attn_input_dim']//2),coupling_block_nonlinearity,nn.Linear(config['attn_input_dim']//2,config['attn_input_dim']))
-
+    pre_attention_mlp = lambda : MLP(config['input_dim']//2,[config['attn_input_dim']//2]*4,config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
+    
+    
     if permuter_type == 'Exponential_combiner':
         permuter = lambda : Exponential_combiner(config['latent_dim'])
     elif permuter_type == 'Learned_permuter':
@@ -153,7 +155,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
      
     else:
         input_embedder.eval()
-        pre_attention_mlp.eval()
+        
     if data_parallel:
         input_embedder = nn.DataParallel(input_embedder).to(device)
 
@@ -306,7 +308,7 @@ def main(rank, world_size):
     #Watch models:
 
 
-    torch.autograd.set_detect_anomaly(True)
+    torch.autograd.set_detect_anomaly(False)
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
 
@@ -361,7 +363,9 @@ def main(rank, world_size):
         save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"blow_up_mlp":models_dict['blow_up_mlp'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
         torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
         with torch.no_grad():
-            sample = sample_cross(2000,extract_0,models_dict,base_dist,config)[0]
+            #Multiply std to get tighter samples
+            base_dist_for_sample = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device)*0.6)
+            sample = sample_cross(2000,extract_0,models_dict,base_dist_for_sample,config)[0]
             sample = sample.cpu().numpy().squeeze()
             sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
             cond_nump = extract_0.cpu().numpy()[0]

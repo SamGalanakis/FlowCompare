@@ -3,7 +3,7 @@ sample_size:
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
-  value: 23
+  value: 30
 data_loader:
   desc: What loader to use
   value: ConditionalDataGridCircle
@@ -15,10 +15,10 @@ flow_type:
   value: exponential_coupling
 hidden_dims:
   desc: linear layers for flow coupling
-  value: [512,512,512,512,512,512]
+  value: [512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
-  value: random_permute
+  value: Exponential_combiner
 early_stop_margin:
   desc: early_stop_margin
   value: 0.0003
@@ -48,7 +48,7 @@ n_epochs:
   value: 2000
 batch_size:
   desc: Batch size
-  value: 22 #35
+  value: 21 #35
 lr:
   desc: Initial learning rate for optimizer
   value: 0.0001
@@ -60,7 +60,7 @@ num_workers:
   value: 4
 optimizer_type:
   desc: optimizer type
-  value: AdamW
+  value: Adam
 weight_decay:
   desc: weigth decay for optimizer
   value: 0.0
@@ -78,7 +78,7 @@ normalization:
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: save/conditional_flow_compare/prime-violet-1469_33_model_dict.pt
+  value: save/conditional_flow_compare/devoted-haze-1511_21_model_dict.pt
 preselected_points:
   desc: Use preselected points
   value: true
@@ -93,16 +93,16 @@ latent_dim:
   value: 6
 attn_input_dim:
   desc: dim of input to attn
-  value: 64
+  value: 124
 input_embedding_dim:
   desc: Dimension of input embeddings, part of input for attention (feature dim for each point in cloud t0)
-  value: 124
+  value: 256
 cross_heads:
   desc: Number of attn heads
   value: 1
 cross_dim_head:
   desc: Dimension of cross dim head
-  value: 64 #64
+  value: 124 #64
 attn_dropout:
   desc: Dropout rate in attn module
   value: 0.0
@@ -114,7 +114,7 @@ lr_scheduler:
   value: ReduceLROnPlateau
 input_embedder:
   desc: input_embedder type
-  value: NeighborhoodEmbedder
+  value: DGCNNembedder
 attention_frequency:
   desc: flow is attented if index % attention frequency == 0 
-  value: 3
+  value: 1
