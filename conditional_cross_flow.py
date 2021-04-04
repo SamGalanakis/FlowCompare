@@ -288,7 +288,7 @@ def main(rank, world_size):
     if config['lr_scheduler'] == 'ReduceLROnPlateau':
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=config["patience"],threshold=0.0001,min_lr=config["min_lr"])
     elif config['lr_scheduler'] == 'OneCycleLR':
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr = config['lr'], epochs=config['n_epochs'], steps_per_epoch=len(dataloader))
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr = config['lr'], epochs=config['n_epochs'], steps_per_epoch=len(dataloader),total_steps =len(dataloader))
     else:
         raise Exception('Invalid cheduler')
     
@@ -304,7 +304,7 @@ def main(rank, world_size):
     else:
         print("Starting training from scratch!")
     #Override min lr to allow for changing after checkpointing
-    scheduler.min_lrs = [config['min_lr']]
+   # scheduler.min_lrs = [config['min_lr']]
     #Watch models:
 
 
@@ -332,6 +332,7 @@ def main(rank, world_size):
 
     for epoch in range(config["n_epochs"]):
         print(f"Starting epoch: {epoch}")
+        loss_running_avg = 0
         for batch_ind,batch in enumerate(tqdm(dataloader)):
             with torch.cuda.amp.autocast(enabled=config['amp']):
                 torch.cuda.synchronize()
@@ -351,26 +352,27 @@ def main(rank, world_size):
             scaler.step(optimizer)
             scaler.update()
 
-            scheduler.step(loss)
+            
             optimizer.zero_grad(set_to_none=True)
             current_lr = optimizer.param_groups[0]['lr']
             torch.cuda.synchronize()
             time_batch = perf_counter() - t0
-
-            wandb.log({'loss':loss.item(),'lr':current_lr,'time_batch':time_batch})
+            loss_item = loss.item()
+            loss_running_avg = (loss_running_avg*(batch_ind) + loss_item)/(batch_ind+1)
+            wandb.log({'loss':loss_item,'lr':current_lr,'time_batch':time_batch})
           
-        
+        scheduler.step(loss_running_avg)
         save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"blow_up_mlp":models_dict['blow_up_mlp'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
         torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
         with torch.no_grad():
             #Multiply std to get tighter samples
             base_dist_for_sample = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device)*0.6)
-            sample = sample_cross(2000,extract_0,models_dict,base_dist_for_sample,config)[0]
+            sample = sample_cross(4000,extract_0,models_dict,base_dist_for_sample,config)[0]
             sample = sample.cpu().numpy().squeeze()
             sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
             cond_nump = extract_0.cpu().numpy()[0]
             cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
-            wandb.log({"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(sample)})
+            wandb.log({"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(sample),"loss_epoch":loss_running_avg})
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     print('Let\'s use', world_size, 'GPUs!')

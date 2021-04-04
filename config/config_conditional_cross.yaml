@@ -36,7 +36,7 @@ subsample:
   value: 'fps'
 patience:
   desc: patience
-  value: 1000
+  value: 10
 preload:
   desc: Preload_dataset
   value: true
@@ -51,7 +51,7 @@ batch_size:
   value: 21 #35
 lr:
   desc: Initial learning rate for optimizer
-  value: 0.0001
+  value: 0.0005
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -72,13 +72,13 @@ coupling_block_nonlinearity:
   value: ELU
 min_lr:
   desc: Minimum schedules learning rate
-  value: 0.00005
+  value: 0.000005
 normalization:
   desc: How pairs are normalized
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: save/conditional_flow_compare/devoted-haze-1511_21_model_dict.pt
+  value: false
 preselected_points:
   desc: Use preselected points
   value: true
@@ -102,7 +102,7 @@ cross_heads:
   value: 1
 cross_dim_head:
   desc: Dimension of cross dim head
-  value: 124 #64
+  value: 256 #64
 attn_dropout:
   desc: Dropout rate in attn module
   value: 0.0

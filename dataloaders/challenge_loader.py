@@ -10,7 +10,7 @@ from tqdm import tqdm
 import pandas as pd
 
 class ChallengeDataset(Dataset):
-    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='random',normalization='min_max',device="cuda",subset= None,apply_normalization=True,remove_ground=True,mode='test'):
+    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='random',normalization='min_max',device="cuda",subset= None,apply_normalization=True,remove_ground=True,mode='test',hsv=False):
         self.sample_size  = sample_size
         self.out_path = out_path
         self.subsample = subsample
@@ -24,6 +24,7 @@ class ChallengeDataset(Dataset):
         self.subset = subset
         self.apply_normalization = apply_normalization
         self.remove_ground = remove_ground
+        self.hsv = hsv
         assert mode in csv_path, 'Possibly invalid csv path for mode'
         if not preload:
             print(f"Recreating challenge dataset, saving to: {self.out_path}")
@@ -39,16 +40,16 @@ class ChallengeDataset(Dataset):
             pair_id = 0
             for scene_number, df in tqdm(sorted(scene_df_dict.items())):
                 scene_path_list=combined_scene_dicts[scene_number]
-                scene_0 = load_las(scene_path_list[0])
-                scene_1 = load_las(scene_path_list[1])
+                
+                scene_0 = torch.from_numpy(load_las(scene_path_list[0])).float().to(device)
+                scene_1 =  torch.from_numpy(load_las(scene_path_list[1])).float().to(device)
                 for index,row in df.iterrows():
                     
                     label = self.class_int_dict[row['classification']]
-                    center = np.array([row['x'],row["y"]])
+                    center = torch.Tensor([row['x'],row["y"]]).to(device)
 
-                    
-                    extract_0 = torch.from_numpy(scene_0[extract_area(scene_0,center,self.radius,'circle'),:]).to(device)
-                    extract_1 = torch.from_numpy(scene_1[extract_area(scene_1,center,self.radius,'circle'),:]).to(device)
+                    extract_0 = scene_0[extract_area(scene_0,center,self.radius,'circle'),:]
+                    extract_1 = scene_1[extract_area(scene_1,center,self.radius,'circle'),:]
                     #Replace with placeholder if empty extract
                     if extract_0.shape[0] == 0:
                         extract_0 = extract_1.mean(axis=0).unsqueeze(0)
@@ -64,8 +65,9 @@ class ChallengeDataset(Dataset):
                         if self.sample_size/extract_1.shape[0]<1:
                             extract_1= random_subsample(extract_1,sample_size*5)
                             extract_1 = extract_1[fps(extract_1,ratio = self.sample_size/extract_1.shape[0]),...]
-                    extract_0[:,3:] = rgb_to_hsv(extract_0[:,3:])
-                    extract_1[:,3:] = rgb_to_hsv(extract_1[:,3:])
+                    if self.hsv:
+                        extract_0[:,3:] = rgb_to_hsv(extract_0[:,3:])
+                        extract_1[:,3:] = rgb_to_hsv(extract_1[:,3:])
                     assert not (extract_0.isnan().any().item() or extract_1.isnan().any().item())
                     torch_label = torch.Tensor([label]).long()
                     self.pair_dict[pair_id]=[extract_0.float().cpu(),extract_1.float().cpu(),torch_label.cpu()]
@@ -116,15 +118,15 @@ class ChallengeDataset(Dataset):
                 extract_1 = extract_1.mean(axis=0).unsqueeze(0)
             else:
                 extract_1 = extract_1[ground_mask_1,:]
-        extract_0 = remove_outliers(extract_0,10)
-        extract_1 = remove_outliers(extract_1,10)
+        # extract_0 = remove_outliers(extract_0,10)
+        # extract_1 = remove_outliers(extract_1,10)
         #Normalize
         if self.apply_normalization:
             if self.apply_normalization:
                 if self.normalization == 'min_max':
                     extract_0[:,:3], extract_1[:,:3] = co_min_max(extract_0[:,:3],extract_1[:,:3])
                 elif self.normalization == 'co_unit_sphere':
-                    tensor_0,tensor_1 = co_unit_sphere(tensor_0,tensor_1)
+                    extract_0,extract_1 = co_unit_sphere(extract_0,extract_1)
                 elif self.normalization == 'standardize':
                     extract_0,extract_1 = co_standardize(extract_0,extract_1)
                 elif self.normalization == 'sep_standardize':

@@ -30,7 +30,7 @@ def visualize_change(fig_getter,index_range):
         dcc.Slider(
             id='multiple_slider',
             min=0.,
-            max=5.,
+            max=10.,
             step=0.1,
             value=3.),
             html.Div(id='slider-output-container')] ,style ={'width':'10%'}),
