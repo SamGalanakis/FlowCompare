@@ -143,7 +143,23 @@ def view_cloud_plotly(points,rgb=None,fig=None,point_size=8,show=True,axes=False
     return fig
     
   
+def bin_probs(log_probs_0,log_probs_1,n_bins=50):
     
+    std0 = log_probs_0.std()
+    m0 = log_probs_0.mean()
+    bin_width = 0.5*std0
+    bin_counts = [0]*n_bins
+    bins,counts = torch.unique(torch.abs(log_probs_1-m0)//bin_width,return_counts=True)
+    normalized_counts = counts/log_probs_1.shape[0]
+    for bin,normalized_count in list(zip(bins,normalized_counts)):
+        if int(bin)>=n_bins:
+            break
+        bin_counts[int(bin)] = normalized_count.item()
+        
+
+    
+
+    return bin_counts
     
 
 def extract_area(full_cloud,center,clearance,shape= 'circle'):

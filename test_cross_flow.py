@@ -4,9 +4,12 @@ from dataloaders import ConditionalDataGrid, ShapeNetLoader,ChallengeDataset
 import wandb
 import os
 import pyro.distributions as dist
-from utils import view_cloud_plotly
+from utils import view_cloud_plotly, bin_probs
 import pandas as pd
 from visualize_change_map import visualize_change
+import matplotlib.pyplot as plt
+import  numpy as np
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.environ["WANDB_MODE"] = "dryrun"
@@ -34,8 +37,8 @@ if dataset_type == 'multiview':
 elif dataset_type == 'challenge':
     dirs_challenge_csv = 'save/2016-2020-train/'.replace('train',mode)
     dirs = ['save/challenge_data/Shrec_change_detection_dataset_public/'+year for year in ["2016","2020"]]
-    dataset = ChallengeDataset(dirs_challenge_csv, dirs, out_path,subsample="fps",sample_size=2000,preload=False,normalization=config['normalization'],subset=None,radius=2,remove_ground=False,mode = mode,hsv=False)
-    dataset.view(50)
+    dataset = ChallengeDataset(dirs_challenge_csv, dirs, out_path,subsample="fps",sample_size=2000,preload=True,normalization=config['normalization'],subset=None,radius=2,remove_ground=False,mode = mode,hsv=False)
+    
 def calc_change(extract_0,extract_1,model_dict,config,colorscale='Hot',preprocess=False):
     if preprocess:
         extract_0, extract_1 = ConditionalDataGrid.last_processing(extract_0, extract_1,config['normalization'])
@@ -52,11 +55,47 @@ def log_prob_to_color(log_prob_1_given_0,log_prob_0_given_0,multiple=3.):
     return log_prob_1_given_0
 
 
-
-
+def score_on_test(dataset,model_dict,n_bins=50):
+    counts_dict = {}
+    out_folder ='save/figs'
+    for index in tqdm(range(len(dataset))):
+        extract_0,extract_1,label,_ = dataset[index]
+        label = dataset.int_class_dict[label.item()]
+        extract_0 ,extract_1 = extract_0.to(device),extract_1.to(device)
+        log_prob_1_given_0 = calc_change(extract_0, extract_1,model_dict,config,preprocess=False).to(device)
+        log_prob_0_given_0 = calc_change(extract_0, extract_0,model_dict,config,preprocess=False).to(device)
+        log_prob_0_given_1 = calc_change(extract_1, extract_0,model_dict,config,preprocess=False).to(device)
+        log_prob_1_given_1 = calc_change(extract_1, extract_1,model_dict,config,preprocess=False).to(device)
+        bins_1 = torch.Tensor(bin_probs(log_prob_0_given_0,log_prob_1_given_0,n_bins=n_bins))
+        bins_0 = torch.Tensor(bin_probs(log_prob_1_given_1,log_prob_0_given_1,n_bins=n_bins))
+        if label in counts_dict:
+            counts_dict[label]['bins_0'].append(bins_0)
+            counts_dict[label]['bins_1'].append(bins_1)
+        else:
+            counts_dict[label] = {'bins_0':[],'bins_1':[]}
+    figs = []
+    bin_vals = np.arange(0,n_bins*0.5,0.5)
+    for key,val in counts_dict.items():
+        counts_0 = sum(val['bins_0'])/len(val['bins_0'])
+        counts_1 = sum(val['bins_1'])/len(val['bins_1'])
+        fig_0 = plt.bar(bin_vals,counts_0)
+        plt.title(f'{key}, 0: counts')
+        plt.xlabel('Dist from m as 0.5 multiples of std')
+        plt.ylabel('Percentage')
+        plt.ylim(0,1)
+        plt.savefig(os.path.join(out_folder,f'{key}-0.png'))
+        plt.clf()
+        fig_1 = plt.bar(bin_vals,counts_0)
+        plt.title(f'{key}, 1: counts')
+        plt.xlabel('Dist from m as 0.5 multiples of std')
+        plt.ylabel('Percentage')
+        plt.ylim(0,1)
+        plt.savefig(os.path.join(out_folder,f'{key}-1.png'))
+        plt.clf()
 def dataset_view(dataset,index,multiple =3.,show=False):
     
-    extract_0, extract_1 = dataset[index]
+    
+    extract_0, extract_1, *other = dataset[index]
     extract_0, extract_1 = extract_0.to(device),extract_1.to(device)
     log_prob_1_given_0 = calc_change(extract_0, extract_1,model_dict,config,preprocess=False)
     bpd = bits_per_dim(log_prob_1_given_0,6)
@@ -74,7 +113,8 @@ def dataset_view(dataset,index,multiple =3.,show=False):
     fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=show,title='fig_1_given_0')
     return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1
 if __name__ == '__main__':
-    dataset_view(dataset,2)
+    
+    score_on_test(dataset,model_dict,n_bins=12)
     visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple),range(len(dataset)))
     
 
