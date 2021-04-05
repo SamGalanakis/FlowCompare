@@ -48,7 +48,7 @@ n_epochs:
   value: 2000
 batch_size:
   desc: Batch size
-  value: 21 #35
+  value: 16 #35
 lr:
   desc: Initial learning rate for optimizer
   value: 0.0005
@@ -118,3 +118,9 @@ input_embedder:
 attention_frequency:
   desc: flow is attented if index % attention frequency == 0 
   value: 1
+attn_connection:
+  desc: pass attention between blocks
+  value: true
+grad_clip_val:
+  desc: What value to clip grad norms to
+  value: 2.0

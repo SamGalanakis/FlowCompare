@@ -83,7 +83,12 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
     #out_dim,query_dim, context_dim, heads, dim_head, dropout
     attn = lambda : get_cross_attn(config['attn_dim'],config['attn_input_dim'],config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
-    pre_attention_mlp = lambda : MLP(config['input_dim']//2,[config['attn_input_dim']//2]*4,config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
+    if config['attn_connection']:
+        pre_attention_mlp = lambda : MLP(config['latent_dim']//2 + config['attn_dim'],[config['latent_dim']//2 + config['attn_dim']]*4,config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
+        initial_attn_emb = torch.randn(config['attn_dim']).to(device)
+        parameters+=initial_attn_emb
+    else:
+        pre_attention_mlp = lambda : MLP(config['latent_dim']//2,[config['attn_input_dim']//2]*4,config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
     
     
     if permuter_type == 'Exponential_combiner':
@@ -129,16 +134,25 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
                     transform = module.to(device)
                 parameters+= module.parameters()
 
-    blow_up_mlp = nn.Sequential(nn.Linear(config['input_dim'],config['latent_dim']//2),coupling_block_nonlinearity,nn.Linear(config['latent_dim']//2,config['latent_dim']))
-    blow_up_mlp = nn.Identity()
+    class BlowUp(nn.Module):
+            def __init__(self,input_dim,latent_dim,coupling_block_nonlinearity,device):
+                super().__init__()
+                self.blow_up_mlp = torch.cat ( (torch.eye(input_dim), torch.randn((input_dim,latent_dim-input_dim))),dim=-1).to(device)
+            def forward(self,x):
+                return torch.matmul(x,self.blow_up_mlp)
+
+    if config['latent_dim'] == config['input_dim']:
+        blow_up_mlp = nn.Identity()
+    else:
+        blow_up_mlp = BlowUp(config['input_dim'],config['latent_dim'],coupling_block_nonlinearity,device=device)
     if mode == 'train':
         blow_up_mlp.train()
     else:
         blow_up_mlp.eval()
     if data_parallel:
-        input_embedder = nn.DataParallel(blow_up_mlp).to(device)
+        blow_up_mlp = nn.DataParallel(blow_up_mlp).to(device)
     else:
-        input_embedder = blow_up_mlp.to(device)
+        blow_up_mlp = blow_up_mlp.to(device)
     parameters+=blow_up_mlp.parameters()
 
     if config['input_embedder'] == 'NeighborhoodEmbedder':
@@ -166,11 +180,14 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
   
     parameters += input_embedder.parameters()
 
-
-    return {'parameters':parameters,"layers":layers,'input_embedder':input_embedder,'blow_up_mlp':blow_up_mlp}
+    models_dict = {'parameters':parameters,"layers":layers,'input_embedder':input_embedder,'blow_up_mlp':blow_up_mlp}
+    if config['attn_connection']:
+        models_dict['initial_attn_emb'] = initial_attn_emb
+    return models_dict
 def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
 
-    
+    if config['attn_connection']:
+        attn_emb = models_dict['initial_attn_emb'].repeat(extract_0.shape[:2]+(1,))
     input_embeddings = models_dict["input_embedder"](extract_0)
     y = models_dict['blow_up_mlp'](extract_1)
     log_prob = 0.0
@@ -179,8 +196,10 @@ def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
         if 'attn' in layer:
             flow=layer['flow_with_attn']
             y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
-            
-            attn_emb = layer['attn'](layer['pre_attention_mlp'](y1),context = input_embeddings)
+            if config['attn_connection']:
+                attn_emb = layer['attn'](layer['pre_attention_mlp'](torch.cat((y1,attn_emb),dim=-1)),context = input_embeddings)
+            else:
+                attn_emb = layer['attn'](layer['pre_attention_mlp'](y1),context = input_embeddings)
             
             x = flow._inverse(y,attn_emb)
             
@@ -348,7 +367,7 @@ def main(rank, world_size):
       
 
 
-            torch.nn.utils.clip_grad_norm_(parameters,max_norm=10)
+            torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.)
             scaler.step(optimizer)
             scaler.update()
 
@@ -364,15 +383,17 @@ def main(rank, world_size):
         scheduler.step(loss_running_avg)
         save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"blow_up_mlp":models_dict['blow_up_mlp'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
         torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
-        with torch.no_grad():
-            #Multiply std to get tighter samples
-            base_dist_for_sample = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device)*0.6)
-            sample = sample_cross(4000,extract_0,models_dict,base_dist_for_sample,config)[0]
-            sample = sample.cpu().numpy().squeeze()
-            sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
-            cond_nump = extract_0.cpu().numpy()[0]
-            cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
-            wandb.log({"Cond_cloud": wandb.Object3D(cond_nump),"Gen_cloud": wandb.Object3D(sample),"loss_epoch":loss_running_avg})
+        #Create samples
+        if not config['attn_connection']:
+            with torch.no_grad():
+                #Multiply std to get tighter samples
+                base_dist_for_sample = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device)*0.6)
+                sample = sample_cross(4000,extract_0,models_dict,base_dist_for_sample,config)[0]
+                sample = sample.cpu().numpy().squeeze()
+                sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
+                cond_nump = extract_0.cpu().numpy()[0]
+                cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
+                wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6]),"loss_epoch":loss_running_avg})
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     print('Let\'s use', world_size, 'GPUs!')
