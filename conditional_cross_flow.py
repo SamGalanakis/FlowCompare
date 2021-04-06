@@ -187,7 +187,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
 
     if config['attn_connection']:
-        attn_emb = models_dict['initial_attn_emb'].repeat(extract_0.shape[:2]+(1,))
+        attn_emb = models_dict['initial_attn_emb'].repeat(extract_1.shape[:2]+(1,))
     input_embeddings = models_dict["input_embedder"](extract_0)
     y = models_dict['blow_up_mlp'](extract_1)
     log_prob = 0.0
@@ -367,7 +367,7 @@ def main(rank, world_size):
       
 
 
-            torch.nn.utils.clip_grad_norm_(parameters,max_norm=2.)
+            torch.nn.utils.clip_grad_norm_(parameters,max_norm=config['grad_clip_val'])
             scaler.step(optimizer)
             scaler.update()
 
@@ -394,6 +394,8 @@ def main(rank, world_size):
                 cond_nump = extract_0.cpu().numpy()[0]
                 cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
                 wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6]),"loss_epoch":loss_running_avg})
+        else:
+            wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     print('Let\'s use', world_size, 'GPUs!')

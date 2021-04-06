@@ -51,7 +51,7 @@ batch_size:
   value: 16 #35
 lr:
   desc: Initial learning rate for optimizer
-  value: 0.0005
+  value: 0.00001
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -62,7 +62,7 @@ optimizer_type:
   desc: optimizer type
   value: Adam
 weight_decay:
-  desc: weigth decay for optimizer
+  desc: weigth decay for optimizer (l1 reg)
   value: 0.0
 data_parallel:
   desc: Use parallel

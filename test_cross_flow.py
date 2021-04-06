@@ -16,7 +16,7 @@ os.environ["WANDB_MODE"] = "dryrun"
 config_path = r"config/config_conditional_cross.yaml"
 wandb.init(project="flow_change",config = config_path)
 config = wandb.config
-load_path =r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"
+load_path =r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
 save_dict = torch.load(load_path)
 model_dict = initialize_cross_flow(config,device,mode='test')
 model_dict = load_cross_flow(save_dict,model_dict)
@@ -114,7 +114,7 @@ def dataset_view(dataset,index,multiple =3.,show=False):
     return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1
 if __name__ == '__main__':
     
-    score_on_test(dataset,model_dict,n_bins=12)
+    #score_on_test(dataset,model_dict,n_bins=12)
     visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple),range(len(dataset)))
     
 
