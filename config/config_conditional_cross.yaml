@@ -120,7 +120,7 @@ attention_frequency:
   value: 1
 attn_connection:
   desc: pass attention between blocks
-  value: true
+  value: false
 grad_clip_val:
   desc: What value to clip grad norms to
   value: 2.0
