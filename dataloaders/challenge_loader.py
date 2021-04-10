@@ -26,12 +26,10 @@ class ChallengeDataset(Dataset):
         self.remove_ground = remove_ground
         self.hsv = hsv
         assert mode in csv_path, 'Possibly invalid csv path for mode'
-        if not preload:
+        if not preload :
             print(f"Recreating challenge dataset, saving to: {self.out_path}")
             csv_path_list = [os.path.join(csv_path,x) for x in os.listdir(csv_path) if x.split('.')[-1]=='csv']
-            scene_path_dict = {int(os.path.basename(x).split("_")[0]): x for x in csv_path_list}
             scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(x) for x in csv_path_list}
-            file_path_lists  = [[os.path.join(path,x) for x in os.listdir(path) if x.split('.')[-1]=='las'] for path in direcories_list]
             scene_dicts = [{int(os.path.basename(x).split("_")[0]): os.path.join(year_path,x) for x in os.listdir(year_path) if x.split('.')[-1]=='las'} for year_path in direcories_list]
             combined_scene_dicts = {x:[scene_dicts[0][x],scene_dicts[1][x]] for x in scene_dicts[0].keys()}
             
@@ -54,7 +52,7 @@ class ChallengeDataset(Dataset):
                     if extract_0.shape[0] == 0:
                         extract_0 = extract_1.mean(axis=0).unsqueeze(0)
                     if extract_1.shape[0] == 0:
-                        extract_0 = extract_0.mean(axis=0).unsqueeze(0)
+                        extract_1 = extract_0.mean(axis=0).unsqueeze(0)
                     if subsample == 'random':
                         extract_0 = random_subsample(extract_0,sample_size)
                         extract_1 = random_subsample(extract_1,sample_size)
@@ -79,7 +77,13 @@ class ChallengeDataset(Dataset):
             print(f"Saving to {save_path}!")
             torch.save(self.pair_dict,save_path)
         else:
-            self.pair_dict = torch.load(os.path.join(self.out_path,self.save_name))
+            if mode == 'combined':
+                pair_dict_test = torch.load(os.path.join(self.out_path,self.save_name.replace('train','test')))
+                pair_dict_train = torch.load(os.path.join(self.out_path,self.save_name.replace('test','train')))
+                pair_dict_train.update({(key+len(pair_dict_train)):val for key,val in pair_dict_test})
+                self.pair_dict = pair_dict_train
+            else:
+                self.pair_dict = torch.load(os.path.join(self.out_path,self.save_name))
         
         if subset!=None:
             assert all([x in self.pair_dict.keys() for x in subset]), "Invalid subset"

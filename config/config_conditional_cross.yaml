@@ -36,7 +36,7 @@ subsample:
   value: 'fps'
 patience:
   desc: patience
-  value: 10
+  value: 2 #Was 10 for challenge
 preload:
   desc: Preload_dataset
   value: true
@@ -51,7 +51,7 @@ batch_size:
   value: 16 #35
 lr:
   desc: Initial learning rate for optimizer
-  value: 0.00001
+  value: 0.0001
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -72,7 +72,7 @@ coupling_block_nonlinearity:
   value: ELU
 min_lr:
   desc: Minimum schedules learning rate
-  value: 0.000005
+  value: 0.00001
 normalization:
   desc: How pairs are normalized
   value: co_unit_sphere

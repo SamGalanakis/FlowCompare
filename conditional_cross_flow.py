@@ -323,7 +323,7 @@ def main(rank, world_size):
     else:
         print("Starting training from scratch!")
     #Override min lr to allow for changing after checkpointing
-   # scheduler.min_lrs = [config['min_lr']]
+    scheduler.min_lrs = [config['min_lr']]
     #Watch models:
 
 
