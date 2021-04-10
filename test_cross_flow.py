@@ -62,6 +62,7 @@ def create_dataset(dataset,model_dict,dataset_out = 'save/processed_dataset/'):
     save_dict = {}
     skipped = 0
     with torch.no_grad():
+        sava_key_index = 0 
         for index in tqdm(range(len(dataset))):
             extract_0,extract_1,label,_ = dataset[index]
             label_int = label.item()
@@ -77,9 +78,10 @@ def create_dataset(dataset,model_dict,dataset_out = 'save/processed_dataset/'):
             log_prob_1_given_1 = calc_change(extract_1, extract_1,model_dict,config,preprocess=False).to('cpu')
             change_0 = change_func(log_prob_1_given_1,log_prob_0_given_1)
             change_1 = change_func(log_prob_0_given_0,log_prob_1_given_0)
-            save_dict[index] = {0:torch.cat((extract_0.cpu(),change_0.unsqueeze(-1).cpu()),dim=-1).cpu(),1:torch.cat((extract_1.cpu(),change_1.unsqueeze(-1).cpu()),dim=-1).cpu(),'class':label}
+            save_dict[sava_key_index] = {0:torch.cat((extract_0.cpu(),change_0.unsqueeze(-1).cpu()),dim=-1).cpu(),1:torch.cat((extract_1.cpu(),change_1.unsqueeze(-1).cpu()),dim=-1).cpu(),'class':label}
+            sava_key_index+=1
     torch.save(save_dict,os.path.join(dataset_out,f"probs_dataset_for_postclassification.pt"))
-    print(skipped)
+    print(f"Skipped {skipped}")
 
 def score_on_test(dataset,model_dict,n_bins=50,make_figs=False,dataset_out = 'save/processed_dataset/'):
     counts_dict = {}
