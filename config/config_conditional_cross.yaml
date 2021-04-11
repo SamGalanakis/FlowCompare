@@ -81,7 +81,7 @@ load_checkpoint:
   value: false
 preselected_points:
   desc: Use preselected points
-  value: true
+  value: false
 dirs_challenge_csv:
   desc: Paths to label csv folder
   value: save/2016-2020-train/
