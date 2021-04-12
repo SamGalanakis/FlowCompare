@@ -15,6 +15,13 @@ class PostClassificationDataset(Dataset):
     def __len__(self):
         return len(self.data_dict)
 
+    def get_weights(self):
+        counts = [0]*len(self.class_int_dict)
+        for index,data_dict in self.data_dict.items():
+            label = self.class_int_dict[data_dict['class']]
+            counts[label]+=1
+        return (torch.Tensor(counts)/sum(counts))**-1
+
     def __getitem__(self, idx):
         index_dict = self.data_dict[idx]
         extract_0,extract_1,label = index_dict[0],index_dict[1],index_dict['class']

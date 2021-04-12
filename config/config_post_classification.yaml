@@ -3,16 +3,16 @@ batch_size:
   value: 16
 dropout:
   desc: Dropout value for gcn
-  value: 0.0
+  value: 0.2
 lr:
   desc: Learning rate
   value: 0.0001
 k:
   desc: N neighbours for gcn
-  value: 40
+  value: 60
 weight_decay:
   desc: weigth decay for optimizer (l1 reg)
-  value: 0.0001
+  value: 0.001
 n_epochs:
   desc: Number of epochs to train for
   value: 100

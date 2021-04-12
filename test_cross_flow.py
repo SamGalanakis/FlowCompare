@@ -4,7 +4,7 @@ from dataloaders import ConditionalDataGrid, ShapeNetLoader,ChallengeDataset
 import wandb
 import os
 import pyro.distributions as dist
-from utils import view_cloud_plotly, bin_probs, bits_per_dim
+from utils import view_cloud_plotly, bin_probs, bits_per_dim, config_loader
 import pandas as pd
 
 from visualize_change_map import visualize_change
@@ -14,10 +14,9 @@ from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-os.environ["WANDB_MODE"] = "dryrun"
+
 config_path = r"config/config_conditional_cross.yaml"
-wandb.init(project="flow_change",config = config_path) 
-config = wandb.config
+config = config_loader(config_path)
 load_path = r"save/conditional_flow_compare/gentle-pyramid-1563_11_model_dict.pt"  # "save/conditional_flow_compare/expert-elevator-1560_12_model_dict.pt"  # r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"            #r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
 save_dict = torch.load(load_path)
 model_dict = initialize_cross_flow(config,device,mode='test')
