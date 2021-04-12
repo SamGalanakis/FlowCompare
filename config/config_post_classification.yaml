@@ -7,4 +7,12 @@ dropout:
 lr:
   desc: Learning rate
   value: 0.0001
-
+k:
+  desc: N neighbours for gcn
+  value: 40
+weight_decay:
+  desc: weigth decay for optimizer (l1 reg)
+  value: 0.0001
+n_epochs:
+  desc: Number of epochs to train for
+  value: 100
