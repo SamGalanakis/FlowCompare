@@ -1,11 +1,12 @@
 import torch
-from conditional_cross_flow import initialize_cross_flow,load_cross_flow,inner_loop_cross,bits_per_dim
+from conditional_cross_flow import initialize_cross_flow,load_cross_flow,inner_loop_cross
 from dataloaders import ConditionalDataGrid, ShapeNetLoader,ChallengeDataset
 import wandb
 import os
 import pyro.distributions as dist
-from utils import view_cloud_plotly, bin_probs
+from utils import view_cloud_plotly, bin_probs, bits_per_dim
 import pandas as pd
+
 from visualize_change_map import visualize_change
 import matplotlib.pyplot as plt
 import  numpy as np
@@ -17,11 +18,11 @@ os.environ["WANDB_MODE"] = "dryrun"
 config_path = r"config/config_conditional_cross.yaml"
 wandb.init(project="flow_change",config = config_path) 
 config = wandb.config
-load_path = r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"  # "save/conditional_flow_compare/expert-elevator-1560_12_model_dict.pt"  # r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"            #r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
+load_path = r"save/conditional_flow_compare/gentle-pyramid-1563_11_model_dict.pt"  # "save/conditional_flow_compare/expert-elevator-1560_12_model_dict.pt"  # r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"            #r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
 save_dict = torch.load(load_path)
 model_dict = initialize_cross_flow(config,device,mode='test')
 model_dict = load_cross_flow(save_dict,model_dict)
-mode = 'test'
+mode = 'train'
 
 dataset_type  = 'challenge'
 one_up_path = os.path.dirname(__file__)
@@ -62,7 +63,7 @@ def create_dataset(dataset,model_dict,dataset_out = 'save/processed_dataset/'):
     save_dict = {}
     skipped = 0
     with torch.no_grad():
-        sava_key_index = 0 
+        save_key_index = 0 
         for index in tqdm(range(len(dataset))):
             extract_0,extract_1,label,_ = dataset[index]
             label_int = label.item()
@@ -78,9 +79,9 @@ def create_dataset(dataset,model_dict,dataset_out = 'save/processed_dataset/'):
             log_prob_1_given_1 = calc_change(extract_1, extract_1,model_dict,config,preprocess=False).to('cpu')
             change_0 = change_func(log_prob_1_given_1,log_prob_0_given_1)
             change_1 = change_func(log_prob_0_given_0,log_prob_1_given_0)
-            save_dict[sava_key_index] = {0:torch.cat((extract_0.cpu(),change_0.unsqueeze(-1).cpu()),dim=-1).cpu(),1:torch.cat((extract_1.cpu(),change_1.unsqueeze(-1).cpu()),dim=-1).cpu(),'class':label}
-            sava_key_index+=1
-    torch.save(save_dict,os.path.join(dataset_out,f"probs_dataset_for_postclassification.pt"))
+            save_dict[save_key_index] = {0:torch.cat((extract_0.cpu(),change_0.unsqueeze(-1).cpu()),dim=-1).cpu(),1:torch.cat((extract_1.cpu(),change_1.unsqueeze(-1).cpu()),dim=-1).cpu(),'class':label}
+            save_key_index+=1
+    torch.save(save_dict,dataset_out)
     print(f"Skipped {skipped}")
 
 def score_on_test(dataset,model_dict,n_bins=50,make_figs=False,dataset_out = 'save/processed_dataset/'):
@@ -154,9 +155,11 @@ def dataset_view(dataset,index,multiple =3.,show=False):
     fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=show,title='fig_1_given_0')
     return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1
 if __name__ == '__main__':
-    create_dataset(dataset,model_dict)
+    name = load_path.split('/')[-1].split('_')[0]
+    dataset_out = f"save/processed_dataset/{name}_{mode}_probs_dataset.pt"
+    create_dataset(dataset,model_dict,dataset_out = dataset_out)
     #score_on_test(dataset,model_dict,n_bins=12)
-    visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple),range(len(dataset)))
+    #visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple),range(len(dataset)))
     
 
 
