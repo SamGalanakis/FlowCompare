@@ -1,0 +1,10 @@
+batch_size:
+  desc: Batch size for post_clasification training
+  value: 16
+dropout:
+  desc: Dropout value for gcn
+  value: 0.0
+lr:
+  desc: Learning rate
+  value: 0.0001
+

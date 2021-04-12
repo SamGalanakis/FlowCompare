@@ -26,6 +26,7 @@ from torch_geometric.data import Data,Batch
 from torch_geometric.nn import voxel_grid
 from torch_geometric.nn.pool.consecutive import consecutive_cluster
 import open3d
+from yaml import load as load_yaml
 #Losses from original repo
 
 eps = 1e-8
@@ -436,4 +437,6 @@ if __name__ == '__main__':
     print(rgb_to_hsv(test_hsv,scale_after=True))
 
 
-
+def config_loader(path):
+    raw_dict = load_yaml(open('config/config_post_classification.yaml'))
+    return  {key:raw_dict[key]['value'] for key in raw_dict.keys()}
