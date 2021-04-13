@@ -446,3 +446,6 @@ def oversample_cloud(cloud,n_points):
 def config_loader(path):
     raw_dict = load_yaml(open('config/config_post_classification.yaml'))
     return  {key:raw_dict[key]['value'] for key in raw_dict.keys()}
+def rotation_z(rad):
+    rot = torch.Tensor([[torch.cos(rad),-torch.sin(rad),0],[torch.sin(rad),torch.cos(rad),0],[0,0,1]])
+    return rot

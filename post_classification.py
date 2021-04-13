@@ -3,7 +3,7 @@ from dataloaders import PostClassificationDataset
 import wandb
 import os
 import pyro.distributions as dist
-from utils import view_cloud_plotly,time_labeling,config_loader,oversample_cloud
+from utils import view_cloud_plotly,time_labeling,config_loader,oversample_cloud,rotation_z
 import pandas as pd
 import matplotlib.pyplot as plt
 import  numpy as np
@@ -11,7 +11,7 @@ from tqdm import tqdm
 from torch import nn
 from models import DGCNN_cls
 from torch.utils.data import DataLoader
-
+import math
 
 
 
@@ -35,13 +35,15 @@ def collate_combine(batch):
     return torch.stack(combined_clouds),torch.stack(labels)
 
 
-dataset_train = PostClassificationDataset('save/processed_dataset/gentle-pyramid-1563_train_probs_dataset.pt')
-dataset_test = PostClassificationDataset('save/processed_dataset/gentle-pyramid-1563_test_probs_dataset.pt')
+dataset_train = PostClassificationDataset('save/processed_dataset/gentle-pyramid-1563_train_probs_dataset.pt',keep_rgb=post_config['keep_rgb'],merge_classes=post_config['merge_classes'])
+dataset_test = PostClassificationDataset('save/processed_dataset/gentle-pyramid-1563_test_probs_dataset.pt',keep_rgb=post_config['keep_rgb'],merge_classes=post_config['merge_classes'])
 dataloader_train = DataLoader(dataset_train,shuffle=True,batch_size=post_config['batch_size'],collate_fn = collate_combine)
 dataloader_test = DataLoader(dataset_test,shuffle=True,batch_size=post_config['batch_size'],collate_fn = collate_combine)
 
 parameters = []
-gcn = DGCNN_cls(input_dim = config['input_dim']+2,output_channels = len(dataset_train.class_int_dict),dropout = post_config['dropout'],k = post_config['k'], batchnorm=False).to(device)
+input_dim = config['input_dim']+2 if post_config['keep_rgb'] else config['input_dim']-1
+output_channels = len(dataset_train.class_int_dict)  if not post_config['merge_classes'] else 2
+gcn = DGCNN_cls(input_dim = input_dim,output_channels = output_channels,dropout = post_config['dropout'],k = post_config['k'], batchnorm=False).to(device)
 parameters +=gcn.parameters()
 optimizer = torch.optim.Adam(parameters, lr=post_config["lr"],weight_decay=post_config["weight_decay"]) 
 criterion = nn.CrossEntropyLoss(weight = dataset_train.get_weights().to(device))
@@ -70,7 +72,10 @@ for epoch in range(post_config["n_epochs"]):
     for batch_ind,batch in enumerate(tqdm(dataloader_train)):
         optimizer.zero_grad(set_to_none=True)
         comb_cloud , label = batch
+
+        rand_rot = rotation_z(torch.rand(1)*2*math.pi).to(device)
         comb_cloud,label = comb_cloud.to(device),label.to(device)
+        comb_cloud[...,:3] = torch.matmul(comb_cloud[...,:3],rand_rot)
         net_out = gcn(comb_cloud)
 
         loss = criterion(net_out,label.squeeze())

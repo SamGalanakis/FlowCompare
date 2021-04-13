@@ -16,3 +16,10 @@ weight_decay:
 n_epochs:
   desc: Number of epochs to train for
   value: 100
+keep_rgb:
+  desc: Include rgb chanels
+  value: false
+merge_classes:
+  desc: Only have change nochange
+  value: true
+
