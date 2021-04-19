@@ -444,7 +444,8 @@ def oversample_cloud(cloud,n_points):
         random_indices = torch.randint(0,n_points_original,(n_points - n_points_original,),device=cloud.device)
         return torch.cat((cloud,cloud[random_indices,...]))
 def config_loader(path):
-    raw_dict = load_yaml(open('config/config_post_classification.yaml'))
+    with open(path) as f:
+        raw_dict = load_yaml(f)
     return  {key:raw_dict[key]['value'] for key in raw_dict.keys()}
 def rotation_z(rad):
     rot = torch.Tensor([[torch.cos(rad),-torch.sin(rad),0],[torch.sin(rad),torch.cos(rad),0],[0,0,1]])

@@ -21,7 +21,7 @@ load_path = r"save/conditional_flow_compare/gentle-pyramid-1563_11_model_dict.pt
 save_dict = torch.load(load_path)
 model_dict = initialize_cross_flow(config,device,mode='test')
 model_dict = load_cross_flow(save_dict,model_dict)
-mode = 'train'
+mode = 'test'
 
 dataset_type  = 'challenge'
 one_up_path = os.path.dirname(__file__)
@@ -154,11 +154,11 @@ def dataset_view(dataset,index,multiple =3.,show=False):
     fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=show,title='fig_1_given_0')
     return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1
 if __name__ == '__main__':
-    name = load_path.split('/')[-1].split('_')[0]
-    dataset_out = f"save/processed_dataset/{name}_{mode}_probs_dataset.pt"
-    create_dataset(dataset,model_dict,dataset_out = dataset_out)
+    #name = load_path.split('/')[-1].split('_')[0]
+    #dataset_out = f"save/processed_dataset/{name}_{mode}_probs_dataset.pt"
+    #create_dataset(dataset,model_dict,dataset_out = dataset_out)
     #score_on_test(dataset,model_dict,n_bins=12)
-    #visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple),range(len(dataset)))
+    visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple),range(len(dataset)))
     
 
 
