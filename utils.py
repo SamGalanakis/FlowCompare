@@ -57,6 +57,7 @@ def knn_relator(points,points_subsampled,feature,n_neighbors=1):
     
 
 def load_las(path,extra_dim_list=None,scale_colors = True):
+    #Will work with laz if laszip on path 
     input_las = File(path, mode='r')
     point_records = input_las.points.copy()
     las_scaleX = input_las.header.scale[0]

@@ -29,7 +29,7 @@ class Scan:
         self.recording_properties = recording_properties
         self.id = self.recording_properties['ImageId']
         self.center = np.array([self.recording_properties['X'],self.recording_properties['Y']])
-        self.path = os.path.join(base_dir,f'{self.id}.las')
+        self.path = os.path.join(base_dir,f'{self.id}.laz')
         self.datetime = datetime(int(self.recording_properties['RecordingTimeGps'].split('-')[0]),int(self.recording_properties['RecordingTimeGps'].split('-')[1]),int(self.recording_properties['RecordingTimeGps'].split('-')[-1].split('T')[0]))
 
 class AmsGridLoader(Dataset):
@@ -59,23 +59,19 @@ class AmsGridLoader(Dataset):
             self.scans = [Scan(x,self.directory_path) for x in self.response['RecordingProperties']]
             self.scans = [x for x in self.scans if x.datetime.year in self.years]
             self.filtered_scans = filter_scans(self.scans,3)
-
+            self.extract_id_dict = {}
 
             
-            file_path_lists  = [os.path.join(directory_path,x) for x in os.listdir(directory_path) if x.split('.')[-1]=='las']
-            scene_dict = {}
             
-          
-                
-               
 
             extract_id = -1
             for scene_number, scan in enumerate(tqdm(self.filtered_scans)):
                 relevant_scans = [x for x in self.scans if np.linalg.norm(x.center-scan.center)<7]
                 relevant_times = set([x.datetime for x in relevant_scans])
                 time_partitions = {time:[x for x in relevant_scans if x.datetime ==time] for time in relevant_times}
-                centers_per_time = {key:sum([x.center for x in val])/len(val) for key,val in time_partitions.items()}
-                clouds_per_time = [torch.from_numpy(np.concatenate([load_las(x.path) for x in val])).to(device) for key,val in time_partitions.items()]
+                #centers_per_time = {key:sum([x.center for x in val])/len(val) for key,val in time_partitions.items()}
+                
+                clouds_per_time = [torch.from_numpy(np.concatenate([load_las(x.path) for x in val])).float().to(device) for key,val in time_partitions.items()]
  
                 if self.grid_type == 'square':
                     grids = [grid_split(cloud,self.grid_square_size,center=scan.center,clearance = self.clearance) for cloud in clouds_per_time]
