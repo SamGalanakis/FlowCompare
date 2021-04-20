@@ -259,9 +259,74 @@ class DGCNN(nn.Module):
         x = self.linear3(x)
         return x
 
+class DGCNNembedderCombo(nn.Module):
+    def __init__(self,local_dim=22,global_dim=30,dropout = 0,n_neighbors=20):
+        super().__init__()
+        
+        self.n_neighbors = n_neighbors
+        self.local_dim = local_dim
+        self.global_dim = global_dim
+        
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.bn3 = nn.BatchNorm2d(128)
+        self.bn4 = nn.BatchNorm2d(256)
+        self.bn5 = nn.BatchNorm1d(512)
+  
 
+        self.conv1 = nn.Sequential(nn.Conv2d(12, 64, kernel_size=1, bias=False),
+                                   self.bn1,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv2 = nn.Sequential(nn.Conv2d(64*2, 64, kernel_size=1, bias=False),
+                                   self.bn2,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv3 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=False),
+                                   self.bn3,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv4 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),
+                                   self.bn4,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv5 = nn.Sequential(nn.Conv1d(512, 512, kernel_size=1, bias=False),
+                                   self.bn5,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        
+        self.out_mlp_local = nn.Sequential(nn.Linear(512,512),
+                                   nn.LeakyReLU(negative_slope=0.2),nn.Linear(512,512),nn.LeakyReLU(negative_slope=0.2),
+                                   nn.Linear(512,self.local_dim))
+        self.out_mlp_global = nn.Sequential(nn.Linear(512,512),nn.LeakyReLU(negative_slope=0.2),
+                                   nn.Linear(512,256),nn.LeakyReLU(negative_slope=0.2),
+                                   nn.Linear(256,124),nn.LeakyReLU(negative_slope=0.2),
+                                   nn.Linear(124,self.local_dim))
+    def forward(self, x):
+        batch_size = x.size(0)
+        x = x.permute((0,2,1))
+        x = get_graph_feature(x, k=self.n_neighbors)
+        x = self.conv1(x)
+        x1 = x.max(dim=-1, keepdim=False)[0]
+
+        x = get_graph_feature(x1, self.n_neighbors)
+        x = self.conv2(x)
+        x2 = x.max(dim=-1, keepdim=False)[0]
+
+        x = get_graph_feature(x2, k=self.n_neighbors)
+        x = self.conv3(x) 
+        x3 = x.max(dim=-1, keepdim=False)[0]
+
+        x = get_graph_feature(x3, k=self.n_neighbors)
+        x = self.conv4(x)
+        x4 = x.max(dim=-1, keepdim=False)[0]
+
+        x = torch.cat((x1, x2, x3, x4), dim=1)
+
+        x = self.conv5(x).permute((0,2,1))
+        global_feats = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
+        global_embeddings = self.out_mlp_global(global_feats)
+        local_embeddings = self.out_mlp_local(x)
+
+        return local_embeddings, global_embeddings
 if __name__ == '__main__':
     points = torch.randn((10,2000,6))
     
-    model = DGCNNembedder(40)
+    model = DGCNNembedderCombo(40,25)
     output = model(points.permute((0,2,1)))
+    pass
