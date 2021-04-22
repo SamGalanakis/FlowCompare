@@ -370,24 +370,25 @@ def main(rank, world_size):
             time_batch = perf_counter() - t0
             loss_item = loss.item()
             loss_running_avg = (loss_running_avg*(batch_ind) + loss_item)/(batch_ind+1)
-            wandb.log({'loss':loss_item,'lr':current_lr,'time_batch':time_batch})
-          
+            
+            if (batch_ind+1)%config['batches_per_sample'] == 0:
+                if not config['attn_connection']:
+                    with torch.no_grad():
+                        #Multiply std to get tighter samples
+                        base_dist_for_sample = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device)*0.6)
+                        sample = sample_cross(4000,extract_0,models_dict,base_dist_for_sample,config)[0]
+                        sample = sample.cpu().numpy().squeeze()
+                        sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
+                        cond_nump = extract_0.cpu().numpy()[0]
+                        cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
+                        wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6])})
+            else:
+                wandb.log({'loss':loss_item,'lr':current_lr,'time_batch':time_batch})
+            
         scheduler.step(loss_running_avg)
         save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"blow_up_mlp":models_dict['blow_up_mlp'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
         torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
-        #Create samples
-        if not config['attn_connection']:
-            with torch.no_grad():
-                #Multiply std to get tighter samples
-                base_dist_for_sample = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device)*0.6)
-                sample = sample_cross(4000,extract_0,models_dict,base_dist_for_sample,config)[0]
-                sample = sample.cpu().numpy().squeeze()
-                sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
-                cond_nump = extract_0.cpu().numpy()[0]
-                cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
-                wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6]),"loss_epoch":loss_running_avg})
-        else:
-            wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})
+        wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     print('Let\'s use', world_size, 'GPUs!')

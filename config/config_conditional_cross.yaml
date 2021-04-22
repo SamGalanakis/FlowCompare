@@ -27,7 +27,7 @@ input_dim:
   value: 6
 grid_square_size:
   desc: Size of grid square or circle diameter
-  value: 4
+  value: 4 # was 2 !!!
 clearance:
   desc: clearance
   value: 10
@@ -124,3 +124,6 @@ attn_connection:
 grad_clip_val:
   desc: What value to clip grad norms to
   value: 2.0
+batches_per_sample:
+  desc: Every how many batches to create a sample
+  value: 100 
