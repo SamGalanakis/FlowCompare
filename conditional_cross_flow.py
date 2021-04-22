@@ -7,7 +7,7 @@ import numpy as np
 from torch.utils.data import Dataset,DataLoader
 from torch.distributions.utils import _sum_rightmost
 from tqdm import tqdm
-from dataloaders import ConditionalDataGrid, ShapeNetLoader
+from dataloaders import ConditionalDataGrid, ShapeNetLoader,AmsGridLoader
 import wandb
 import torch.multiprocessing as mp
 from torch import nn
@@ -266,6 +266,9 @@ def main(rank, world_size):
         dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'],preselected_points=preselected_points_dict)
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
+    elif config['data_loader'] == 'AmsGridLoader':
+        dataset=AmsGridLoader('/media/raid/sam/ams_dataset/',out_path='/media/raid/sam/processed_ams',preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+
     else:
         raise Exception('Invalid dataloader type!')
 

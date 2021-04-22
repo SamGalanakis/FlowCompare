@@ -6,7 +6,7 @@ n_flow_layers:
   value: 30
 data_loader:
   desc: What loader to use
-  value: ConditionalDataGridCircle
+  value: AmsGridLoader
 batchnorm:
   desc: batchnorm between flow layers
   value: false
@@ -26,11 +26,11 @@ input_dim:
   desc: Dimension of pointcloud data
   value: 6
 grid_square_size:
-  desc: Number of f subblocks 
-  value: 2
+  desc: Size of grid square or circle diameter
+  value: 4
 clearance:
   desc: clearance
-  value: 28
+  value: 10
 subsample:
   desc: How to subsample
   value: 'fps'
