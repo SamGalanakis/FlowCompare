@@ -184,6 +184,5 @@ class AmsGridLoader(Dataset):
         
         return tensor_0,tensor_1
 
-if __name__ == '__main__':
-    dataset = AmsGridLoader('/media/raid/sam/ams_dataset/','/media/raid/sam/processed_ams')
+
 

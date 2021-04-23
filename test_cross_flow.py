@@ -1,6 +1,6 @@
 import torch
 from conditional_cross_flow import initialize_cross_flow,load_cross_flow,inner_loop_cross
-from dataloaders import ConditionalDataGrid, ShapeNetLoader,ChallengeDataset
+from dataloaders import ConditionalDataGrid, ShapeNetLoader,ChallengeDataset,AmsGridLoader
 import wandb
 import os
 import pyro.distributions as dist
@@ -17,13 +17,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 config_path = r"config/config_conditional_cross.yaml"
 config = config_loader(config_path)
-load_path = r"save/conditional_flow_compare/gentle-pyramid-1563_11_model_dict.pt"  # "save/conditional_flow_compare/expert-elevator-1560_12_model_dict.pt"  # r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"            #r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
+load_path = r"save/conditional_flow_compare/firm-resonance-1606_1_model_dict.pt"  # "save/conditional_flow_compare/expert-elevator-1560_12_model_dict.pt"  # r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"            #r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
 save_dict = torch.load(load_path)
 model_dict = initialize_cross_flow(config,device,mode='test')
 model_dict = load_cross_flow(save_dict,model_dict)
 mode = 'test'
 
-dataset_type  = 'challenge'
+dataset_type  = 'ams'
 one_up_path = os.path.dirname(__file__)
 out_path = os.path.join(one_up_path,r"save/processed_dataset")
 if dataset_type == 'multiview':
@@ -39,6 +39,8 @@ elif dataset_type == 'challenge':
     dirs_challenge_csv = 'save/2016-2020-train/'.replace('train',mode)
     dirs = ['save/challenge_data/Shrec_change_detection_dataset_public/'+year for year in ["2016","2020"]]
     dataset = ChallengeDataset(dirs_challenge_csv, dirs, out_path,subsample="fps",sample_size=2000,preload=True,normalization=config['normalization'],subset=None,radius=int(config['grid_square_size']/2),remove_ground=False,mode = mode,hsv=False)
+elif dataset_type=='ams':
+    dataset=AmsGridLoader('/media/raid/sam/ams_dataset/',out_path='/media/raid/sam/processed_ams',preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
 else:
     raise Exception('invalid dataset_type')
     

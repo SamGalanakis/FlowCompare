@@ -12,7 +12,7 @@ import wandb
 import torch.multiprocessing as mp
 from torch import nn
 import pandas as pd
-
+import einops
 from time import time,perf_counter
 from models import (
 Exponential_combiner,
@@ -25,6 +25,7 @@ affine_coupling_attn,
 exponential_matrix_coupling,
 DGCNNembedder,
 GCNembedder,
+DGCNNembedderCombo,
 MLP
 )
 
@@ -77,7 +78,10 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         initial_attn_emb = torch.randn(config['attn_dim']).to(device)
         parameters+=initial_attn_emb
     else:
-        pre_attention_mlp = lambda : MLP(config['latent_dim']//2,[config['attn_input_dim']//2]*4,config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
+        input_dim_pre_attention_mlp = config['latent_dim']//2
+        if config['input_embedder'] == 'DGCNNembedderCombo':
+            input_dim_pre_attention_mlp += config['global_input_embedding_dim']
+        pre_attention_mlp = lambda : MLP(input_dim_pre_attention_mlp,[config['attn_input_dim']//2]*4,config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
     
     
     if permuter_type == 'Exponential_combiner':
@@ -147,7 +151,10 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     if config['input_embedder'] == 'NeighborhoodEmbedder':
         input_embedder = NeighborhoodEmbedder(config['input_dim'],out_dim = config['input_embedding_dim'])
     elif config['input_embedder'] == 'DGCNNembedder':
-        input_embedder = DGCNNembedder(emb_dim= config['input_embedding_dim'])
+        input_embedder = DGCNNembedder(emb_dim= config['input_embedding_dim'],n_neighbors=config['n_neighbors'])
+    elif config['input_embedder'] == 'DGCNNembedderCombo':
+        input_embedder = DGCNNembedderCombo(config['input_embedding_dim'],config['global_input_embedding_dim'],n_neighbors=config['n_neighbors'])
+
     elif config['input_embedder'] == 'idenity':
         input_embedder = nn.Identity()
     else:
@@ -177,7 +184,12 @@ def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
 
     if config['attn_connection']:
         attn_emb = models_dict['initial_attn_emb'].repeat(extract_1.shape[:2]+(1,))
-    input_embeddings = models_dict["input_embedder"](extract_0)
+
+    if not config['input_embedder'] == 'DGCNNembedderCombo':
+        input_embeddings = models_dict["input_embedder"](extract_0)
+    else: 
+        input_embeddings,global_embeddings = models_dict["input_embedder"](extract_0)
+        global_embeddings = einops.repeat(global_embeddings,'m n -> m k n', k = extract_1.shape[1])
     y = models_dict['blow_up_mlp'](extract_1)
     log_prob = 0.0
     for idx,layer in enumerate(reversed(models_dict['layers'])):
@@ -185,10 +197,12 @@ def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
         if 'attn' in layer:
             flow=layer['flow_with_attn']
             y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
+            if config['input_embedder'] == 'DGCNNembedderCombo':
+                y1 = torch.cat((y1,global_embeddings),dim=-1)
             if config['attn_connection']:
-                attn_emb = layer['attn'](layer['pre_attention_mlp'](torch.cat((y1,attn_emb),dim=-1)),context = input_embeddings)
-            else:
-                attn_emb = layer['attn'](layer['pre_attention_mlp'](y1),context = input_embeddings)
+                y1 = torch.cat((y1,attn_emb),dim=-1)
+          
+            attn_emb = layer['attn'](layer['pre_attention_mlp'](y1),context = input_embeddings)
             
             x = flow._inverse(y,attn_emb)
             
@@ -215,7 +229,13 @@ def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
     return loss,log_prob
 def sample_cross(n_samples,extract_0,models_dict,base_dist,config):
     input_embeddings = models_dict["input_embedder"](extract_0)
-    x = base_dist.sample([config['batch_size'],2000])
+
+    if not config['input_embedder'] == 'DGCNNembedderCombo':
+        input_embeddings = models_dict["input_embedder"](extract_0)
+    else: 
+        input_embeddings,global_embeddings = models_dict["input_embedder"](extract_0)
+        global_embeddings = einops.repeat(global_embeddings,'m n -> m k n', k = n_samples)
+    x = base_dist.sample([config['batch_size'],n_samples])
     
     for idx,layer in enumerate(models_dict['layers']):
        
@@ -227,12 +247,14 @@ def sample_cross(n_samples,extract_0,models_dict,base_dist,config):
         
     
         if 'attn' in layer:
-                flow=layer['flow_with_attn']
-                x1, x2 = x.split([flow.split_dim, x.size(flow.dim) - flow.split_dim], dim=flow.dim)
-                
-                attn_emb = layer['attn'](layer['pre_attention_mlp'](x1),context = input_embeddings)
-                
-                x = flow._call(x,attn_emb)
+            
+            flow=layer['flow_with_attn']
+            x1, x2 = x.split([flow.split_dim, x.size(flow.dim) - flow.split_dim], dim=flow.dim)
+            if config['input_embedder'] == 'DGCNNembedderCombo':
+                x1 = torch.cat((x1,global_embeddings),dim=-1) 
+            attn_emb = layer['attn'](layer['pre_attention_mlp'](x1),context = input_embeddings)
+            
+            x = flow._call(x,attn_emb)
             
         else:
             flow=layer['plain_flow']

@@ -296,7 +296,7 @@ class DGCNNembedderCombo(nn.Module):
         self.out_mlp_global = nn.Sequential(nn.Linear(512,512),nn.LeakyReLU(negative_slope=0.2),
                                    nn.Linear(512,256),nn.LeakyReLU(negative_slope=0.2),
                                    nn.Linear(256,124),nn.LeakyReLU(negative_slope=0.2),
-                                   nn.Linear(124,self.local_dim))
+                                   nn.Linear(124,self.global_dim))
     def forward(self, x):
         batch_size = x.size(0)
         x = x.permute((0,2,1))
@@ -319,7 +319,7 @@ class DGCNNembedderCombo(nn.Module):
         x = torch.cat((x1, x2, x3, x4), dim=1)
 
         x = self.conv5(x).permute((0,2,1))
-        global_feats = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
+        global_feats = F.adaptive_max_pool1d(x.permute((0,2,1)), 1).view(batch_size, -1)
         global_embeddings = self.out_mlp_global(global_feats)
         local_embeddings = self.out_mlp_local(x)
 
@@ -328,5 +328,5 @@ if __name__ == '__main__':
     points = torch.randn((10,2000,6))
     
     model = DGCNNembedderCombo(40,25)
-    output = model(points.permute((0,2,1)))
+    output = model(points)
     pass
