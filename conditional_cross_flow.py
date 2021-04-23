@@ -179,6 +179,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     models_dict = {'parameters':parameters,"layers":layers,'input_embedder':input_embedder,'blow_up_mlp':blow_up_mlp}
     if config['attn_connection']:
         models_dict['initial_attn_emb'] = initial_attn_emb
+    print(f'Number of trainable parameters: {sum([x.numel() for x in parameters])}')
     return models_dict
 def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
 
