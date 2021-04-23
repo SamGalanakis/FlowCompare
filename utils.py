@@ -451,3 +451,6 @@ def config_loader(path):
 def rotation_z(rad):
     rot = torch.Tensor([[torch.cos(rad),-torch.sin(rad),0],[torch.sin(rad),torch.cos(rad),0],[0,0,1]])
     return rot
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
