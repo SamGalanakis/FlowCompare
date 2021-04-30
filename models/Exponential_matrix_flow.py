@@ -14,6 +14,7 @@ sys.path.append(".")
 from models.nets import ConditionalDenseNN, DenseNN
 from utils import expm
 from pyro.distributions import constraints
+
 eps = 1e-8
 
 class Exponential_matrix_coupling(TransformModule):

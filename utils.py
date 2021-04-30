@@ -165,6 +165,8 @@ def bin_probs(log_probs_0,log_probs_1,n_bins=50):
     
 
 def extract_area(full_cloud,center,clearance,shape= 'circle'):
+    if isinstance(full_cloud,np.ndarray):
+        full_cloud = torch.from_numpy(full_cloud)
     if shape == 'square':
         x_mask = ((center[0]+clearance)>full_cloud[:,0]) &   (full_cloud[:,0] >(center[0]-clearance))
         y_mask = ((center[1]+clearance)>full_cloud[:,1]) &   (full_cloud[:,1] >(center[1]-clearance))
@@ -352,7 +354,7 @@ def sep_standardize(tensor_0,tensor_1):
 
 
 
-def exp_from_paper(x):
+def exp_from_paper(x,eps):
     """
     compute the matrix exponential: \sum_{k=0}^{\infty}\frac{x^{k}}{k!}
     """
@@ -372,11 +374,11 @@ def exp_from_paper(x):
 
 
 
-def expm(x,algo='torch'):
+def expm(x,eps,algo='torch'):
     if algo=='torch':
         return torch.matrix_exp(x)
     elif algo=='original':
-        return exp_from_paper(x)
+        return exp_from_paper(x,eps)
     else:
         raise Exception('Invalid expm algo!')
 
