@@ -27,7 +27,8 @@ MLP,
 Permuter,
 Augment,
 StandardUniform,
-StandardNormal
+StandardNormal,
+Slice
 )
 
 
