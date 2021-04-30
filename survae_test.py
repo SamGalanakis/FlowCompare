@@ -13,6 +13,7 @@ import torch.multiprocessing as mp
 from torch import nn
 import pandas as pd
 import einops
+import math
 from time import time,perf_counter
 from models import (
 ExponentialCombiner,
@@ -25,19 +26,21 @@ DGCNNembedderCombo,
 MLP,
 Permuter,
 Augment,
-StandardUniform
+StandardUniform,
+StandardNormal
 )
 
 
 def load_cross_flow(load_dict,initialized_cross_flow):
+    
     initialized_cross_flow['augmenter'].load_state_dict(load_dict['augmenter'])
+    initialized_cross_flow['augmbase_distenter'].load_state_dict(load_dict['base_dist'])
     initialized_cross_flow['input_embedder'].load_state_dict(load_dict['input_embedder'])
+
     for layer_dicts,layer in zip(load_dict['layers'],initialized_cross_flow['layers']):
         for key,val in layer.items():
                 if isinstance(val,nn.Module):
                     val.load_state_dict(layer_dicts[key])
-                elif isinstance(val,pyro.distributions.pyro.distributions.transforms.Permute):
-                    val.permutation = layer_dicts[key]
                 else:
                     raise Exception('How to load?')
     return initialized_cross_flow
@@ -62,23 +65,25 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
             augmenter_dist = StandardUniform(shape = (config['sample_size'],config['latent_dim']-config['input_dim']))
         else: 
             raise Exception('Invalid augmenter_dist')
+    
 
         augmenter_dist = augmenter_dist.to(device)
-        augmenter = Augment(augmenter_dist,split_dim=-1,x_size = config['input_dim'])
-
-        if mode == 'train':
-                augmenter.train()
-        else:
-            augmenter.eval()
-        if config['data_parallel']:
-            augmenter = nn.DataParallel(augmenter).to(device)
-        else:
-            augmenter = augmenter.to(device)
-
-        # Is both neccesary??
-        parameters+= augmenter.parameters()
         parameters += augmenter_dist.parameters()
-        
+        augmenter = Augment(augmenter_dist,split_dim=-1,x_size = config['input_dim'])
+    else:
+        augmenter = torch.nn.Identity().to(device)
+
+    if mode == 'train':
+            augmenter.train()
+    else:
+        augmenter.eval()
+    if config['data_parallel']:
+        augmenter = nn.DataParallel(augmenter).to(device)
+    else:
+        augmenter = augmenter.to(device)
+
+    # Is both neccesary??
+    parameters+= augmenter.parameters()
 
     if config['flow_type'] == 'affine_coupling':
         flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
@@ -175,29 +180,36 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     models_dict = {'parameters':parameters,"layers":layers,'input_embedder':input_embedder}
     if config['attn_connection']:
         models_dict['initial_attn_emb'] = initial_attn_emb
-    if config['augmenter']:
-        models_dict['augmenter'] = augmenter
+
+    models_dict['augmenter'] = augmenter
+
+
+    base_dist =  StandardNormal(shape = (config['sample_size'],config['latent_dim']-config['input_dim'])).to(device)
+    parameters += base_dist.parameters()
+    
+    models_dict['base_dist'] = base_dist
     print(f'Number of trainable parameters: {sum([x.numel() for x in parameters])}')
     return models_dict
 
 
-def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
-
+def inner_loop_cross(extract_0,extract_1,models_dict,config):
+    log_prob = 0.0
     if config['attn_connection']:
-        attn_emb = models_dict['initial_attn_emb'].repeat(extract_1.shape[:2]+(1,))
+        attn_emb = models_dict['initial_attn_emb'].repeat(extract_1.shape[0] + (config['latent_dim'],1))
 
     if not config['input_embedder'] == 'DGCNNembedderCombo':
         input_embeddings = models_dict["input_embedder"](extract_0)
     else: 
         input_embeddings,global_embeddings = models_dict["input_embedder"](extract_0)
         global_embeddings = einops.repeat(global_embeddings,'m n -> m k n', k = extract_1.shape[1])
-    y = models_dict['blow_up_mlp'](extract_1)
-    log_prob = 0.0
+    x, ldj = models_dict['augmenter'](extract_1,context = None)
+    log_prob += ldj
+    
     for idx,layer in enumerate(reversed(models_dict['layers'])):
         
         if 'attn' in layer:
             flow=layer['flow_with_attn']
-            y1, y2 = y.split([flow.split_dim, y.size(flow.dim) - flow.split_dim], dim=flow.dim)
+            y1, y2 = y.split([flow.split_dim, y.size(flow.event_dim) - flow.split_dim], dim=flow.event_dim)
             if config['input_embedder'] == 'DGCNNembedderCombo':
                 y1 = torch.cat((y1,global_embeddings),dim=-1)
             if config['attn_connection']:
@@ -205,30 +217,30 @@ def inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config):
           
             attn_emb = layer['attn'](layer['pre_attention_mlp'](y1),context = input_embeddings)
             
-            x = flow._inverse(y,attn_emb)
+            x,ldj = flow(y,context = attn_emb)
+            
+
             
             log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
                                             1 - flow.domain.event_dim)
-            y=x
         else:
             flow=layer['plain_flow']
-            x = flow._inverse(y)
-            log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y),
-                                            1 - flow.domain.event_dim)
-            y=x
+            x,ldj = flow(x,context=None)
+        
+        log_prob += ldj
+
         if "permuter" in layer:
             
             permuter = layer['permuter']
-            x = permuter.inv(y)
-            log_prob = log_prob - _sum_rightmost(permuter.log_abs_det_jacobian(x, y),
-                                        1 - permuter.domain.event_dim)
-            y=x
+            x,ldj = permuter(x,context=None)
+            log_prob += ldj
     #Log prob 1 given 0
-    log_prob = log_prob + _sum_rightmost(base_dist.log_prob(y),
-                                    1 - len(base_dist.event_shape))
-    loss = -log_prob.mean()
+    log_prob += models_dict["base_dist"].log_prob(x)
+    loss = -log_prob.sum() / (math.log(2) * x.numel())
+    
     return loss,log_prob
-def sample_cross(n_samples,extract_0,models_dict,base_dist,config):
+def sample_cross(n_samples,extract_0,models_dict,base_dist_for_sample,config):
+
     input_embeddings = models_dict["input_embedder"](extract_0)
 
     if not config['input_embedder'] == 'DGCNNembedderCombo':
@@ -236,14 +248,14 @@ def sample_cross(n_samples,extract_0,models_dict,base_dist,config):
     else: 
         input_embeddings,global_embeddings = models_dict["input_embedder"](extract_0)
         global_embeddings = einops.repeat(global_embeddings,'m n -> m k n', k = n_samples)
-    x = base_dist.sample([config['batch_size'],n_samples])
+    x = base_dist_for_sample.sample(config['batch_size'])
     
     for idx,layer in enumerate(models_dict['layers']):
        
         if "permuter" in layer:
             
             permuter = layer['permuter']
-            x = permuter._call(x)
+            x = permuter.inverse(x,context=None)
     
         
     
@@ -255,12 +267,25 @@ def sample_cross(n_samples,extract_0,models_dict,base_dist,config):
                 x1 = torch.cat((x1,global_embeddings),dim=-1) 
             attn_emb = layer['attn'](layer['pre_attention_mlp'](x1),context = input_embeddings)
             
-            x = flow._call(x,attn_emb)
+            x = flow.inverse(x,context=attn_emb)
             
         else:
             flow=layer['plain_flow']
-            x = flow._call(x)
+            x = flow.inverse(x,context=None)
+        x = models_dict['augmenter'].inverse(x,context=None)
     return x
+def layer_saver(layers):
+        dicts = []
+        for layer in layers:
+            temp_dict = {}
+            for key,val in layer.items():
+                if isinstance(val,nn.Module):
+                    save = val.state_dict()
+                else:
+                    raise Exception('How to load?')
+                temp_dict[key] = save
+            dicts.append(temp_dict)
+        return dicts
 
 def main(rank, world_size):
 
@@ -299,22 +324,20 @@ def main(rank, world_size):
     dataloader = DataLoader(dataset,shuffle=True,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=None,pin_memory=True,prefetch_factor=2,drop_last=True)
 
 
-    base_dist = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device))
+    
+    
 
     models_dict = initialize_cross_flow(config,device,mode='train')
     
 
 
-    parameters = models_dict['parameters']
-  
-    
-    
+
     if config["optimizer_type"] =='Adam':
-        optimizer = torch.optim.Adam(parameters, lr=config["lr"],weight_decay=config["weight_decay"]) 
+        optimizer = torch.optim.Adam(models_dict['parameters'], lr=config["lr"],weight_decay=config["weight_decay"]) 
     elif config["optimizer_type"] == 'Adamax':
-        optimizer = torch.optim.Adamax(parameters, lr=config["lr"],weight_decay=config["weight_decay"],polyak =  0.999)
+        optimizer = torch.optim.Adamax(models_dict['parameters'], lr=config["lr"],weight_decay=config["weight_decay"],polyak =  0.999)
     elif config["optimizer_type"] == 'AdamW':
-        optimizer = torch.optim.AdamW(parameters, lr=config["lr"],weight_decay=config["weight_decay"])
+        optimizer = torch.optim.AdamW(models_dict['parameters'], lr=config["lr"],weight_decay=config["weight_decay"])
     else:
         raise Exception('Invalid optimizer type!')
 
@@ -346,21 +369,6 @@ def main(rank, world_size):
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
 
-    def layer_saver(layers):
-        dicts = []
-        for layer in layers:
-            temp_dict = {}
-            for key,val in layer.items():
-                if isinstance(val,nn.Module):
-                    save = val.state_dict()
-                elif isinstance(val,pyro.distributions.pyro.distributions.transforms.Permute):
-                    save = val.permutation
-                else:
-                    raise Exception('How to load?')
-                temp_dict[key] = save
-            dicts.append(temp_dict)
-        return dicts
-           
     
     scaler = torch.cuda.amp.GradScaler(enabled=config['amp'])
 
@@ -375,14 +383,14 @@ def main(rank, world_size):
                 extract_0,extract_1 = batch
     
 
-                loss, _ = inner_loop_cross(extract_0,extract_1,models_dict,base_dist,config)
+                loss, _ = inner_loop_cross(extract_0,extract_1,models_dict,config)
     
             
             scaler.scale(loss).backward()
       
 
 
-            torch.nn.utils.clip_grad_norm_(parameters,max_norm=config['grad_clip_val'])
+            torch.nn.utils.clip_grad_norm_(models_dict['parameters'],max_norm=config['grad_clip_val'])
             scaler.step(optimizer)
             scaler.update()
 
@@ -398,7 +406,7 @@ def main(rank, world_size):
                 if not config['attn_connection']:
                     with torch.no_grad():
                         #Multiply std to get tighter samples
-                        base_dist_for_sample = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device)*0.6)
+                        base_dist_for_sample = torch.distributions.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device)*0.6)
                         sample = sample_cross(4000,extract_0,models_dict,base_dist_for_sample,config)[0]
                         sample = sample.cpu().numpy().squeeze()
                         sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
@@ -409,7 +417,9 @@ def main(rank, world_size):
                 wandb.log({'loss':loss_item,'lr':current_lr,'time_batch':time_batch})
             
         scheduler.step(loss_running_avg)
-        save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"blow_up_mlp":models_dict['blow_up_mlp'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
+        save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"augmenter":models_dict['augmenter'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
+        if config['attn_connection']:
+            save_dict['initial_attn_emb'] = models_dict['initial_attn_emb']
         torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
         wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})
 if __name__ == "__main__":

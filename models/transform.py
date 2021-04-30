@@ -11,7 +11,7 @@ class Transform(torch.nn.Module):
         super().__init__()
         
         
-    def forward(self, x):
+    def forward(self, x,context=None):
         """
         Forward transform.
         Computes `z <- x` and the log-likelihood contribution term `log C`
@@ -24,7 +24,7 @@ class Transform(torch.nn.Module):
         """
         raise NotImplementedError()
 
-    def inverse(self, z):
+    def inverse(self, z,context=None):
         """
         Inverse transform.
         Computes `x <- z`.
