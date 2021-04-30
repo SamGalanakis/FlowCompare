@@ -1,5 +1,5 @@
 import torch
-from transform import Transform
+from .transform import Transform
 
 
 
@@ -20,7 +20,7 @@ class Augment(Transform):
     def __init__(self, noise_dist, x_size, split_dim=1):
         super().__init__()
         assert split_dim >= 1
-        self.noise_dist = noise_source
+        self.noise_dist = noise_dist
         self.split_dim = split_dim
         self.x_size = x_size
         

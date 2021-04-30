@@ -21,7 +21,7 @@ class Exponential_matrix_coupling(TransformModule):
     domain = constraints.real_vector
     codomain = constraints.real_vector
     bijective=True
-    def __init__(self, split_dim, hypernet,input_dim,scale,shift,rescale,reshift, dim=-1,algo='original'):
+    def __init__(self, split_dim, hypernet,input_dim,scale,shift,rescale,reshift, dim=-1,algo='original',eps=1e-8):
         super().__init__(cache_size=1)
         if dim >= 0:
             raise ValueError("'dim' keyword argument must be negative")
@@ -36,6 +36,7 @@ class Exponential_matrix_coupling(TransformModule):
         self.rescale = nn.Parameter(rescale)
         self.reshift = nn.Parameter(reshift)
         self.algo = algo
+        self.eps = eps
         
 
 
@@ -89,7 +90,7 @@ class Exponential_matrix_coupling(TransformModule):
         
 
         self.cached_w_mat = w_mat
-        w_mat = expm(w_mat,algo=self.algo)
+        w_mat = expm(w_mat,eps = self.eps,algo=self.algo)
 
        
 
@@ -117,7 +118,7 @@ class Exponential_matrix_coupling(TransformModule):
         w_mat = w_mat.reshape((w_mat.shape[:-1] + (self.input_dim-self.split_dim,self.input_dim-self.split_dim)))
         
         self.cached_w_mat = w_mat
-        w_mat = expm(-w_mat,algo=self.algo)
+        w_mat = expm(-w_mat,eps = self.eps ,algo=self.algo)
         x2 = torch.matmul(w_mat,(y2-b_vec).unsqueeze(-1)).squeeze(-1)
         return torch.cat([x1, x2], dim=self.dim)
 
@@ -221,11 +222,12 @@ class ExponentialMatrixCouplngAttn(TransformModule):
     domain = constraints.real_vector
     codomain = constraints.real_vector
     bijective=True
-    def __init__(self, split_dim, hypernet,input_dim, dim=-1,algo='original'):
+    def __init__(self, split_dim, hypernet,input_dim, dim=-1,algo='original',eps=1e-8):
         super().__init__(cache_size=1)
         if dim >= 0:
             raise ValueError("'dim' keyword argument must be negative")
         self.split_dim = split_dim
+        self.eps = eps
         self.nn = hypernet
         self.dim = dim
         self.event_dimension = -dim
@@ -236,6 +238,7 @@ class ExponentialMatrixCouplngAttn(TransformModule):
         self.rescale = nn.Parameter(torch.ones(1))
         self.reshift = nn.Parameter(torch.zeros(1))
         self.algo = algo
+        self.eps = eps
     
 
     def _exp(self, x, M):
@@ -286,7 +289,7 @@ class ExponentialMatrixCouplngAttn(TransformModule):
         
 
         self.cached_w_mat = w_mat
-        w_mat = expm(w_mat,algo=self.algo)
+        w_mat = expm(w_mat,eps = self.eps, algo=self.algo)
 
         
 
@@ -313,7 +316,7 @@ class ExponentialMatrixCouplngAttn(TransformModule):
         w_mat = w_mat.reshape((w_mat.shape[:-1] + (self.input_dim-self.split_dim,self.input_dim-self.split_dim)))
         
         self.cached_w_mat = w_mat
-        w_mat = expm(-w_mat,algo=self.algo)
+        w_mat = expm(-w_mat,eps = self.eps, algo=self.algo)
         x2 = torch.matmul(w_mat,(y2-b_vec).unsqueeze(-1)).squeeze(-1)
         return torch.cat([x1, x2], dim=self.dim)
 

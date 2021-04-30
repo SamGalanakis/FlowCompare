@@ -1,10 +1,20 @@
 import torch
 import torch.nn as nn
-
+import math
 
 
 #Code adapted from : https://github.com/didriknielsen/survae_flows/
 
+def sum_except_batch(x, num_dims=1):
+    '''
+    Sums all dimensions except the first.
+    Args:
+        x: Tensor, shape (batch_size, ...)
+        num_dims: int, number of batch dims (default=1)
+    Returns:
+        x_sum: Tensor, shape (batch_size,)
+    '''
+    return x.reshape(*x.shape[:num_dims], -1).sum(-1)
 
 def mean_except_batch(x, num_dims=1):
     '''
@@ -21,7 +31,7 @@ def mean_except_batch(x, num_dims=1):
 class Distribution(nn.Module):
     """Distribution base class."""
 
-    def log_prob(self, x):
+    def log_prob(self, x,context=None):
         """Calculate log probability under the distribution.
         Args:
             x: Tensor, shape (batch_size, ...)
@@ -30,7 +40,7 @@ class Distribution(nn.Module):
         """
         raise NotImplementedError()
 
-    def sample(self, num_samples):
+    def sample(self, num_samples,context=None):
         """Generates samples from the distribution.
         Args:
             num_samples: int, number of samples to generate.
@@ -39,7 +49,7 @@ class Distribution(nn.Module):
         """
         raise NotImplementedError()
 
-    def sample_with_log_prob(self, num_samples):
+    def sample_with_log_prob(self, num_samples,context=None):
         """Generates samples from the distribution together with their log probability.
         Args:
             num_samples: int, number of samples to generate.
@@ -47,8 +57,8 @@ class Distribution(nn.Module):
             samples: Tensor, shape (num_samples, ...)
             log_prob: Tensor, shape (num_samples,)
         """
-        samples = self.sample(num_samples)
-        log_prob = self.log_prob(samples)
+        samples = self.sample(num_samples,context=context)
+        log_prob = self.log_prob(samples,context=context)
         return samples, log_prob
 
     def forward(self, *args, mode, **kwargs):
@@ -74,10 +84,27 @@ class StandardUniform(Distribution):
         self.register_buffer('zero', torch.zeros(1))
         self.register_buffer('one', torch.ones(1))
 
-    def log_prob(self, x):
+    def log_prob(self, x,context=None):
         lb = mean_except_batch(x.ge(self.zero).type(self.zero.dtype))
         ub = mean_except_batch(x.le(self.one).type(self.one.dtype))
         return torch.log(lb*ub)
 
-    def sample(self, num_samples):
+    def sample(self, num_samples,context=None):
         return torch.rand((num_samples,) + self.shape, device=self.zero.device, dtype=self.zero.dtype)
+
+
+class StandardNormal(Distribution):
+    """A multivariate Normal with zero mean and unit covariance."""
+
+    def __init__(self, shape):
+        super(StandardNormal, self).__init__()
+        self.shape = torch.Size(shape)
+        self.register_buffer('buffer', torch.zeros(1))
+
+    def log_prob(self, x,context= None):
+        log_base =  - 0.5 * math.log(2 * math.pi)
+        log_inner = - 0.5 * x**2
+        return sum_except_batch(log_base+log_inner)
+
+    def sample(self, num_samples,context= None):
+        return torch.randn(num_samples, *self.shape, device=self.buffer.device, dtype=self.buffer.dtype)
