@@ -1,5 +1,5 @@
 import torch
-from .transform import Transform
+from models import Transform, ConditionalDistribution
 
 
 
@@ -30,7 +30,7 @@ class Slice(Transform):
         self.noise_dist = noise_dist
         self.dim = dim
         self.num_keep = num_keep
-        
+        self.cond = isinstance(self.noise_dist, ConditionalDistribution)
 
     def split_input(self, input):
         split_proportions = (self.num_keep, input.shape[self.dim] - self.num_keep)

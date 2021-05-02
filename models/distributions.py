@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import math
-
+from torch.distributions import Normal
 
 #Code adapted from : https://github.com/didriknielsen/survae_flows/
 
@@ -74,7 +74,69 @@ class Distribution(nn.Module):
         else:
             raise RuntimeError("Mode {} not supported.".format(mode))
     
+class ConditionalDistribution(Distribution):
+    """ConditionalDistribution base class"""
 
+    def log_prob(self, x, context):
+        """Calculate log probability under the distribution.
+        Args:
+            x: Tensor, shape (batch_size, ...).
+            context: Tensor, shape (batch_size, ...).
+        Returns:
+            log_prob: Tensor, shape (batch_size,)
+        """
+        raise NotImplementedError()
+
+    def sample(self, context):
+        """Generates samples from the distribution.
+        Args:
+            context: Tensor, shape (batch_size, ...).
+        Returns:
+            samples: Tensor, shape (batch_size, ...).
+        """
+        raise NotImplementedError()
+
+    def sample_with_log_prob(self, context):
+        """Generates samples from the distribution together with their log probability.
+        Args:
+            context: Tensor, shape (batch_size, ...).
+        Returns::
+            samples: Tensor, shape (batch_size, ...).
+            log_prob: Tensor, shape (batch_size,)
+        """
+        raise NotImplementedError()
+
+class ConditionalMeanStdNormal(ConditionalDistribution):
+    """A multivariate Normal with conditional mean and learned std."""
+
+    def __init__(self, net, scale_shape):
+        super(ConditionalMeanStdNormal, self).__init__()
+        self.net = net
+        self.log_scale = nn.Parameter(torch.zeros(scale_shape))
+
+    def cond_dist(self, context):
+        mean = self.net(context)
+        return Normal(loc=mean, scale=self.log_scale.exp())
+
+    def log_prob(self, x, context):
+        dist = self.cond_dist(context)
+        return sum_except_batch(dist.log_prob(x))
+
+    def sample(self, context):
+        dist = self.cond_dist(context)
+        return dist.rsample()
+
+    def sample_with_log_prob(self, context):
+        dist = self.cond_dist(context)
+        z = dist.rsample()
+        log_prob = dist.log_prob(z)
+        log_prob = sum_except_batch(log_prob)
+        return z, log_prob
+
+    def mean(self, context):
+        return self.cond_dist(context).mean
+
+    
 class StandardUniform(Distribution):
     """A multivariate Uniform with boundaries (0,1)."""
 

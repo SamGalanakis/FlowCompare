@@ -8,7 +8,7 @@ import sys
 sys.path.append(".")
 from models.nets import MLP
 from utils import expm
-from transform import Transform
+from models import Transform
 
 
 

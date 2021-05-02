@@ -142,3 +142,18 @@ augmenter_dist:
 augmenter:
   desc: Use noise augmentation at start in order to increase dimensionality from input_dim to latent_dim
   value: true
+net_augmenter_dist_hidden_dims:
+  desc: Net hidden sizes for initial augmenter dim if using conditional distribution
+  value: [12,32,32]
+pre_attention_mlp_hidden_dims:
+  desc: Hidden dims for pre attention mlp
+  value: [64,64,64,64]
+n_flows_cif:
+  desc: Number of flows in each cif block between augment and slice
+  value : 1 
+cif_dist:
+  desc: What dist to use for augment/slice in cif blocks
+  value: StandardUniform
+net_cif_dist_hidden_dims:
+  desc: Hidden dims for conditional distribution nets in the cif augmenter/slicer
+  value: [64,64,64]

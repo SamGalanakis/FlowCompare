@@ -19,18 +19,22 @@ class CouplingPreconditionerAttn(nn.Module):
         attn_emb = self.attn(self.pre_attention_mlp(x1),context = context)
         return attn_emb
 
-def get_cif_block_attn(input_dim,augment_dim,distribution,context_dim,sample_size,flow,attn,pre_attention_mlp,n_flows,split_dim,event_dim):
+def get_cif_block_attn(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,n_flows,event_dim,permuter):
     transforms = []
-    distrib_augment = distribution(shape = (sample_size,augment_dim-input_dim))
-    distrib_slice = distribution(shape = (sample_size,augment_dim-input_dim))
+    
+    distrib_augment = distribution()
+    distrib_slice = distribution()
     augmenter =  Augment(distrib_augment,input_dim,split_dim=-1)
     transforms.append(augmenter)
     
-    for x in range(n_flows):
+    for index,x in enumerate(range(n_flows)):
         temp_flow = flow(input_dim=augment_dim,context_dim = context_dim)
         temp_coupling_preconditioner_attn = CouplingPreconditionerAttn(attn(),pre_attention_mlp(augment_dim//2),split_dim=augment_dim//2,event_dim=event_dim)
         wrapped  = PreConditionApplier(temp_flow,temp_coupling_preconditioner_attn)
         transforms.append(wrapped)
+        if index != n_flows-1:
+            transforms.append(permuter(augment_dim))
+
     slicer = Slice(distrib_slice,input_dim,dim=-1)
     transforms.append(slicer)
     return Flow(transforms)

@@ -28,7 +28,9 @@ Permuter,
 Augment,
 StandardUniform,
 StandardNormal,
-Slice
+get_cif_block_attn,
+ConditionalMeanStdNormal,
+Flow
 )
 
 
@@ -52,7 +54,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
 
     parameters = []
-
+    
     if config['coupling_block_nonlinearity']=="ELU":
         coupling_block_nonlinearity = nn.ELU()
     elif config['coupling_block_nonlinearity']=="RELU":
@@ -62,29 +64,24 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
     if config['augmenter']:
 
-        if config['augmenter_dist'] == StandardUniform:
+        if config['augmenter_dist'] == 'StandardUniform':
             augmenter_dist = StandardUniform(shape = (config['sample_size'],config['latent_dim']-config['input_dim']))
+        elif config['augmenter_dist'] == 'ConditionalMeanStdNormal':
+            net_augmenter_dist = MLP(config['input_dim'],config['net_augmenter_dist_hidden_dims'],config['latent_dim']-config['input_dim'],coupling_block_nonlinearity)
+            augmenter_dist = ConditionalMeanStdNormal( net = net_augmenter_dist,scale_shape =  config['latent_dim']-config['input_dim'])
         else: 
             raise Exception('Invalid augmenter_dist')
     
 
-        augmenter_dist = augmenter_dist.to(device)
-        parameters += augmenter_dist.parameters()
         augmenter = Augment(augmenter_dist,split_dim=-1,x_size = config['input_dim'])
     else:
         augmenter = torch.nn.Identity().to(device)
 
-    if mode == 'train':
-            augmenter.train()
-    else:
-        augmenter.eval()
-    if config['data_parallel']:
-        augmenter = nn.DataParallel(augmenter).to(device)
-    else:
-        augmenter = augmenter.to(device)
+ 
+  
 
-    # Is both neccesary??
-    parameters+= augmenter.parameters()
+    
+    
 
     if config['flow_type'] == 'affine_coupling':
         flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
@@ -100,55 +97,46 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     #out_dim,query_dim, context_dim, heads, dim_head, dropout
     attn = lambda : get_cross_attn(config['attn_dim'],config['attn_input_dim'],config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
 
-    if config['attn_connection']:
-        pre_attention_mlp = lambda : MLP(config['latent_dim']//2 + config['attn_dim'],[config['latent_dim']//2 + config['attn_dim']]*4,config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
-        initial_attn_emb = torch.randn(config['attn_dim']).to(device)
-        parameters+=initial_attn_emb
-    else:
-        input_dim_pre_attention_mlp = config['latent_dim']//2
-        if config['input_embedder'] == 'DGCNNembedderCombo':
-            input_dim_pre_attention_mlp += config['global_input_embedding_dim']
-        pre_attention_mlp = lambda : MLP(input_dim_pre_attention_mlp,[config['attn_input_dim']//2]*4,config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
+
+    
+
+    pre_attention_mlp = lambda input_dim_pre_attention_mlp: MLP(input_dim_pre_attention_mlp,config['pre_attention_mlp_hidden_dims'],config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
     
     
     if config['permuter_type'] == 'Exponential_combiner':
-        permuter = lambda : ExponentialCombiner(config['latent_dim'])
+        permuter = lambda dim: ExponentialCombiner(dim)
     elif config['permuter_type'] == "random_permute":
-        permuter = lambda : Permuter(permutation = torch.randperm(config['latent_dim'], dtype=torch.long).to(device))
+        permuter = lambda dim: Permuter(permutation = torch.randperm(dim, dtype=torch.long).to(device))
     else:
         raise Exception(f'Invalid permuter type: {config["""permuter_type"""]}')
 
+
+
+    if config['cif_dist'] == 'StandardUniform':
+        cif_dist = StandardUniform(shape = (config['sample_size'],config['augmenter_dim']-config['latent_dim']))
+    elif config['cif_dist'] == 'ConditionalMeanStdNormal':
+        net_cif_dist = MLP(config['input_dim'],config['net_cif_dist_hidden_dims'],config['augmenter_dim']-config['latent_dim'],coupling_block_nonlinearity)
+        cif_dist = ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['augmenter_dim']-config['latent_dim'])
+    else: 
+        raise Exception('Invalid cif_dist')
+     
+    cif_block = lambda : get_cif_block_attn(config['latent_dim'],config['augment_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,pre_attention_mlp,config['n_flows_cif'],event_dim=-1,permuter=permuter)
+   
     
-    layers = []
-    
+
+    transforms = []
+    transforms.append(augmenter)
     #Add transformations to list
     for index in range(config['n_flow_layers']):
-        
-        layer_dict = {}
-        if index % config['attention_frequency'] == 0:
-            layer_dict['pre_attention_mlp'] = pre_attention_mlp()
-            layer_dict['flow_with_attn'] = flow_with_attn()
-            layer_dict['attn'] = attn()
-        else:
-            layer_dict['plain_flow'] = plain_flow()
-        
-        #Don't put on first (last on reverse)
-        if index != 0:
-            layer_dict['permuter'] = permuter()
-        layers.append(layer_dict)
-        
-    for layer in layers:
-        for module in layer.values():
-            if isinstance(module,torch.nn.Module):
-                if mode == 'train':
-                    module.train()
-                else:
-                    module.eval()
-                if config['data_parallel']:
-                    module = nn.DataParallel(module).to(device)
-                else:
-                    transform = module.to(device)
-                parameters+= module.parameters()
+        transforms.append(cif_block())
+        #Don't permute output
+        if index != config['n_flow_layers']-1:
+            transforms.append(permuter(config['latent_dim']))
+
+    final_flow = Flow(transforms)
+      
+    
+   
 
 
     if config['input_embedder'] == 'NeighborhoodEmbedder':
@@ -165,25 +153,29 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
     if mode == 'train':
         input_embedder.train()
+        final_flow.train()
      
     else:
         input_embedder.eval()
+        final_flow.eval()
         
     if config['data_parallel']:
         input_embedder = nn.DataParallel(input_embedder).to(device)
+        final_flow = nn.DataParallel(final_flow).to(device)
 
     else:
         input_embedder = input_embedder.to(device)
+        final_flow = final_flow.to(device)
 
     
   
     parameters += input_embedder.parameters()
+    parameters += final_flow.parameters()
 
-    models_dict = {'parameters':parameters,"layers":layers,'input_embedder':input_embedder}
-    if config['attn_connection']:
-        models_dict['initial_attn_emb'] = initial_attn_emb
+    models_dict = {'parameters':parameters,"flow":final_flow,'input_embedder':input_embedder}
+    
 
-    models_dict['augmenter'] = augmenter
+    
 
 
     base_dist =  StandardNormal(shape = (config['sample_size'],config['latent_dim']-config['input_dim'])).to(device)

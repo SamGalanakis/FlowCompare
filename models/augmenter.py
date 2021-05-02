@@ -1,7 +1,7 @@
 import torch
-from .transform import Transform
+from models import Transform,ConditionalDistribution
 
-
+#Code adapted from : https://github.com/didriknielsen/survae_flows/
 
 
 
@@ -15,7 +15,6 @@ class Augment(Transform):
         [2] VFlow: More Expressive Generative Flows with Variational Data Augmentation,
             Chen et al., 2020, https://arxiv.org/abs/2002.09741
     '''
-    stochastic_forward = True
 
     def __init__(self, noise_dist, x_size, split_dim=1):
         super().__init__()
@@ -23,7 +22,7 @@ class Augment(Transform):
         self.noise_dist = noise_dist
         self.split_dim = split_dim
         self.x_size = x_size
-        
+        self.cond = isinstance(self.noise_dist, ConditionalDistribution)
 
     def split_z(self, z):
         split_proportions = (self.x_size, z.shape[self.split_dim] - self.x_size)
