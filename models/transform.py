@@ -70,3 +70,11 @@ class Flow(Transform):
         for transform in reversed(self.transforms):
             y = transform.inverse(y,context)
         return y
+
+class IdentityTransform(Transform):
+    def __init__(self):
+        super().__init__()
+    def forward(x,context=None):
+        return x, 0
+    def inverse(y,context=None):
+        return y

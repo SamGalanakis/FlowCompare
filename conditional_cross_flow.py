@@ -81,7 +81,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         input_dim_pre_attention_mlp = config['latent_dim']//2
         if config['input_embedder'] == 'DGCNNembedderCombo':
             input_dim_pre_attention_mlp += config['global_input_embedding_dim']
-        pre_attention_mlp = lambda : MLP(input_dim_pre_attention_mlp,config['pre_attention_mlp_sizes'],config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
+        pre_attention_mlp = lambda : MLP(input_dim_pre_attention_mlp,config['pre_attention_mlp_hidden_dims'],config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
     
     
     if permuter_type == 'Exponential_combiner':
@@ -270,9 +270,10 @@ def main(rank, world_size):
     
     
     config_path = r"config/config_conditional_cross.yaml"
+
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
-   
+    
     models_dict = initialize_cross_flow(config,device,mode='train')
     
     if config['preselected_points']:

@@ -11,7 +11,7 @@ class CouplingPreconditionerAttn(nn.Module):
     def __init__(self,attn,pre_attention_mlp,split_dim,event_dim=-1):
         super().__init__()
         self.attn = attn
-        self.pre_attn_mlp = pre_attention_mlp
+        self.pre_attention_mlp = pre_attention_mlp
         self.event_dim = event_dim
         self.split_dim = split_dim
     def forward(self,x,context):

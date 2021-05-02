@@ -29,7 +29,8 @@ StandardUniform,
 StandardNormal,
 get_cif_block_attn,
 ConditionalMeanStdNormal,
-Flow
+Flow,
+IdentityTransform
 )
 
 
@@ -74,7 +75,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
         augmenter = Augment(augmenter_dist,split_dim=-1,x_size = config['input_dim'])
     else:
-        augmenter = torch.nn.Identity().to(device)
+        augmenter = IdentityTransform().to(device)
 
  
   
