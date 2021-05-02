@@ -35,7 +35,7 @@ Slice
 def load_cross_flow(load_dict,initialized_cross_flow):
     
     initialized_cross_flow['augmenter'].load_state_dict(load_dict['augmenter'])
-    initialized_cross_flow['augmbase_distenter'].load_state_dict(load_dict['base_dist'])
+    initialized_cross_flow['base_dist'].load_state_dict(load_dict['base_dist'])
     initialized_cross_flow['input_embedder'].load_state_dict(load_dict['input_embedder'])
 
     for layer_dicts,layer in zip(load_dict['layers'],initialized_cross_flow['layers']):

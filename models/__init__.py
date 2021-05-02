@@ -14,3 +14,4 @@ from .augmenter import Augment
 from .distributions import Distribution,StandardUniform,StandardNormal
 from .exponential_coupling import ExponentialCoupling
 from  .slice import Slice
+from .flow import Flow
