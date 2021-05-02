@@ -204,7 +204,7 @@ def sample_cross(n_samples,extract_0,models_dict,base_dist_for_sample,config):
 
     input_embeddings = models_dict["input_embedder"](extract_0)
 
-    x = base_dist_for_sample.sample(config['batch_size'])
+    x = base_dist_for_sample.sample(extract_0.shape[:-1])
     
     x = models_dict['flow'].inverse(x,context=input_embeddings)
     return x
@@ -249,14 +249,6 @@ def main(rank, world_size):
 
   
     dataloader = DataLoader(dataset,shuffle=True,batch_size=config['batch_size'],num_workers=config["num_workers"],collate_fn=None,pin_memory=True,prefetch_factor=2,drop_last=True)
-
-
-    
-    
-
-    
-    
-
 
 
     if config["optimizer_type"] =='Adam':
@@ -329,7 +321,7 @@ def main(rank, world_size):
             loss_item = loss.item()
             loss_running_avg = (loss_running_avg*(batch_ind) + loss_item)/(batch_ind+1)
             
-            if (batch_ind+1)%config['batches_per_sample'] == 0:
+            if (batch_ind+1) % config['batches_per_sample'] == 0:
                 if not config['attn_connection']:
                     with torch.no_grad():
                         #Multiply std to get tighter samples
