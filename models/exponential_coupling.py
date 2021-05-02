@@ -25,6 +25,7 @@ class ExponentialCoupling(Transform):
         self.reshift = nn.Parameter(torch.zeros(1))
         self.split_dim = input_dim//2
         self.algo = algo
+        self.context_dim = context_dim
         self.eps_expm = eps_expm
         out_dim = (self.input_dim - self.split_dim)**2 + self.input_dim - self.split_dim
         self.nn = MLP(self.split_dim +context_dim,hidden_dims,out_dim,nonlinearity,residual=True)

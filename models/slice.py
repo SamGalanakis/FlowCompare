@@ -37,12 +37,12 @@ class Slice(Transform):
 
     def forward(self, x,context=None):
         z, x2 = self.split_input(x)
-        if self.cond: ldj = self.decoder.log_prob(x2, context=z)
-        else:         ldj = self.decoder.log_prob(x2)
+        if self.cond: ldj = self.noise_dist.log_prob(x2, context=z)
+        else:         ldj = self.noise_dist.log_prob(x2)
         return z, ldj
 
     def inverse(self, z,context=None):
-        if self.cond: x2 = self.decoder.sample(context=z)
-        else:         x2 = self.decoder.sample(num_samples=z.shape[0])
+        if self.cond: x2 = self.noise_dist.sample(context=z)
+        else:         x2 = self.noise_dist.sample(num_samples=z.shape[0])
         x = torch.cat([z, x2], dim=self.dim)
         return x

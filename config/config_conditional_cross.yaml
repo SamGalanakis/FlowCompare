@@ -3,7 +3,7 @@ sample_size:
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
-  value: 10 # was 40
+  value: 30 # was 40
 data_loader:
   desc: What loader to use
   value: AmsGridLoader
@@ -159,6 +159,6 @@ net_cif_dist_hidden_dims:
   value: [64,64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 124
+  value: 64
 
 

@@ -41,7 +41,7 @@ class PreConditionApplier(Transform):
     def __init__(self,transform,pre_conditioner):
         super().__init__()
         self.pre_conditioner = pre_conditioner
-        self.module = transform
+        self.transform = transform
 
     def forward(self,x,context=None):
         context_for_transform= self.pre_conditioner(x,context)
@@ -61,11 +61,11 @@ class Flow(Transform):
         self.transforms = nn.ModuleList(transform_list)
 
     def forward(self,x,context=None):
-        ldj_final=0.0
-        for transform in self.transforms:
+        ldj_total = torch.zeros(x.shape[:-1], device=x.device)
+        for index,transform in enumerate(self.transforms):
             x,ldj = transform(x,context)
-            ldj_final +=ldj
-        return x,ldj
+            ldj_total +=ldj
+        return x,ldj_total
     def inverse(self,y,context=None):
         for transform in reversed(self.transforms):
             y = transform.inverse(y,context)

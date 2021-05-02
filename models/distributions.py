@@ -120,7 +120,7 @@ class ConditionalMeanStdNormal(ConditionalDistribution):
 
     def log_prob(self, x, context):
         dist = self.cond_dist(context)
-        return sum_except_batch(dist.log_prob(x))
+        return sum_except_batch(dist.log_prob(x),num_dims=2)
 
     def sample(self, context):
         dist = self.cond_dist(context)
@@ -130,7 +130,7 @@ class ConditionalMeanStdNormal(ConditionalDistribution):
         dist = self.cond_dist(context)
         z = dist.rsample()
         log_prob = dist.log_prob(z)
-        log_prob = sum_except_batch(log_prob)
+        log_prob = sum_except_batch(log_prob,num_dims=2)
         return z, log_prob
 
     def mean(self, context):
@@ -147,8 +147,8 @@ class StandardUniform(Distribution):
         self.register_buffer('one', torch.ones(1))
 
     def log_prob(self, x,context=None):
-        lb = mean_except_batch(x.ge(self.zero).type(self.zero.dtype))
-        ub = mean_except_batch(x.le(self.one).type(self.one.dtype))
+        lb = mean_except_batch(x.ge(self.zero).type(self.zero.dtype),num_dims=2)
+        ub = mean_except_batch(x.le(self.one).type(self.one.dtype),num_dims=2)
         return torch.log(lb*ub)
 
     def sample(self, num_samples,context=None):
@@ -166,7 +166,7 @@ class StandardNormal(Distribution):
     def log_prob(self, x,context= None):
         log_base =  - 0.5 * math.log(2 * math.pi)
         log_inner = - 0.5 * x**2
-        return sum_except_batch(log_base+log_inner)
+        return sum_except_batch(log_base+log_inner,num_dims=2)
 
     def sample(self, num_samples,context= None):
         return torch.randn(num_samples, *self.shape, device=self.buffer.device, dtype=self.buffer.dtype)

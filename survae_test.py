@@ -187,16 +187,16 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
 
 def inner_loop_cross(extract_0,extract_1,models_dict,config):
-    log_prob = 0.0
+    
 
     input_embeddings = models_dict["input_embedder"](extract_0)
     
     x= extract_1
     
     x,ldj = models_dict['flow'](x,context = input_embeddings)
-    log_prob += ldj
+    
 
-    log_prob += models_dict["base_dist"].log_prob(x)
+    log_prob = models_dict["base_dist"].log_prob(x) + ldj
     loss = -log_prob.sum() / (math.log(2) * x.numel())
     
     return loss,log_prob
