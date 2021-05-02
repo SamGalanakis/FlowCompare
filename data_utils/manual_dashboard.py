@@ -7,7 +7,8 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 from datetime import datetime
 import sys
-
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+sys.path.append(os.path.dirname(__file__))
 from utils import (
 load_las,
 extract_area,
@@ -40,7 +41,7 @@ classified_point_list_files = [os.path.join(classified_dir,f) for f in os.listdi
 classified_point_list_files = {int(os.path.basename(x).split("_")[0]):x for x in classified_point_list_files}
 
 
-def create_plots(point_list_df,file_1,file_2,sample_size=2048,clearance=2,shape='cylinder'):
+def create_plots(point_list_df,file_1,file_2,sample_size=2048,clearance=2,shape='circle'):
     points1 = load_las(file_1)
     points2 = load_las(file_2)
     current_figure_tuples = []

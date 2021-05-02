@@ -14,6 +14,7 @@ from pyro.distributions.util import copy_docs_from
 from pyro.nn import DenseNN   
 from tqdm import tqdm
 from utils import expm
+from models.transform import Transform
 
 eps = 1e-8
 class Learned_permuter(TransformModule):
@@ -79,6 +80,45 @@ class Exponential_combiner(TransformModule):
         w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + eps
         return self._trace(w_mat)
             
+
+class ExponentialCombiner(Transform):
+    def __init__(self,dim,algo='original',eps=1e-8):
+        super().__init__()
+        self.dim = dim
+        self.w = nn.Parameter(torch.randn((self.dim,self.dim)))
+        self.scale = nn.Parameter(torch.ones(1) / 8)
+        self.shift = nn.Parameter(torch.zeros(1))
+        self.rescale = nn.Parameter(torch.ones(1))
+        self.reshift = nn.Parameter(torch.zeros(1))
+        self.algo = algo
+
+    def _trace(self, M):
+
+        return M.diagonal(dim1=-2, dim2=-1).sum(-1)
+    
+    def forward(self,x,context=None):
+        w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + eps
+        return torch.matmul(expm(w_mat,algo=self.algo),x.unsqueeze(-1)).squeeze(-1), self._trace(w_mat)
+    def _inverse(self,y,context=None):
+        w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + eps
+        return torch.matmul(expm(-w_mat,algo=self.algo),y.unsqueeze(-1)).squeeze(-1)
+
+class Permuter(Transform):
+    def __init__(self,permutation,event_dim=-1):
+        self.permutation = permutation
+        self.event_dim = event_dim
+        self.inv_permutation =  torch.sort(self.permutation)[1]
+
+
+    def forward(self,x,context=None):
+        y = x.index_select(self.event_dim,self.permutation)
+        return y, torch.zeros(x.size()[:self.event_dim], dtype=x.dtype, layout=x.layout, device=x.device)
+    def inverse(self, y ,context=None):
+        x = y.index_select(self.event_dim,self.inv_permutation)
+        return x
+
+
+
 
 
 
