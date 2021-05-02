@@ -9,7 +9,6 @@ from torch.distributions.utils import _sum_rightmost
 from tqdm import tqdm
 from dataloaders import ConditionalDataGrid, ShapeNetLoader,AmsGridLoader
 import wandb
-import torch.multiprocessing as mp
 from torch import nn
 import pandas as pd
 import einops
@@ -62,7 +61,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     else:
         raise Exception("Invalid coupling_block_nonlinearity")
 
-    if config['augmenter']:
+    if config['latent_dim'] > config['input_dim']:
 
         if config['augmenter_dist'] == 'StandardUniform':
             augmenter_dist = StandardUniform(shape = (config['sample_size'],config['latent_dim']-config['input_dim']))
@@ -86,9 +85,9 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     if config['flow_type'] == 'affine_coupling':
         flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
     elif config['flow_type'] == 'exponential_coupling':
-        flow_for_cif = lambda input_dim,context_dim: ExponentialCoupling(input_dim,context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps = config['eps_expm'])
-        flow_with_attn = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = config['attn_dim'],nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps = config['eps_expm'])
-        plain_flow = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = None,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps = config['eps_expm'])
+        flow_for_cif = lambda input_dim,context_dim: ExponentialCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm']) 
+        #flow_with_attn = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = config['attn_dim'],nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm'])
+        #plain_flow = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = None,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm'])
         
     else:
         raise Exception('Invalid flow type')
@@ -113,14 +112,14 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
 
     if config['cif_dist'] == 'StandardUniform':
-        cif_dist = StandardUniform(shape = (config['sample_size'],config['augmenter_dim']-config['latent_dim']))
+        cif_dist = lambda : StandardUniform(shape = (config['sample_size'],config['cif_latent_dim']-config['latent_dim']))
     elif config['cif_dist'] == 'ConditionalMeanStdNormal':
         net_cif_dist = MLP(config['input_dim'],config['net_cif_dist_hidden_dims'],config['augmenter_dim']-config['latent_dim'],coupling_block_nonlinearity)
-        cif_dist = ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['augmenter_dim']-config['latent_dim'])
+        cif_dist = lambda : ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['augmenter_dim']-config['latent_dim'])
     else: 
         raise Exception('Invalid cif_dist')
      
-    cif_block = lambda : get_cif_block_attn(config['latent_dim'],config['augment_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,pre_attention_mlp,config['n_flows_cif'],event_dim=-1,permuter=permuter)
+    cif_block = lambda : get_cif_block_attn(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,pre_attention_mlp,config['n_flows_cif'],event_dim=-1,permuter=permuter)
    
     
 
@@ -188,47 +187,14 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
 def inner_loop_cross(extract_0,extract_1,models_dict,config):
     log_prob = 0.0
-    if config['attn_connection']:
-        attn_emb = models_dict['initial_attn_emb'].repeat(extract_1.shape[0] + (config['latent_dim'],1))
 
-    if not config['input_embedder'] == 'DGCNNembedderCombo':
-        input_embeddings = models_dict["input_embedder"](extract_0)
-    else: 
-        input_embeddings,global_embeddings = models_dict["input_embedder"](extract_0)
-        global_embeddings = einops.repeat(global_embeddings,'m n -> m k n', k = extract_1.shape[1])
-    x, ldj = models_dict['augmenter'](extract_1,context = None)
-    log_prob += ldj
+    input_embeddings = models_dict["input_embedder"](extract_0)
     
-    for idx,layer in enumerate(reversed(models_dict['layers'])):
-        
-        if 'attn' in layer:
-            flow=layer['flow_with_attn']
-            y1, y2 = y.split([flow.split_dim, y.size(flow.event_dim) - flow.split_dim], dim=flow.event_dim)
-            if config['input_embedder'] == 'DGCNNembedderCombo':
-                y1 = torch.cat((y1,global_embeddings),dim=-1)
-            if config['attn_connection']:
-                y1 = torch.cat((y1,attn_emb),dim=-1)
-          
-            attn_emb = layer['attn'](layer['pre_attention_mlp'](y1),context = input_embeddings)
-            
-            x,ldj = flow(y,context = attn_emb)
-            
+    x= extract_1
+    
+    x,ldj = models_dict['flow'](x,context = input_embeddings)
+    log_prob += ldj
 
-            
-            log_prob = log_prob - _sum_rightmost(flow.log_abs_det_jacobian(x, y,attn_emb),
-                                            1 - flow.domain.event_dim)
-        else:
-            flow=layer['plain_flow']
-            x,ldj = flow(x,context=None)
-        
-        log_prob += ldj
-
-        if "permuter" in layer:
-            
-            permuter = layer['permuter']
-            x,ldj = permuter(x,context=None)
-            log_prob += ldj
-    #Log prob 1 given 0
     log_prob += models_dict["base_dist"].log_prob(x)
     loss = -log_prob.sum() / (math.log(2) * x.numel())
     
@@ -237,49 +203,11 @@ def sample_cross(n_samples,extract_0,models_dict,base_dist_for_sample,config):
 
     input_embeddings = models_dict["input_embedder"](extract_0)
 
-    if not config['input_embedder'] == 'DGCNNembedderCombo':
-        input_embeddings = models_dict["input_embedder"](extract_0)
-    else: 
-        input_embeddings,global_embeddings = models_dict["input_embedder"](extract_0)
-        global_embeddings = einops.repeat(global_embeddings,'m n -> m k n', k = n_samples)
     x = base_dist_for_sample.sample(config['batch_size'])
     
-    for idx,layer in enumerate(models_dict['layers']):
-       
-        if "permuter" in layer:
-            
-            permuter = layer['permuter']
-            x = permuter.inverse(x,context=None)
-    
-        
-    
-        if 'attn' in layer:
-            
-            flow=layer['flow_with_attn']
-            x1, x2 = x.split([flow.split_dim, x.size(flow.dim) - flow.split_dim], dim=flow.dim)
-            if config['input_embedder'] == 'DGCNNembedderCombo':
-                x1 = torch.cat((x1,global_embeddings),dim=-1) 
-            attn_emb = layer['attn'](layer['pre_attention_mlp'](x1),context = input_embeddings)
-            
-            x = flow.inverse(x,context=attn_emb)
-            
-        else:
-            flow=layer['plain_flow']
-            x = flow.inverse(x,context=None)
-        x = models_dict['augmenter'].inverse(x,context=None)
+    x = models_dict['flow'].inverse(x,context=input_embeddings)
     return x
-def layer_saver(layers):
-        dicts = []
-        for layer in layers:
-            temp_dict = {}
-            for key,val in layer.items():
-                if isinstance(val,nn.Module):
-                    save = val.state_dict()
-                else:
-                    raise Exception('How to load?')
-                temp_dict[key] = save
-            dicts.append(temp_dict)
-        return dicts
+
 
 def main(rank, world_size):
 
@@ -288,9 +216,13 @@ def main(rank, world_size):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     
+    
+
     config_path = r"config/config_conditional_cross.yaml"
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
+
+    models_dict = initialize_cross_flow(config,device,mode='train')
    
 
     if config['preselected_points']:
@@ -321,7 +253,7 @@ def main(rank, world_size):
     
     
 
-    models_dict = initialize_cross_flow(config,device,mode='train')
+    
     
 
 
@@ -411,9 +343,7 @@ def main(rank, world_size):
                 wandb.log({'loss':loss_item,'lr':current_lr,'time_batch':time_batch})
             
         scheduler.step(loss_running_avg)
-        save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"augmenter":models_dict['augmenter'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
-        if config['attn_connection']:
-            save_dict['initial_attn_emb'] = models_dict['initial_attn_emb']
+        save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"flow":models_dict['flow'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
         torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
         wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})
 if __name__ == "__main__":

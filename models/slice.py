@@ -26,7 +26,6 @@ class Slice(Transform):
 
     def __init__(self, noise_dist, num_keep, dim=1):
         super().__init__()
-        assert dim >= 1
         self.noise_dist = noise_dist
         self.dim = dim
         self.num_keep = num_keep
