@@ -62,7 +62,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
 
     if config['flow_type'] == 'affine_coupling':
-        flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
+        flow_with_attn = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
     elif config['flow_type'] == 'exponential_coupling':
         flow_with_attn = lambda : exponential_matrix_coupling_attn(config['latent_dim'],config['attn_dim'],coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
         plain_flow = lambda : exponential_matrix_coupling(input_dim=config['latent_dim'], hidden_dims=config['hidden_dims'], split_dim=None, dim=-1,device='cpu',nonlinearity=coupling_block_nonlinearity)
@@ -74,14 +74,14 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     #out_dim,query_dim, context_dim, heads, dim_head, dropout
     attn = lambda : get_cross_attn(config['attn_dim'],config['attn_input_dim'],config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
     if config['attn_connection']:
-        pre_attention_mlp = lambda : MLP(config['latent_dim']//2 + config['attn_dim'],[config['latent_dim']//2 + config['attn_dim']]*4,config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
+        pre_attention_mlp = lambda : MLP(config['latent_dim']//2 + config['attn_dim'],config['pre_attention_mlp_sizes'],config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
         initial_attn_emb = torch.randn(config['attn_dim']).to(device)
         parameters+=initial_attn_emb
     else:
         input_dim_pre_attention_mlp = config['latent_dim']//2
         if config['input_embedder'] == 'DGCNNembedderCombo':
             input_dim_pre_attention_mlp += config['global_input_embedding_dim']
-        pre_attention_mlp = lambda : MLP(input_dim_pre_attention_mlp,[config['attn_input_dim']//2]*4,config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
+        pre_attention_mlp = lambda : MLP(input_dim_pre_attention_mlp,config['pre_attention_mlp_sizes'],config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
     
     
     if permuter_type == 'Exponential_combiner':
@@ -273,7 +273,8 @@ def main(rank, world_size):
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
    
-
+    models_dict = initialize_cross_flow(config,device,mode='train')
+    
     if config['preselected_points']:
         scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(os.path.join(config['dirs_challenge_csv'],x)) for x in os.listdir(config['dirs_challenge_csv']) }
         preselected_points_dict = {key:val[['x','y']].values for key,val in scene_df_dict.items()}
@@ -301,7 +302,7 @@ def main(rank, world_size):
 
     base_dist = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device))
 
-    models_dict = initialize_cross_flow(config,device,mode='train')
+    
     
 
 
@@ -320,7 +321,7 @@ def main(rank, world_size):
 
     
     if config['lr_scheduler'] == 'ReduceLROnPlateau':
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=config["patience"],threshold=0.0001,min_lr=config["min_lr"])
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.8,patience=config["patience"],threshold=0.0001,min_lr=config["min_lr"])
     elif config['lr_scheduler'] == 'OneCycleLR':
         scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr = config['lr'], epochs=config['n_epochs'], steps_per_epoch=len(dataloader),total_steps =len(dataloader))
     else:
@@ -393,7 +394,7 @@ def main(rank, world_size):
             time_batch = perf_counter() - t0
             loss_item = loss.item()
             loss_running_avg = (loss_running_avg*(batch_ind) + loss_item)/(batch_ind+1)
-            
+            scheduler.step(loss)
             if (batch_ind+1)%config['batches_per_sample'] == 0:
                 if not config['attn_connection']:
                     with torch.no_grad():
@@ -405,12 +406,13 @@ def main(rank, world_size):
                         cond_nump = extract_0.cpu().numpy()[0]
                         cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
                         wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6])})
+
             else:
                 wandb.log({'loss':loss_item,'lr':current_lr,'time_batch':time_batch})
             
-        scheduler.step(loss_running_avg)
-        save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"blow_up_mlp":models_dict['blow_up_mlp'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
-        torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
+            if (batch_ind+1)%config['batches_per_save'] == 0:
+                save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"layers":layer_saver(models_dict['layers']),"blow_up_mlp":models_dict['blow_up_mlp'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
+                torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
         wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()

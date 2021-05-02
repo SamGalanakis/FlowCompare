@@ -33,7 +33,7 @@ class Scan:
         self.datetime = datetime(int(self.recording_properties['RecordingTimeGps'].split('-')[0]),int(self.recording_properties['RecordingTimeGps'].split('-')[1]),int(self.recording_properties['RecordingTimeGps'].split('-')[-1].split('T')[0]))
 
 class AmsGridLoader(Dataset):
-    def __init__(self, directory_path,out_path,sample_size=2000,grid_square_size = 4,clearance = 10,preload=False,min_points=500,subsample='random',height_min_dif=0.0,normalization='min_max',grid_type='circle',device="cuda"):
+    def __init__(self, directory_path,out_path,sample_size=2000,grid_square_size = 4,clearance = 10,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle',max_height = 17.0, device="cuda"):
         self.sample_size  = sample_size
         self.directory_path = directory_path
         self.grid_square_size = grid_square_size
@@ -42,9 +42,10 @@ class AmsGridLoader(Dataset):
         self.out_path = out_path
         self.subsample = subsample
         self.height_min_dif = height_min_dif
+        self.max_height = max_height
         self.minimum_difs = torch.Tensor([self.grid_square_size*0.95,self.grid_square_size*0.95,self.height_min_dif]).to(device)
         self.grid_type = grid_type
-        self.save_name = f"ams_extract_id_dict_{grid_type}_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}.pt"
+        self.save_name = f"ams_extract_id_dict_{grid_type}_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}_{self.height_min_dif}.pt"
         self.normalization = normalization
         self.years = [2019,2020]
         with open(os.path.join(directory_path,'args.json')) as f:
@@ -72,7 +73,7 @@ class AmsGridLoader(Dataset):
                 #centers_per_time = {key:sum([x.center for x in val])/len(val) for key,val in time_partitions.items()}
                 
                 clouds_per_time = [torch.from_numpy(np.concatenate([load_las(x.path) for x in val])).float().to(device) for key,val in time_partitions.items()]
- 
+                clouds_per_time = [x[x[:,2]<max_height,...] for x in clouds_per_time]
                 if self.grid_type == 'square':
                     grids = [grid_split(cloud,self.grid_square_size,center=scan.center,clearance = self.clearance) for cloud in clouds_per_time]
                 elif self.grid_type== "circle":
@@ -91,7 +92,7 @@ class AmsGridLoader(Dataset):
                     
                     if len(extract_list)<2:
                         continue
-                    extract_id +=1 # Iterate after continue to not skip ints
+                    
                     if self.subsample=='random':
                         extract_list = [ random_subsample(x,sample_size) for x in extract_list]
                     elif self.subsample=='fps':
@@ -102,7 +103,12 @@ class AmsGridLoader(Dataset):
                         raise Exception("Invalid subsampling type")
                     #Check mins again
                     extract_list = [x for x in extract_list if ((x.max(dim=0)[0][:3]-x.min(dim=0)[0][:3] )>self.minimum_difs).all().item()]
-                    #Put on cpy before saving:
+
+                    if len(extract_list)<2:
+                        continue
+                    extract_id +=1 # Iterate after continue to not skip ints
+
+                    #Put on cpu before saving:
                     extract_list = [x.cpu() for x in extract_list]
                     for scan_index,extract in enumerate(extract_list):
                         
