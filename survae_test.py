@@ -89,6 +89,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     if config['flow_type'] == 'affine_coupling':
         flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
     elif config['flow_type'] == 'exponential_coupling':
+        flow_for_cif = lambda input_dim,context_dim: ExponentialCoupling(input_dim,context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps = config['eps_expm'])
         flow_with_attn = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = config['attn_dim'],nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps = config['eps_expm'])
         plain_flow = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = None,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps = config['eps_expm'])
         

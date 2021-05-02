@@ -9,9 +9,8 @@ from .perceiver import get_cross_attn
 from .pct import NeighborhoodEmbedder
 from .affine_coupling_attn import affine_coupling_attn
 from .pytorch_gcn import DGCNNembedder,DGCNN,DGCNN_cls,DGCNNembedderCombo
-from .transform import Transform
+from .transform import Transform, Flow, PreConditionApplier
 from .augmenter import Augment
 from .distributions import Distribution,StandardUniform,StandardNormal
 from .exponential_coupling import ExponentialCoupling
 from  .slice import Slice
-from .flow import Flow
