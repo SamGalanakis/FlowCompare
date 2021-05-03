@@ -55,7 +55,7 @@ class ExponentialCoupling(Transform):
         y2 = torch.matmul(w_mat,x2.unsqueeze(-1)).squeeze(-1) + b_vec
 
 
-        return torch.cat([y1, y2], dim=self.event_dim), self._trace(w_mat)
+        return torch.cat([y1, y2], dim=self.event_dim), -self._trace(w_mat)
     
     def inverse(self,y,context=None):
         y2_size = self.input_dim - self.split_dim

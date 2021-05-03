@@ -36,16 +36,9 @@ IdentityTransform
 
 def load_cross_flow(load_dict,initialized_cross_flow):
     
-    initialized_cross_flow['augmenter'].load_state_dict(load_dict['augmenter'])
-    initialized_cross_flow['base_dist'].load_state_dict(load_dict['base_dist'])
-    initialized_cross_flow['input_embedder'].load_state_dict(load_dict['input_embedder'])
 
-    for layer_dicts,layer in zip(load_dict['layers'],initialized_cross_flow['layers']):
-        for key,val in layer.items():
-                if isinstance(val,nn.Module):
-                    val.load_state_dict(layer_dicts[key])
-                else:
-                    raise Exception('How to load?')
+    initialized_cross_flow['input_embedder'].load_state_dict(load_dict['input_embedder'])
+    initialized_cross_flow['flow'].load_state_dict(load_dict['flow'])
     return initialized_cross_flow
 
 
@@ -123,7 +116,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     else: 
         raise Exception('Invalid cif_dist')
      
-    cif_block = lambda : get_cif_block_attn(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,pre_attention_mlp,config['n_flows_cif'],event_dim=-1,permuter=permuter)
+    cif_block_transforms = lambda : get_cif_block_attn(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,pre_attention_mlp,config['n_flows_cif'],event_dim=-1,permuter=permuter)
    
     
 
@@ -131,12 +124,14 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     transforms.append(augmenter)
     #Add transformations to list
     for index in range(config['n_flow_layers']):
-        transforms.append(cif_block())
+        transforms.extend(cif_block_transforms())
         #Don't permute output
         if index != config['n_flow_layers']-1:
             transforms.append(permuter(config['latent_dim']))
 
-    final_flow = Flow(transforms)
+
+    base_dist =  StandardNormal(shape = (config['sample_size'],config['latent_dim']))
+    final_flow = Flow(transforms,base_dist)
       
     
    
@@ -177,14 +172,6 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
     models_dict = {'parameters':parameters,"flow":final_flow,'input_embedder':input_embedder}
     
-
-    
-
-
-    base_dist =  StandardNormal(shape = (config['sample_size'],config['latent_dim']-config['input_dim'])).to(device)
-    parameters += base_dist.parameters()
-    
-    models_dict['base_dist'] = base_dist
     print(f'Number of trainable parameters: {sum([x.numel() for x in parameters])}')
     return models_dict
 
@@ -196,20 +183,16 @@ def inner_loop_cross(extract_0,extract_1,models_dict,config):
     
     x= extract_1
     
-    x,ldj = models_dict['flow'](x,context = input_embeddings)
+    log_prob = models_dict['flow'].log_prob(x,context = input_embeddings)
     
-
-    log_prob = models_dict["base_dist"].log_prob(x) + ldj
-    loss = -log_prob.sum() / (math.log(2) * x.numel())
+    loss = -log_prob.mean() # sum() / (math.log(2) * x.numel())
     
     return loss,log_prob
-def sample_cross(n_samples,extract_0,models_dict,base_dist_for_sample,config):
+def sample_cross(n_samples,extract_0,models_dict,config):
 
-    input_embeddings = models_dict["input_embedder"](extract_0)
+    input_embeddings = models_dict["input_embedder"](extract_0[0].unsqueeze(0))
 
-    x = base_dist_for_sample.sample(extract_0.shape[:-1])
-    
-    x = models_dict['flow'].inverse(x,context=input_embeddings)
+    x = models_dict['flow'].sample(1,context=input_embeddings).squeeze()
     return x
 
 
@@ -328,9 +311,9 @@ def main(rank, world_size):
             if (batch_ind+1) % config['batches_per_sample'] == 0:
                 if not config['attn_connection']:
                     with torch.no_grad():
-                        #Multiply std to get tighter samples
-                        base_dist_for_sample = torch.distributions.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device)*0.6)
-                        sample = sample_cross(4000,extract_0,models_dict,base_dist_for_sample,config)[0]
+                        
+
+                        sample = sample_cross(4000,extract_0,models_dict,config)
                         sample = sample.cpu().numpy().squeeze()
                         sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
                         cond_nump = extract_0.cpu().numpy()[0]

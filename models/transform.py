@@ -56,20 +56,26 @@ class PreConditionApplier(Transform):
 class Flow(Transform):
     '''Wrapper for merging multiple transforms'''
 
-    def __init__(self,transform_list):
+    def __init__(self,transform_list,base_dist,sample_dist=None):
         super().__init__()
+        self.base_dist = base_dist
+        self.sample_dist = sample_dist if sample_dist!=None else base_dist
         self.transforms = nn.ModuleList(transform_list)
 
-    def forward(self,x,context=None):
-        ldj_total = torch.zeros(x.shape[:-1], device=x.device,dtype=x.dtype)
-        for index,transform in enumerate(self.transforms):
-            x,ldj = transform(x,context)
-            ldj_total +=ldj
-        return x,ldj_total
-    def inverse(self,y,context=None):
+    def log_prob(self, x,context=None):
+        log_prob = torch.zeros(x.shape[:-1], device=x.device,dtype=x.dtype)
+        for transform in self.transforms:
+            x, ldj = transform(x,context=context)
+            log_prob += ldj
+        log_prob += self.base_dist.log_prob(x)
+        return log_prob
+
+    
+    def sample(self, num_samples,context=None):
+        z = self.sample_dist.sample(num_samples)
         for transform in reversed(self.transforms):
-            y = transform.inverse(y,context)
-        return y
+            z = transform.inverse(z,context=context)
+        return z
 
 class IdentityTransform(Transform):
     def __init__(self):

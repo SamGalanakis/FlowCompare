@@ -55,7 +55,7 @@ class Exponential_combiner(TransformModule):
     domain = constraints.real_vector
     codomain = constraints.real_vector
     bijective=True
-    def __init__(self,dim,algo='original'):
+    def __init__(self,dim,eps_expm,algo='original'):
         super().__init__()
         self.dim = dim
         self.w = nn.Parameter(torch.randn((self.dim,self.dim)))
@@ -64,6 +64,7 @@ class Exponential_combiner(TransformModule):
         self.rescale = nn.Parameter(torch.ones(1))
         self.reshift = nn.Parameter(torch.zeros(1))
         self.algo = algo
+        self.eps_expm = eps_expm
         
     def _trace(self, M):
 
@@ -71,10 +72,10 @@ class Exponential_combiner(TransformModule):
 
     def _inverse(self,y): 
         w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + eps
-        return torch.matmul(expm(-w_mat,algo=self.algo),y.unsqueeze(-1)).squeeze(-1)
+        return torch.matmul(expm(-w_mat,eps=self.eps_expm,algo=self.algo),y.unsqueeze(-1)).squeeze(-1)
     def _call(self,x):
         w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + eps
-        y = torch.matmul(expm(w_mat,algo=self.algo),x.unsqueeze(-1)).squeeze(-1)
+        y = torch.matmul(expm(w_mat,eps=self.eps_expm,algo=self.algo),x.unsqueeze(-1)).squeeze(-1)
         return y
     def log_abs_det_jacobian(self,x,y):
         w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + eps
@@ -97,7 +98,7 @@ class ExponentialCombiner(Transform):
     
     def forward(self,x,context=None):
         w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + self.eps
-        return torch.matmul(expm(w_mat,eps=self.eps_expm,algo=self.algo),x.unsqueeze(-1)).squeeze(-1), w_mat.diagonal().sum()
+        return torch.matmul(expm(w_mat,eps=self.eps_expm,algo=self.algo),x.unsqueeze(-1)).squeeze(-1), -w_mat.diagonal(dim1=-2,dim2=-1).sum()
     def inverse(self,y,context=None):
         w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + self.eps
         return torch.matmul(expm(-w_mat,eps= self.eps_expm,algo=self.algo),y.unsqueeze(-1)).squeeze(-1)

@@ -129,7 +129,10 @@ grad_clip_val:
   value: 1.0 # was 2.0
 batches_per_sample:
   desc: Every how many batches to create a sample
-  value: 100 
+  value: 10 
+batches_per_save:
+  desc: Every how many batches to create a sample
+  value: 5000 
 global_input_embedding_dim:
   desc: Size of global context vector from combo
   value: 256

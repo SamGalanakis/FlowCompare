@@ -85,7 +85,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
     
     if permuter_type == 'Exponential_combiner':
-        permuter = lambda : Exponential_combiner(config['latent_dim'])
+        permuter = lambda : Exponential_combiner(config['latent_dim'],eps_expm=config['eps_expm'])
     elif permuter_type == 'Learned_permuter':
         permuter = lambda : Learned_permuter(config['latent_dim'])
     elif permuter_type == 'Full_matrix_combiner':

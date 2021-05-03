@@ -40,7 +40,7 @@ def get_cif_block_attn(input_dim,augment_dim,distribution,context_dim,flow,attn,
     if input_dim<augment_dim:
         slicer = Slice(distrib_slice,input_dim,dim=-1)
         transforms.append(slicer)
-    return Flow(transforms)
+    return transforms
         
 
     
