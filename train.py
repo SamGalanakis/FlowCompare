@@ -74,8 +74,10 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
 
         augmenter = Augment(augmenter_dist,split_dim=-1,x_size = config['input_dim'])
+    elif config['latent_dim'] == config['input_dim']:
+        augmenter = IdentityTransform()
     else:
-        augmenter = IdentityTransform().to(device)
+        raise Exception('Latent dim < Input dim')
 
  
   
@@ -86,7 +88,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     if config['flow_type'] == 'affine_coupling':
         flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
     elif config['flow_type'] == 'exponential_coupling':
-        flow_for_cif = lambda input_dim,context_dim: ExponentialCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm']) 
+        flow_for_cif = lambda input_dim,context_dim: ExponentialCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'],
+        eps_expm = config['eps_expm'],algo=config['coupling_expm_algo']) 
         #flow_with_attn = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = config['attn_dim'],nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm'])
         #plain_flow = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = None,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm'])
         
@@ -104,7 +107,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
     
     if config['permuter_type'] == 'Exponential_combiner':
-        permuter = lambda dim: ExponentialCombiner(dim)
+        permuter = lambda dim: ExponentialCombiner(dim,eps_expm=config['eps_expm'])
     elif config['permuter_type'] == "random_permute":
         permuter = lambda dim: Permuter(permutation = torch.randperm(dim, dtype=torch.long).to(device))
     else:
@@ -282,9 +285,10 @@ def main(rank, world_size):
     #Override min lr to allow for changing after checkpointing
     scheduler.min_lrs = [config['min_lr']]
     #Watch models:
-
-
-    torch.autograd.set_detect_anomaly(False)
+    detect_anomaly = False
+    if detect_anomaly:
+        print('DETECT ANOMALY ON')
+        torch.autograd.set_detect_anomaly(True)
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
 

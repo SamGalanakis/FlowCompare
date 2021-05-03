@@ -1,4 +1,4 @@
-from models import Augment,Slice, distributions,Transform, Flow, PreConditionApplier
+from models import Augment,Slice, distributions,Transform, Flow, PreConditionApplier, IdentityTransform
 import torch
 import torch.nn as nn 
 
@@ -22,10 +22,13 @@ class CouplingPreconditionerAttn(nn.Module):
 def get_cif_block_attn(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,n_flows,event_dim,permuter):
     transforms = []
     
-    distrib_augment = distribution()
-    distrib_slice = distribution()
-    augmenter =  Augment(distrib_augment,input_dim,split_dim=-1)
-    transforms.append(augmenter)
+    if input_dim<augment_dim:
+        distrib_augment = distribution()
+        distrib_slice = distribution()
+        augmenter =  Augment(distrib_augment,input_dim,split_dim=-1)
+        transforms.append(augmenter)
+    elif input_dim>augment_dim:
+        raise Exception('Input dim larger than augment dim!')
     
     for index,x in enumerate(range(n_flows)):
         temp_flow = flow(input_dim=augment_dim,context_dim = context_dim)
@@ -34,9 +37,9 @@ def get_cif_block_attn(input_dim,augment_dim,distribution,context_dim,flow,attn,
         transforms.append(wrapped)
         if index != n_flows-1:
             transforms.append(permuter(augment_dim))
-
-    slicer = Slice(distrib_slice,input_dim,dim=-1)
-    transforms.append(slicer)
+    if input_dim<augment_dim:
+        slicer = Slice(distrib_slice,input_dim,dim=-1)
+        transforms.append(slicer)
     return Flow(transforms)
         
 

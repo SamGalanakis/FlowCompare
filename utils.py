@@ -358,6 +358,7 @@ def exp_from_paper(x,eps):
     """
     compute the matrix exponential: \sum_{k=0}^{\infty}\frac{x^{k}}{k!}
     """
+    assert not torch.isnan(x).any()
     scale = int(np.ceil(np.log2(np.max([torch.norm(x, p=1, dim=-1).max().item(), 0.5]))) + 1)
     x = x / (2 ** scale)
     s = torch.eye(x.size(-1), device=x.device)
@@ -368,7 +369,7 @@ def exp_from_paper(x,eps):
         t = torch.matmul(x, t) / k
         k = k + 1
     for i in range(scale):
-        s = torch.matmul(s, s)
+        s = torch.matmul(s, s) 
     return s
 
 

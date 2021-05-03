@@ -106,9 +106,11 @@ class ExponentialCombiner(Transform):
 
 class Permuter(Transform):
     def __init__(self,permutation,event_dim=-1):
-        self.permutation = permutation
+        super().__init__()
+        
+        self.register_buffer('permutation', permutation)
         self.event_dim = event_dim
-        self.inv_permutation =  torch.sort(self.permutation)[1]
+        self.inv_permutation =  torch.argsort(self.permutation)
 
 
     def forward(self,x,context=None):

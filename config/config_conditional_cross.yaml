@@ -18,7 +18,7 @@ hidden_dims:
   value: [512,512,512] # was [512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
-  value: Exponential_combiner # random_permute 
+  value: Exponential_combiner # Exponential_combiner # random_permute 
 early_stop_margin:
   desc: early_stop_margin
   value: 0.0003
@@ -63,7 +63,7 @@ optimizer_type:
   value: Adam
 weight_decay:
   desc: weigth decay for optimizer (l1 reg)
-  value: 0.000001 #was 0.0
+  value: 0.0 #was 0.000001
 data_parallel:
   desc: Use parallel
   value: false
@@ -90,7 +90,7 @@ attn_dim:
   value: 512
 latent_dim:
   desc: Latent dim for main flow - output of first augment
-  value: 12
+  value: 6
 attn_input_dim:
   desc: dim of input to attn
   value: 128
@@ -126,10 +126,10 @@ attn_connection:
   value: false
 grad_clip_val:
   desc: What value to clip grad norms to
-  value: 2.0
+  value: 1.0 # was 2.0
 batches_per_sample:
   desc: Every how many batches to create a sample
-  value: 10 
+  value: 100 
 global_input_embedding_dim:
   desc: Size of global context vector from combo
   value: 256
@@ -138,7 +138,7 @@ n_neighbors:
   value: 40
 eps_expm:
   desc: Precision for computation of matrix exponential
-  value: 1.0E-8
+  value: 1.0E-8 # Was 1.0E-8
 augmenter_dist:
   desc: What dist to use for augmenter
   value: StandardUniform
@@ -159,6 +159,8 @@ net_cif_dist_hidden_dims:
   value: [64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 32
-
+  value: 6
+coupling_expm_algo:
+  desc: What algorithm to use for expm 'original' or 'torch'
+  value: original
 

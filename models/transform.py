@@ -74,7 +74,7 @@ class Flow(Transform):
 class IdentityTransform(Transform):
     def __init__(self):
         super().__init__()
-    def forward(x,context=None):
+    def forward(self,x,context=None):
         return x, 0
-    def inverse(y,context=None):
+    def inverse(self,y,context=None):
         return y
