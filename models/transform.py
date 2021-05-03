@@ -61,7 +61,7 @@ class Flow(Transform):
         self.transforms = nn.ModuleList(transform_list)
 
     def forward(self,x,context=None):
-        ldj_total = torch.zeros(x.shape[:-1], device=x.device)
+        ldj_total = torch.zeros(x.shape[:-1], device=x.device,dtype=x.dtype)
         for index,transform in enumerate(self.transforms):
             x,ldj = transform(x,context)
             ldj_total +=ldj
