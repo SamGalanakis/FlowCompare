@@ -90,7 +90,7 @@ attn_dim:
   value: 512
 latent_dim:
   desc: Latent dim for main flow - output of first augment
-  value: 6
+  value: 32
 attn_input_dim:
   desc: dim of input to attn
   value: 128
@@ -162,11 +162,14 @@ net_cif_dist_hidden_dims:
   value: [64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 6
+  value: 32
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
   value: original
 act_norm:
   desc: Include act norm in main flow 
   value: true 
+cif_act_norm:
+  desc: Include act norm in CIF block flows 
+  value: true
 

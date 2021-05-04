@@ -1,4 +1,4 @@
-from models import Augment,Slice, distributions,Transform, Flow, PreConditionApplier, IdentityTransform
+from models import Augment,Slice, distributions,Transform, PreConditionApplier, IdentityTransform,ActNormBijectionCloud
 import torch
 import torch.nn as nn 
 
@@ -19,7 +19,7 @@ class CouplingPreconditionerAttn(nn.Module):
         attn_emb = self.attn(self.pre_attention_mlp(x1),context = context)
         return attn_emb
 
-def get_cif_block_attn(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,n_flows,event_dim,permuter):
+def get_cif_block_attn(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,n_flows,event_dim,permuter,act_norm):
     transforms = []
     
     if input_dim<augment_dim:
@@ -36,6 +36,8 @@ def get_cif_block_attn(input_dim,augment_dim,distribution,context_dim,flow,attn,
         wrapped  = PreConditionApplier(temp_flow,temp_coupling_preconditioner_attn)
         transforms.append(wrapped)
         if index != n_flows-1:
+            if act_norm:
+                transforms.append(ActNormBijectionCloud(augment_dim,data_dep_init=True))
             transforms.append(permuter(augment_dim))
     if input_dim<augment_dim:
         slicer = Slice(distrib_slice,input_dim,dim=-1)

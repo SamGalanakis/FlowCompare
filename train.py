@@ -84,7 +84,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
     elif config['flow_type'] == 'exponential_coupling':
         flow_for_cif = lambda input_dim,context_dim: ExponentialCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'],
-        eps_expm = config['eps_expm'],algo=config['coupling_expm_algo']) 
+        eps_expm = config['eps_expm'],algo=config['coupling_expm_algo'],act_norm=config['cif_act_norm']) 
         #flow_with_attn = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = config['attn_dim'],nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm'])
         #plain_flow = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = None,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm'])
         
@@ -193,7 +193,7 @@ def inner_loop_cross(extract_0,extract_1,models_dict,config):
     log_prob = models_dict['flow'].log_prob(x,context = input_embeddings)
     
     loss = -log_prob.mean()
-    nats =  loss.sum() / (math.log(2) * x.numel())
+    nats =  -log_prob.sum() / (math.log(2) * x.numel())
     return loss,log_prob,nats
 def sample_cross(n_samples,extract_0,models_dict,config):
 
