@@ -49,13 +49,13 @@ class ExponentialCoupling(Transform):
         w_mat,b_vec = self.nn(nn_input).split([x2_size**2,x2_size],dim=-1)
         w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift + eps
         w_mat = w_mat.reshape((w_mat.shape[:-1] + (x2_size,x2_size)))
-        w_mat = expm(w_mat,algo=self.algo,eps = self.eps_expm)
+        expm_w_mat = expm(w_mat,algo=self.algo,eps = self.eps_expm)
 
         y1 = x1
-        y2 = torch.matmul(w_mat,x2.unsqueeze(-1)).squeeze(-1) + b_vec
+        y2 = torch.matmul(expm_w_mat,x2.unsqueeze(-1)).squeeze(-1) + b_vec
 
 
-        return torch.cat([y1, y2], dim=self.event_dim), -self._trace(w_mat)
+        return torch.cat([y1, y2], dim=self.event_dim), self._trace(w_mat)
     
     def inverse(self,y,context=None):
         y2_size = self.input_dim - self.split_dim

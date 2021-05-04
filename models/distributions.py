@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import math
-from torch.distributions import Normal
+
 
 #Code adapted from : https://github.com/didriknielsen/survae_flows/
 
@@ -116,7 +116,7 @@ class ConditionalMeanStdNormal(ConditionalDistribution):
 
     def cond_dist(self, context):
         mean = self.net(context)
-        return Normal(loc=mean, scale=self.log_scale.exp())
+        return torch.distributions.Normal(loc=mean, scale=self.log_scale.exp())
 
     def log_prob(self, x, context):
         dist = self.cond_dist(context)
@@ -136,7 +136,7 @@ class ConditionalMeanStdNormal(ConditionalDistribution):
     def mean(self, context):
         return self.cond_dist(context).mean
 
-    
+
 class StandardUniform(Distribution):
     """A multivariate Uniform with boundaries (0,1)."""
 
@@ -170,3 +170,18 @@ class StandardNormal(Distribution):
 
     def sample(self, num_samples,context= None):
         return torch.randn(num_samples, *self.shape, device=self.buffer.device, dtype=self.buffer.dtype)
+
+class Normal(Distribution):
+    def __init__ (self,loc,scale,shape):
+        super().__init__()
+        self.std_normal = StandardNormal(shape)
+        self.shape = torch.Size(shape)
+        self.register_buffer('loc', loc)
+        self.register_buffer('scale', scale)
+    def log_prob(self, x,context= None):
+        x = (x-self.loc)/self.scale
+        return self.std_normal.log_prob(x,context= None)
+
+    def sample(self, num_samples,context= None):
+        return (self.std_normal.sample(num_samples,context= None) *self.scale) + self.loc
+        

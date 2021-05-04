@@ -37,6 +37,6 @@ class Augment(Transform):
         ldj = -logqz2
         return z, ldj
 
-    def inverse(self, z,condition=None):
+    def inverse(self, z,context=None):
         x, z2 = self.split_z(z)
         return x

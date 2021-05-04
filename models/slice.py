@@ -1,16 +1,7 @@
 import torch
 from models import Transform, ConditionalDistribution
 
-
-
-
-
-
-
-
-
-
-
+#Code adapted from : https://github.com/didriknielsen/survae_flows/
 
 class Slice(Transform):
     '''

@@ -98,7 +98,7 @@ class ExponentialCombiner(Transform):
     
     def forward(self,x,context=None):
         w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + self.eps
-        return torch.matmul(expm(w_mat,eps=self.eps_expm,algo=self.algo),x.unsqueeze(-1)).squeeze(-1), -w_mat.diagonal(dim1=-2,dim2=-1).sum()
+        return torch.matmul(expm(w_mat,eps=self.eps_expm,algo=self.algo),x.unsqueeze(-1)).squeeze(-1), w_mat.diagonal(dim1=-2,dim2=-1).sum()
     def inverse(self,y,context=None):
         w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + self.eps
         return torch.matmul(expm(-w_mat,eps= self.eps_expm,algo=self.algo),y.unsqueeze(-1)).squeeze(-1)

@@ -241,19 +241,6 @@ class ExponentialMatrixCouplngAttn(TransformModule):
         self.eps = eps
     
 
-    def _exp(self, x, M):
-        """
-        Performs power series approximation to the vector product of x with the
-        matrix exponential of M.
-        """
-        power_term = x.unsqueeze(-1)
-        y = x.unsqueeze(-1)
-        for idx in range(self.iterations):
-            power_term = torch.matmul(M, power_term) / (idx + 1)
-            y = y + power_term
-
-        return y.squeeze(-1)
-
 
     def _trace(self, M):
         """

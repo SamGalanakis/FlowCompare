@@ -6,7 +6,7 @@ n_flow_layers:
   value: 33 # was 40
 data_loader:
   desc: What loader to use
-  value: AmsGridLoader
+  value: ConditionalDataGridCircle #AmsGridLoader
 batchnorm:
   desc: batchnorm between flow layers
   value: false
@@ -81,7 +81,7 @@ load_checkpoint:
   value: False
 preselected_points:
   desc: Use preselected points
-  value: false
+  value: true
 dirs_challenge_csv:
   desc: Paths to label csv folder
   value: save/2016-2020-train/
@@ -143,11 +143,11 @@ eps_expm:
   desc: Precision for computation of matrix exponential
   value: 1.0E-8 # Was 1.0E-8
 augmenter_dist:
-  desc: What dist to use for augmenter
-  value: StandardUniform
+  desc: What dist to use for first augmenter
+  value: ConditionalMeanStdNormal #ConditionalMeanStdNormal
 net_augmenter_dist_hidden_dims:
   desc: Net hidden sizes for initial augmenter dim if using conditional distribution
-  value: [12,32,32]
+  value: [32,32,32]
 pre_attention_mlp_hidden_dims:
   desc: Hidden dims for pre attention mlp
   value: [64,64,64,64]
@@ -166,4 +166,7 @@ cif_latent_dim:
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
   value: original
+act_norm:
+  desc: Include act norm in main flow 
+  value: true 
 

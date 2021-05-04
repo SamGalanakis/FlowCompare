@@ -11,7 +11,8 @@ from .affine_coupling_attn import affine_coupling_attn
 from .pytorch_gcn import DGCNNembedder,DGCNN,DGCNN_cls,DGCNNembedderCombo
 from .transform import Transform, Flow, PreConditionApplier, IdentityTransform
 from .augmenter import Augment
-from .distributions import Distribution,StandardUniform,StandardNormal, ConditionalDistribution, ConditionalMeanStdNormal
+from .distributions import Distribution,StandardUniform,StandardNormal, ConditionalDistribution, ConditionalMeanStdNormal,Normal
 from .exponential_coupling import ExponentialCoupling
 from  .slice import Slice
 from .cif_block import get_cif_block_attn
+from .act_norm import ActNormBijectionCloud

@@ -2,10 +2,9 @@ import torch
 
 import torch.nn as nn
 
+#Code adapted from : https://github.com/didriknielsen/survae_flows/
 
 class Transform(torch.nn.Module):
-
-    
 
     def __init__(self):
         super().__init__()
@@ -64,7 +63,7 @@ class Flow(Transform):
 
     def log_prob(self, x,context=None):
         log_prob = torch.zeros(x.shape[:-1], device=x.device,dtype=x.dtype)
-        for transform in self.transforms:
+        for index,transform in enumerate(self.transforms):
             x, ldj = transform(x,context=context)
             log_prob += ldj
         log_prob += self.base_dist.log_prob(x)

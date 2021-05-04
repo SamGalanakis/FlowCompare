@@ -30,7 +30,9 @@ StandardNormal,
 get_cif_block_attn,
 ConditionalMeanStdNormal,
 Flow,
-IdentityTransform
+IdentityTransform,
+Normal,
+ActNormBijectionCloud
 )
 
 
@@ -93,7 +95,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     #out_dim,query_dim, context_dim, heads, dim_head, dropout
     attn = lambda : get_cross_attn(config['attn_dim'],config['attn_input_dim'],config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
 
-
+    
+    
     
 
     pre_attention_mlp = lambda input_dim_pre_attention_mlp: MLP(input_dim_pre_attention_mlp,config['pre_attention_mlp_hidden_dims'],config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
@@ -126,12 +129,16 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     for index in range(config['n_flow_layers']):
         transforms.extend(cif_block_transforms())
         #Don't permute output
+        
         if index != config['n_flow_layers']-1:
+            if config['act_norm']:
+                transforms.append(ActNormBijectionCloud(config['latent_dim'],data_dep_init=True))
             transforms.append(permuter(config['latent_dim']))
 
 
     base_dist =  StandardNormal(shape = (config['sample_size'],config['latent_dim']))
-    final_flow = Flow(transforms,base_dist)
+    sample_dist = Normal(torch.zeros(1),torch.ones(1)*0.6,shape = (config['sample_size'],config['latent_dim']))
+    final_flow = Flow(transforms,base_dist,sample_dist)
       
     
    
@@ -185,9 +192,9 @@ def inner_loop_cross(extract_0,extract_1,models_dict,config):
     
     log_prob = models_dict['flow'].log_prob(x,context = input_embeddings)
     
-    loss = -log_prob.mean() # sum() / (math.log(2) * x.numel())
-    
-    return loss,log_prob
+    loss = -log_prob.mean()
+    nats =  loss.sum() / (math.log(2) * x.numel())
+    return loss,log_prob,nats
 def sample_cross(n_samples,extract_0,models_dict,config):
 
     input_embeddings = models_dict["input_embedder"](extract_0[0].unsqueeze(0))
@@ -289,7 +296,7 @@ def main(rank, world_size):
                 extract_0,extract_1 = batch
     
 
-                loss, _ = inner_loop_cross(extract_0,extract_1,models_dict,config)
+                loss, _ , nats = inner_loop_cross(extract_0,extract_1,models_dict,config)
     
             
             scaler.scale(loss).backward()
@@ -300,27 +307,27 @@ def main(rank, world_size):
             scaler.step(optimizer)
             scaler.update()
 
+
             
             optimizer.zero_grad(set_to_none=True)
             current_lr = optimizer.param_groups[0]['lr']
             torch.cuda.synchronize()
             time_batch = perf_counter() - t0
+            
             loss_item = loss.item()
             loss_running_avg = (loss_running_avg*(batch_ind) + loss_item)/(batch_ind+1)
             
             if (batch_ind+1) % config['batches_per_sample'] == 0:
-                if not config['attn_connection']:
                     with torch.no_grad():
                         
-
                         sample = sample_cross(4000,extract_0,models_dict,config)
                         sample = sample.cpu().numpy().squeeze()
                         sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
-                        cond_nump = extract_0.cpu().numpy()[0]
+                        cond_nump = extract_0[0].cpu().numpy()
                         cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
                         wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6])})
             else:
-                wandb.log({'loss':loss_item,'lr':current_lr,'time_batch':time_batch})
+                wandb.log({'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
             
         scheduler.step(loss_running_avg)
         save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"flow":models_dict['flow'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
