@@ -6,7 +6,6 @@ from torch.functional import einsum
 from torch.nn import functional as F
 from pyro.nn.dense_nn import DenseNN
 from pyro.distributions.conditional import ConditionalTransformModule
-#from pyro.distributions.transforms.matrix_exponential  import conditional_matrix_exponential 
 import math
 from functools import partial
 from torch.distributions import Transform, constraints
@@ -57,17 +56,18 @@ class FullCombiner(Transform):
     def __init__(self,dim):
         super().__init__()
         self.dim = dim
-        self.w = nn.Parameter(torch.linalg.qr(torch.randn((dim,dim)))[0])
+        self.w = nn.Parameter(torch.Tensor(dim, dim))
+        nn.init.orthogonal_(self.w)
 
     def forward(self,x,context=None):
-        x = torch.einsum('ijk,kk->ijk',x,self.w)
-        ldj  = torch.linalg.slogdet(self.w)
+        x = F.linear(x, self.w, bias=None)
+        ldj  = torch.linalg.slogdet(self.w)[-1]
         return x,ldj
     
-    def inverse(self,y,context):
+    def inverse(self,y,context=None):
         inv_mat = torch.linalg.inv(self.w)
-
-        return torch.einsum('ijk,kk->ijk',y,inv_mat)
+        y = F.linear(y, inv_mat)
+        return y
 class Exponential_combiner(TransformModule):
     domain = constraints.real_vector
     codomain = constraints.real_vector
