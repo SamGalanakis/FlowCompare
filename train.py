@@ -32,7 +32,8 @@ ConditionalMeanStdNormal,
 Flow,
 IdentityTransform,
 Normal,
-ActNormBijectionCloud
+ActNormBijectionCloud,
+FullCombiner
 )
 
 
@@ -84,7 +85,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
     elif config['flow_type'] == 'exponential_coupling':
         flow_for_cif = lambda input_dim,context_dim: ExponentialCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'],
-        eps_expm = config['eps_expm'],algo=config['coupling_expm_algo'],act_norm=config['cif_act_norm']) 
+        eps_expm = config['eps_expm'],algo=config['coupling_expm_algo']) 
         #flow_with_attn = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = config['attn_dim'],nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm'])
         #plain_flow = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = None,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm'])
         
@@ -106,6 +107,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         permuter = lambda dim: ExponentialCombiner(dim,eps_expm=config['eps_expm'])
     elif config['permuter_type'] == "random_permute":
         permuter = lambda dim: Permuter(permutation = torch.randperm(dim, dtype=torch.long).to(device))
+    elif config['permuter_type'] == 'FullCombiner':
+        permuter = lambda dim: FullCombiner(dim=dim)
     else:
         raise Exception(f'Invalid permuter type: {config["""permuter_type"""]}')
 
@@ -119,7 +122,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     else: 
         raise Exception('Invalid cif_dist')
      
-    cif_block_transforms = lambda : get_cif_block_attn(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,pre_attention_mlp,config['n_flows_cif'],event_dim=-1,permuter=permuter)
+    cif_block_transforms = lambda : get_cif_block_attn(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,pre_attention_mlp,config['n_flows_cif'],event_dim=-1,permuter=permuter,act_norm=config['cif_act_norm'])
    
     
 

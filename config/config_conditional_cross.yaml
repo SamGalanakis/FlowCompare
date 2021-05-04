@@ -3,7 +3,7 @@ sample_size:
   value: 2000
 n_flow_layers:
   desc: Number of flow layers
-  value: 33 # was 40
+  value: 30 # was 40
 data_loader:
   desc: What loader to use
   value: ConditionalDataGridCircle #AmsGridLoader
@@ -18,7 +18,7 @@ hidden_dims:
   value: [512,512,512] # was [512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
-  value: Exponential_combiner # Exponential_combiner # random_permute 
+  value: FullCombiner # Exponential_combiner # random_permute 
 early_stop_margin:
   desc: early_stop_margin
   value: 0.0003
@@ -90,13 +90,13 @@ attn_dim:
   value: 512
 latent_dim:
   desc: Latent dim for main flow - output of first augment
-  value: 32
+  value: 16
 attn_input_dim:
   desc: dim of input to attn
   value: 128
 input_embedding_dim:
   desc: Dimension of input embeddings, part of input for attention (feature dim for each point in cloud t0)
-  value: 256
+  value: 512
 cross_heads:
   desc: Number of attn heads
   value: 1
@@ -162,10 +162,10 @@ net_cif_dist_hidden_dims:
   value: [64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 32
+  value: 48
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
-  value: original
+  value: original # Was original
 act_norm:
   desc: Include act norm in main flow 
   value: true 

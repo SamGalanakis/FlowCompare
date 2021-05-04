@@ -2,6 +2,7 @@ import torch
 from torch.distributions.transforms import Transform
 from pyro.distributions.torch_transform import TransformModule
 from torch import nn
+from torch.functional import einsum
 from torch.nn import functional as F
 from pyro.nn.dense_nn import DenseNN
 from pyro.distributions.conditional import ConditionalTransformModule
@@ -15,6 +16,7 @@ from pyro.nn import DenseNN
 from tqdm import tqdm
 from utils import expm
 from models.transform import Transform
+import einops
 
 eps = 1e-8
 class Learned_permuter(TransformModule):
@@ -51,6 +53,21 @@ class Full_matrix_combiner(TransformModule):
     def log_abs_det_jacobian(self,x,y):
         return torch.log(torch.abs(torch.det(torch.inverse(self.lin_layer.weight / torch.max(torch.abs(self.lin_layer.weight)))))) #Jacobian=Matrix for lin maps
 
+class FullCombiner(Transform):
+    def __init__(self,dim):
+        super().__init__()
+        self.dim = dim
+        self.w = nn.Parameter(torch.linalg.qr(torch.randn((dim,dim)))[0])
+
+    def forward(self,x,context=None):
+        x = torch.einsum('ijk,kk->ijk',x,self.w)
+        ldj  = torch.linalg.slogdet(self.w)
+        return x,ldj
+    
+    def inverse(self,y,context):
+        inv_mat = torch.linalg.inv(self.w)
+
+        return torch.einsum('ijk,kk->ijk',y,inv_mat)
 class Exponential_combiner(TransformModule):
     domain = constraints.real_vector
     codomain = constraints.real_vector
