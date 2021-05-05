@@ -1,6 +1,4 @@
 from .ConditionalDataGrid import ConditionalDataGrid
 from .ShapeNetLoader import ShapeNetLoader
 from .challenge_loader import ChallengeDataset
-from .straight_challenge_feature_loader import StraightChallengeFeatureLoader
-from .post_classification_loader import PostClassificationDataset
 from .ams_grid_loader import AmsGridLoader

@@ -29,11 +29,14 @@ class Scan:
         self.recording_properties = recording_properties
         self.id = self.recording_properties['ImageId']
         self.center = np.array([self.recording_properties['X'],self.recording_properties['Y']])
+        self.height = self.recording_properties['Height']
+        self.ground_offset = self.recording_properties['GroundLevelOffset']
+        self.ground_height = self.height-self.ground_offset
         self.path = os.path.join(base_dir,f'{self.id}.laz')
         self.datetime = datetime(int(self.recording_properties['RecordingTimeGps'].split('-')[0]),int(self.recording_properties['RecordingTimeGps'].split('-')[1]),int(self.recording_properties['RecordingTimeGps'].split('-')[-1].split('T')[0]))
 
 class AmsGridLoader(Dataset):
-    def __init__(self, directory_path,out_path,sample_size=2000,grid_square_size = 4,clearance = 10,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle',max_height = 17.0, device="cuda"):
+    def __init__(self, directory_path,out_path,sample_size=2000,grid_square_size = 4,clearance = 10,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle',max_height = 15.0, device="cuda"):
         self.sample_size  = sample_size
         self.directory_path = directory_path
         self.grid_square_size = grid_square_size
@@ -69,11 +72,14 @@ class AmsGridLoader(Dataset):
             for scene_number, scan in enumerate(tqdm(self.filtered_scans)):
                 relevant_scans = [x for x in self.scans if np.linalg.norm(x.center-scan.center)<7]
                 relevant_times = set([x.datetime for x in relevant_scans])
+                
                 time_partitions = {time:[x for x in relevant_scans if x.datetime ==time] for time in relevant_times}
-                #centers_per_time = {key:sum([x.center for x in val])/len(val) for key,val in time_partitions.items()}
+                
                 
                 clouds_per_time = [torch.from_numpy(np.concatenate([load_las(x.path) for x in val])).float().to(device) for key,val in time_partitions.items()]
-                clouds_per_time = [x[x[:,2]<max_height,...] for x in clouds_per_time]
+                ground_cutoff = scan.ground_height - 0.05 # Cut off slightly under ground height
+                height_cutoff = ground_cutoff+max_height
+                clouds_per_time = [x[torch.logical_and(x[:,2]>ground_cutoff,x[:,2]<height_cutoff),...] for x in clouds_per_time]
                 if self.grid_type == 'square':
                     grids = [grid_split(cloud,self.grid_square_size,center=scan.center,clearance = self.clearance) for cloud in clouds_per_time]
                 elif self.grid_type== "circle":
