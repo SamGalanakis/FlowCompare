@@ -310,7 +310,8 @@ def save_las(pos,path,rgb=None,extra_feature=None,feature_name='Change'):
     outfile.z = allz
 
     if not isinstance( rgb,type(None)):
-        if rgb.shape[-1]==6:
+        print('Adding color')
+        if rgb.shape[-1]==3:
             outfile.red = rgb[:,0]
             outfile.green = rgb[:,1]
             outfile.blue = rgb[:,2]
