@@ -17,6 +17,7 @@ from time import time,perf_counter
 from models import (
 ExponentialCombiner,
 NeighborhoodEmbedder,
+affine_coupling,
 get_cross_attn,
 ExponentialCoupling,
 DGCNNembedder,
@@ -33,7 +34,8 @@ Flow,
 IdentityTransform,
 Normal,
 ActNormBijectionCloud,
-FullCombiner
+FullCombiner,
+AffineCoupling
 )
 
 
@@ -81,14 +83,12 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
     
 
-    if config['flow_type'] == 'affine_coupling':
-        flow = lambda : affine_coupling_attn(config['input_dim'],config['attn_dim'],hidden_dims= config['hidden_dims'])
-    elif config['flow_type'] == 'exponential_coupling':
+    if config['flow_type'] == 'AffineCoupling':
+        flow_for_cif = lambda input_dim,context_dim: AffineCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
+    elif config['flow_type'] == 'ExponentialCoupling':
         flow_for_cif = lambda input_dim,context_dim: ExponentialCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'],
         eps_expm = config['eps_expm'],algo=config['coupling_expm_algo']) 
-        #flow_with_attn = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = config['attn_dim'],nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm'])
-        #plain_flow = lambda : ExponentialCoupling(input_dim=config['latent_dim'],context_dim = None,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'], eps_expm = config['eps_expm'])
-        
+         
     else:
         raise Exception('Invalid flow type')
     
@@ -117,8 +117,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     if config['cif_dist'] == 'StandardUniform':
         cif_dist = lambda : StandardUniform(shape = (config['sample_size'],config['cif_latent_dim']-config['latent_dim']))
     elif config['cif_dist'] == 'ConditionalMeanStdNormal':
-        net_cif_dist = MLP(config['input_dim'],config['net_cif_dist_hidden_dims'],config['augmenter_dim']-config['latent_dim'],coupling_block_nonlinearity)
-        cif_dist = lambda : ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['augmenter_dim']-config['latent_dim'])
+        net_cif_dist = MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],config['cif_latent_dim']-config['latent_dim'],coupling_block_nonlinearity)
+        cif_dist = lambda : ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['cif_latent_dim']-config['latent_dim'])
     else: 
         raise Exception('Invalid cif_dist')
      

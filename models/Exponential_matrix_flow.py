@@ -278,8 +278,6 @@ class ExponentialMatrixCouplngAttn(TransformModule):
         self.cached_w_mat = w_mat
         w_mat = expm(w_mat,eps = self.eps, algo=self.algo)
 
-        
-
         y1 = x1
         y2 = torch.matmul(w_mat,x2.unsqueeze(-1)).squeeze(-1) + b_vec
 

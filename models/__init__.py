@@ -16,3 +16,4 @@ from .exponential_coupling import ExponentialCoupling
 from  .slice import Slice
 from .act_norm import ActNormBijectionCloud
 from .cif_block import get_cif_block_attn
+from .affine_coupling import AffineCoupling
