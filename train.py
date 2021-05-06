@@ -57,6 +57,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         coupling_block_nonlinearity = nn.ELU()
     elif config['coupling_block_nonlinearity']=="RELU":
         coupling_block_nonlinearity = nn.ReLU()
+    elif config['coupling_block_nonlinearity']=="GELU":
+        coupling_block_nonlinearity = nn.GELU()
     else:
         raise Exception("Invalid coupling_block_nonlinearity")
 

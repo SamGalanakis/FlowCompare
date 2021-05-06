@@ -69,7 +69,7 @@ data_parallel:
   value: false
 coupling_block_nonlinearity:
   desc: coupling_block_nonlinearity
-  value: ELU
+  value: GELU
 min_lr:
   desc: Minimum schedules learning rate
   value: 1.0E-5
