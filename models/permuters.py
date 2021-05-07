@@ -126,7 +126,7 @@ class Permuter(Transform):
         
         self.register_buffer('permutation', permutation)
         self.event_dim = event_dim
-        self.inv_permutation =  torch.argsort(self.permutation)
+        self.register_buffer('inv_permutation',torch.argsort(self.permutation))
 
 
     def forward(self,x,context=None):

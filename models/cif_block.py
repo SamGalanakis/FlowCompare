@@ -8,8 +8,6 @@ import torch.nn as nn
 
 
 
-
-
 class CouplingPreconditionerAttn(nn.Module):
     def __init__(self,attn,pre_attention_mlp,noise_dim,x1_dim,event_dim=-1):
         super().__init__()
@@ -24,32 +22,6 @@ class CouplingPreconditionerAttn(nn.Module):
         attn_emb = self.attn(self.pre_attention_mlp(torch.cat((x1,noise),dim=self.event_dim)),context = context)
         return attn_emb
 
-def get_cif_block_attn(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,n_flows,event_dim,permuter,act_norm):
-    transforms = []
-    
-    if input_dim<augment_dim:
-        distrib_augment = distribution()
-        distrib_slice = distribution()
-        augmenter =  Augment(distrib_augment,input_dim,split_dim=event_dim)
-        transforms.append(augmenter)
-    elif input_dim>augment_dim:
-        raise Exception('Input dim larger than augment dim!')
-    
-    pre_attention_mlp_input_dim = input_dim//2  + augment_dim  #Context is x1,noise
-
-    for index,x in enumerate(range(n_flows)): 
-        temp_flow = flow(input_dim=input_dim,context_dim = context_dim) 
-        temp_coupling_preconditioner_attn = CouplingPreconditionerAttn(attn(),pre_attention_mlp(pre_attention_mlp_input_dim),noise_dim=augment_dim,x1_dim=input_dim//2,event_dim=event_dim)
-        wrapped  = PreConditionApplier(temp_flow,temp_coupling_preconditioner_attn)
-        transforms.append(wrapped)
-        if index != n_flows-1:
-            if act_norm:
-                transforms.append(ActNormBijectionCloud(input_dim,data_dep_init=True))
-            transforms.append(permuter(input_dim))
-    if input_dim<augment_dim:
-        slicer = Slice(distrib_slice,input_dim,dim=-1)
-        transforms.append(slicer)
-    return transforms
         
 
 class CIFblock(Transform):
@@ -58,13 +30,13 @@ class CIFblock(Transform):
         self.input_dim = input_dim
         self.augment_dim = augment_dim
         self.event_dim = event_dim
-        self.reverse = Reverse(input_dim+augment_dim,dim=self.event_dim)
+        self.reverse = Reverse(augment_dim,dim=self.event_dim)
  
         distrib_augment = distribution()
         distrib_slice = distribution()
         self.augmenter =  Augment(distrib_augment,input_dim,split_dim=event_dim)
         
-        pre_attention_mlp_input_dim = input_dim//2  + augment_dim  #Context is x1,noise
+        pre_attention_mlp_input_dim =  augment_dim - input_dim//2  #Context is x1,noise
         self.attention = attn()
         self.pre_attention_mlp =  pre_attention_mlp(pre_attention_mlp_input_dim)
         self.flow = flow(input_dim=input_dim,context_dim = context_dim)
@@ -75,28 +47,28 @@ class CIFblock(Transform):
         ldj_cif = torch.zeros(x.shape[:-1], device=x.device,dtype=x.dtype)
         combined,ldj = self.augmenter(x,context=None)
         ldj_cif +=ldj 
-        x1,x2,noise = combined.split([self.input_dim//2,x.shape[self.event_dim]-self.augment_dim-self.input_dim//2,self.augment_dim],dim=self.event_dim)
+        x1,x2,noise = combined.split([self.input_dim//2,self.input_dim//2,self.augment_dim-self.input_dim],dim=self.event_dim)
         
-        attention_emb = self.attention(self.pre_attention_mlp(torch.cat((x1,noise),dim=self.event_dim)))
+        attention_emb = self.attention(self.pre_attention_mlp(torch.cat((x1,noise),dim=self.event_dim)),context=context)
         x = torch.cat((x1,x2),dim=self.event_dim)
 
         x,ldj = self.flow(x,context=attention_emb)
-        x,ldj = self.reverse(torch.cat((noise,x),self.event_dim),context=None)
+        x,ldj = self.reverse(torch.cat((x,noise),self.event_dim),context=None)
         ldj_cif+=ldj
-        x,ldj =self.slice(x,context=None)
+        x,ldj =self.slicer(x,context=None)
         ldj_cif+= ldj
 
         return x,ldj_cif
     def inverse(self,y,context=None):
-        y = self.slice.inverse(y,context=context)
+        y = self.slicer.inverse(y,context=None)
         y = self.reverse.inverse(y)
-        noise,y1,y2 = torch.split(y,[self.augment_dim,self.input_dim//2,y.shape[self.event_dim]-self.augment_dim-self.input_dim//2])
-
+        y1,y2,noise = torch.split(y,[self.input_dim//2,self.input_dim//2,self.augment_dim-self.input_dim],dim=self.event_dim)
+        
         attention_emb = self.attention(self.pre_attention_mlp(torch.cat((y1,noise),dim=self.event_dim)),context=context)
-        y = self.flow.inverse(torch.cat((y1,y2)),dim=self.event_dim,context=attention_emb)
-
+        y = self.flow.inverse(torch.cat((y1,y2),dim=self.event_dim),context=attention_emb)
+        y = torch.cat((y,noise),dim=self.event_dim)
         y = self.augmenter.inverse(y,context =context)
-
+            
         return y
         
 

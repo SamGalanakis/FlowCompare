@@ -1,12 +1,12 @@
 sample_size:
   desc: Max number of points
-  value: 2048
+  value: 2000 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 50 # was 33
+  value: 40 # was 33
 data_loader:
   desc: What loader to use
-  value: AmsGridLoader #AmsGridLoader
+  value: ConditionalDataGridCircle #AmsGridLoader
 batchnorm:
   desc: batchnorm between flow layers
   value: false
@@ -39,7 +39,7 @@ patience:
   value: 1000 #Was 10 for challenge
 preload:
   desc: Preload_dataset
-  value: false
+  value: true
 min_points:
   desc: Minimum sample size
   value: 2000
@@ -162,7 +162,7 @@ net_cif_dist_hidden_dims:
   value: [64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 48
+  value: 40
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
   value: original # Was original
