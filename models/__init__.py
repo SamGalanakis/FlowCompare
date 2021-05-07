@@ -12,5 +12,5 @@ from .distributions import Distribution,StandardUniform,StandardNormal, Conditio
 from .exponential_coupling import ExponentialCoupling
 from  .slice import Slice
 from .act_norm import ActNormBijectionCloud
-from .cif_block import get_cif_block_attn
+from .cif_block import get_cif_block_attn, CIFblock
 from .affine_coupling import AffineCoupling

@@ -35,7 +35,8 @@ IdentityTransform,
 Normal,
 ActNormBijectionCloud,
 FullCombiner,
-AffineCoupling
+AffineCoupling,
+CIFblock
 )
 
 
@@ -105,7 +106,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     pre_attention_mlp = lambda input_dim_pre_attention_mlp: MLP(input_dim_pre_attention_mlp,config['pre_attention_mlp_hidden_dims'],config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
     
     
-    if config['permuter_type'] == 'Exponential_combiner':
+    if config['permuter_type'] == 'ExponentialCombiner':
         permuter = lambda dim: ExponentialCombiner(dim,eps_expm=config['eps_expm'])
     elif config['permuter_type'] == "random_permute":
         permuter = lambda dim: Permuter(permutation = torch.randperm(dim, dtype=torch.long).to(device))
@@ -123,18 +124,18 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         cif_dist = lambda : ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['cif_latent_dim']-config['latent_dim'])
     else: 
         raise Exception('Invalid cif_dist')
-     
-    cif_block_transforms = lambda : get_cif_block_attn(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,pre_attention_mlp,config['n_flows_cif'],event_dim=-1,permuter=permuter,act_norm=config['cif_act_norm'])
-   
+
+    
+    cif_block = lambda : CIFblock(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,pre_attention_mlp,config['n_flows_cif'],event_dim=-1)
+    
     
 
     transforms = []
     transforms.append(augmenter)
     #Add transformations to list
     for index in range(config['n_flow_layers']):
-        transforms.extend(cif_block_transforms())
+        transforms.append(cif_block())
         #Don't permute output
-        
         if index != config['n_flow_layers']-1:
             if config['act_norm']:
                 transforms.append(ActNormBijectionCloud(config['latent_dim'],data_dep_init=True))

@@ -23,8 +23,6 @@ from torch_geometric.data import Data
 import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data,Batch
-from torch_geometric.nn import voxel_grid
-from torch_geometric.nn.pool.consecutive import consecutive_cluster
 import open3d
 from yaml import load as load_yaml
 #Losses from original repo
@@ -432,14 +430,7 @@ def time_labeling(extract_0,extract_1):
     label_points = torch.cat((torch.ones(n_points_0),-torch.ones(n_points_1))).to(extract_0.device)
     label_points = label_points.unsqueeze(-1)
     return torch.cat( (torch.cat((extract_0,extract_1),dim=0),label_points),dim=-1)
-if __name__ == '__main__':
-    extract_0,extract_1 = torch.randn(10,100,6),torch.randn(10,100,6)
-    combined = time_labeling(extract_0,extract_1)
-    test_hsv = torch.Tensor([[1,10,20],[5,30,3],[255,6,1]])
-    print(test_hsv)
-    test_hsv /= 255
-    
-    print(rgb_to_hsv(test_hsv,scale_after=True))
+
 
 def oversample_cloud(cloud,n_points):
     n_points_original = cloud.shape[0]
@@ -459,3 +450,27 @@ def rotation_z(rad):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
+
+def log_prob_to_color(log_prob_1_given_0,log_prob_0_given_0,multiple=3.):
+    changed_mask_1 = torch.abs(log_prob_1_given_0-log_prob_0_given_0.mean()) > multiple*log_prob_0_given_0.std()
+    log_prob_1_given_0 += torch.abs(log_prob_1_given_0.min())
+    log_prob_1_given_0[~changed_mask_1] = 0
+    return log_prob_1_given_0
+
+def circle_cover(rectangle_height,rectangle_width,radius,overlap=0,show=False):
+    xx,yy = np.meshgrid(torch.arange(0,rectangle_width,radius*2-overlap),torch.arange(0,rectangle_height,radius*2-overlap))
+    xx,yy = xx.reshape(-1),yy.reshape(-1)
+    xx_,yy_ = xx+radius,yy+radius
+    xx = np.concatenate((xx,xx_))
+    yy = np.concatenate((yy,yy_))
+    if show:
+        plt.plot(xx, yy, marker='o', color='k', linestyle='none',markersize=radius)
+        ax =plt.gca()
+        for x,y in zip(xx,yy):
+            circle1 = plt.Circle((x, y), radius, color='r',fill=None)
+            ax.add_patch(circle1)
+        plt.show()
+    return np.array(list(zip(xx,yy)))
+
+if __name__ == '__main__':
+    circle_cover(10,10,0.5,overlap=0.1,show=True)
