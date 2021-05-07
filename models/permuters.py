@@ -141,6 +141,16 @@ class Permuter(Transform):
 
 
 
+class Reverse(Permuter):
+    """
+    Reverses inputs on a given dimension.
+    Args:
+        dim_size: int, number of elements on dimension dim
+        dim: int, dimension to permute (excluding batch_dimension)
+    """
+
+    def __init__(self, dim_size, dim=1):
+        super(Reverse, self).__init__(torch.arange(dim_size - 1, -1, -1), dim)
 
 
 

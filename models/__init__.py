@@ -1,7 +1,7 @@
 from .Exponential_matrix_flow import exponential_matrix_coupling, conditional_exponential_matrix_coupling, ExponentialMatrixCouplngAttn, exponential_matrix_coupling_attn
 from .gcn_encoder import GCNEncoder, GCNembedder
 from .nets import DenseNN, ConditionalDenseNN, MLP
-from .permuters import Exponential_combiner, Learned_permuter, Full_matrix_combiner, ExponentialCombiner, Permuter,FullCombiner
+from .permuters import Exponential_combiner, Learned_permuter, Full_matrix_combiner, ExponentialCombiner, Permuter,FullCombiner,Reverse
 from .perceiver import get_cross_attn
 from .pct import NeighborhoodEmbedder
 from .affine_coupling_attn import affine_coupling_attn
