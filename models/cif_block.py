@@ -53,19 +53,19 @@ class CIFblock(Transform):
         x = torch.cat((x1,x2),dim=self.event_dim)
 
         x,ldj = self.flow(x,context=attention_emb)
-        x,ldj = self.reverse(torch.cat((x,noise),self.event_dim),context=None)
         ldj_cif+=ldj
+        x = torch.cat((x,noise),self.event_dim)
+        
         x,ldj =self.slicer(x,context=None)
         ldj_cif+= ldj
 
         return x,ldj_cif
     def inverse(self,y,context=None):
         y = self.slicer.inverse(y,context=None)
-        y = self.reverse.inverse(y)
         y1,y2,noise = torch.split(y,[self.input_dim//2,self.input_dim//2,self.augment_dim-self.input_dim],dim=self.event_dim)
         
         attention_emb = self.attention(self.pre_attention_mlp(torch.cat((y1,noise),dim=self.event_dim)),context=context)
-        y = self.flow.inverse(torch.cat((y1,y2),dim=self.event_dim),context=attention_emb)
+        y = torch.cat((y1,y2),dim=self.event_dim)
         y = torch.cat((y,noise),dim=self.event_dim)
         y = self.augmenter.inverse(y,context =context)
             
