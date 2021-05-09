@@ -51,7 +51,7 @@ batch_size:
   value: 12  #14
 lr:
   desc: Initial learning rate for optimizer
-  value: 1.0E-4
+  value: 1.0E-4 # was  1.0E-4
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -63,7 +63,7 @@ optimizer_type:
   value: Adam
 weight_decay:
   desc: weigth decay for optimizer (l1 reg)
-  value: 0.0 #was 0.000001
+  value: 0.0 #was 0.000001 Affects bits per dim
 data_parallel:
   desc: Use parallel
   value: false
@@ -147,19 +147,19 @@ augmenter_dist:
   value: ConditionalMeanStdNormal #ConditionalMeanStdNormal
 net_augmenter_dist_hidden_dims:
   desc: Net hidden sizes for initial augmenter dim if using conditional distribution
-  value: [32,32,32]
+  value: [128,128,128]
 pre_attention_mlp_hidden_dims:
   desc: Hidden dims for pre attention mlp
-  value: [64,64,64,64]
+  value: [64,64,64,64] # was # 64 64 64 64
 n_flows_cif:
   desc: Number of flows in each cif block between augment and slice
   value : 1 
 cif_dist:
   desc: What dist to use for augment/slice in cif blocks
-  value: ConditionalMeanStdNormal 
+  value: ConditionalNormal
 net_cif_dist_hidden_dims:
   desc: Hidden dims for conditional distribution nets in the cif augmenter/slicer
-  value: [64,64]
+  value: [128,128,128]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
   value: 40
@@ -171,5 +171,8 @@ act_norm:
   value: true 
 cif_act_norm:
   desc: Include act norm in CIF block flows 
+  value: true
+make_samples:
+  desc: Make samples during training
   value: true
 

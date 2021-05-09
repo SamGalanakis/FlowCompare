@@ -35,7 +35,8 @@ Normal,
 ActNormBijectionCloud,
 FullCombiner,
 AffineCoupling,
-CIFblock
+CIFblock,
+ConditionalNormal
 )
 
 
@@ -69,6 +70,9 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         elif config['augmenter_dist'] == 'ConditionalMeanStdNormal':
             net_augmenter_dist = MLP(config['input_dim'],config['net_augmenter_dist_hidden_dims'],config['latent_dim']-config['input_dim'],coupling_block_nonlinearity)
             augmenter_dist = ConditionalMeanStdNormal( net = net_augmenter_dist,scale_shape =  config['latent_dim']-config['input_dim'])
+        elif config['augmenter_dist'] == 'ConditionalNormal':
+            net_augmenter_dist = MLP(config['input_dim'],config['net_augmenter_dist_hidden_dims'],(config['latent_dim']-config['input_dim'])*2,coupling_block_nonlinearity)
+            augmenter_dist = ConditionalNormal( net = net_augmenter_dist,scale_shape =  config['latent_dim']-config['input_dim'])
         else: 
             raise Exception('Invalid augmenter_dist')
     
@@ -121,6 +125,9 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     elif config['cif_dist'] == 'ConditionalMeanStdNormal':
         net_cif_dist = MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],config['cif_latent_dim']-config['latent_dim'],coupling_block_nonlinearity)
         cif_dist = lambda : ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['cif_latent_dim']-config['latent_dim'])
+    elif config['cif_dist'] == 'ConditionalNormal':
+        net_cif_dist = MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],(config['cif_latent_dim']-config['latent_dim'])*2,coupling_block_nonlinearity)
+        cif_dist = lambda : ConditionalNormal( net = net_cif_dist,split_dim=-1)
     else: 
         raise Exception('Invalid cif_dist')
 
@@ -130,9 +137,12 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     
 
     transforms = []
-    transforms.append(augmenter)
     #Add transformations to list
+    transforms.append(augmenter)
+    
+    #transforms.append(ActNormBijectionCloud(config['latent_dim'],data_dep_init=True)) #Entry norm
     for index in range(config['n_flow_layers']):
+        
         transforms.append(cif_block())
         #Don't permute output
         if index != config['n_flow_layers']-1:
@@ -322,15 +332,16 @@ def main(rank, world_size):
             loss_item = loss.item()
             loss_running_avg = (loss_running_avg*(batch_ind) + loss_item)/(batch_ind+1)
             
+            
             if (batch_ind+1) % config['batches_per_sample'] == 0:
                     with torch.no_grad():
-                        
-                        sample = sample_cross(4000,extract_0,models_dict,config)
-                        sample = sample.cpu().numpy().squeeze()
-                        sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
-                        cond_nump = extract_0[0].cpu().numpy()
-                        cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
-                        wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6])})
+                        if config['make_samples']:
+                            sample = sample_cross(4000,extract_0,models_dict,config)
+                            sample = sample.cpu().numpy().squeeze()
+                            sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
+                            cond_nump = extract_0[0].cpu().numpy()
+                            cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
+                            wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6])})
             else:
                 wandb.log({'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
             
