@@ -8,29 +8,31 @@ import torch.nn as nn
 
 
 
-# class CouplingPreconditionerAttn(nn.Module):
-#     def __init__(self,attn,pre_attention_mlp,noise_dim,x1_dim,event_dim=-1):
-#         super().__init__()
-#         self.attn = attn
-#         self.pre_attention_mlp = pre_attention_mlp
-#         self.event_dim = event_dim
-#         self.noise_dim = noise_dim
-#         self.x1_dim = x1_dim
-#     def forward(self,x,context):
-#         x1,x2,noise = x.split([self.x1_dim, self.x1_dim,self.noise_dim], dim=self.event_dim)
+class CouplingPreconditionerAttn(nn.Module):
+    def __init__(self,attn,pre_attention_mlp,x1_dim,event_dim=-1):
+        super().__init__()
+        self.attn = attn
+        self.pre_attention_mlp = pre_attention_mlp
+        self.event_dim = event_dim
+        self.x1_dim = x1_dim
+    def forward(self,x,context):
+        x1,x2 = x.split([self.x1_dim, self.x1_dim], dim=self.event_dim)
+        attn_emb = self.attn(self.pre_attention_mlp(x1),context = context)
+        return attn_emb
 
-#         attn_emb = self.attn(self.pre_attention_mlp(torch.cat((x1,noise),dim=self.event_dim)),context = context)
-#         return attn_emb
-
-# def CIFhelper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,n_flows,event_dim):
-#     transforms = []
-#     distrib_augment = distribution()
-#     distrib_slice = distribution()
-#     transforms.append(Augment(distrib_augment,input_dim,split_dim=event_dim))
+def cif_helper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,n_flows,event_dim):
+    #CIF if aug>base latent dim else normal flow
+    if  input_dim < augment_dim:
+        return CIFblock(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim=-1)
+    elif input_dim == augment_dim:
+        PreConditionApplier(flow(input_dim,input_dim),CouplingPreconditionerAttn(attn(),pre_attention_mlp,input_dim//2,event_dim=event_dim))
+        cif_block = lambda: PreConditionApplier(flow(input_dim,input_dim),CouplingPreconditionerAttn(attn(),pre_attention_mlp,input_dim//2,event_dim=event_dim))
+    else:
+        raise Exception('Augment dim smaller than main latent!')
 
 
 class CIFblock(Transform):
-    def __init__(self,input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,n_flows,event_dim):
+    def __init__(self,input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim):
         super().__init__()
         self.input_dim = input_dim
         self.augment_dim = augment_dim

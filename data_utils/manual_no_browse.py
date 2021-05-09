@@ -16,8 +16,10 @@ random_subsample,
 view_cloud_plotly
 )
 
-dir_1 = "save/challenge_data/Shrec_change_detection_dataset_public/2016"
-dir_2 = "save/challenge_data/Shrec_change_detection_dataset_public/2020"
+dir_1 = "D:/data/cycloData/2016/"
+dir_2 = "D:/data/cycloData/2020/"
+test_csv = 'save/2016-2020-test'
+train_csv = 'save/2016-2020-train'
 class_labels = ['nochange','removed',"added",'change',"color_change","unfit"]
 point_list_dir = "D:/data/cycloData/point_lists/2016-2020/"
 classified_dir = "D:/data/cycloData/point_lists_classified/2016-2020/"
