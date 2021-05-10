@@ -51,14 +51,18 @@ class AmsGridLoader(Dataset):
         self.save_name = f"ams_extract_id_dict_{grid_type}_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}_{self.height_min_dif}.pt"
         self.normalization = normalization
         self.years = [2019,2020]
-        with open(os.path.join(directory_path,'args.json')) as f:
-            self.args = json.load(f)
-        with open(os.path.join(directory_path,'response.json')) as f:
-            self.response = json.load(f)
+        
         
         
 
         if not preload:
+
+            with open(os.path.join(directory_path,'args.json')) as f:
+                self.args = json.load(f)
+            with open(os.path.join(directory_path,'response.json')) as f:
+                self.response = json.load(f)
+
+
             print(f"Recreating dataset, saving to: {self.out_path}")
             self.scans = [Scan(x,self.directory_path) for x in self.response['RecordingProperties']]
             self.scans = [x for x in self.scans if x.datetime.year in self.years]
@@ -188,8 +192,8 @@ class AmsGridLoader(Dataset):
             tensor_0 = relevant_tensors[combination_entry[1]]
             tensor_1 = relevant_tensors[combination_entry[2]].clone()
         #Remove pesky extra points due to fps ratio
-        tensor_0 = tensor_0[:self.sample_size,:]
-        tensor_1 = tensor_1[:self.sample_size,:]
+        tensor_0 = tensor_0[:self.min_points,:]
+        tensor_1 = tensor_1[:self.min_points,:]
         tensor_0,tensor_1 = self.last_processing(tensor_0,tensor_1,self.normalization)
 
         

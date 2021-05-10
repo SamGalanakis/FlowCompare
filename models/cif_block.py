@@ -20,13 +20,13 @@ class CouplingPreconditionerAttn(nn.Module):
         attn_emb = self.attn(self.pre_attention_mlp(x1),context = context)
         return attn_emb
 
-def cif_helper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,n_flows,event_dim):
+def cif_helper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim):
     #CIF if aug>base latent dim else normal flow
     if  input_dim < augment_dim:
         return CIFblock(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim=-1)
     elif input_dim == augment_dim:
-        PreConditionApplier(flow(input_dim,input_dim),CouplingPreconditionerAttn(attn(),pre_attention_mlp,input_dim//2,event_dim=event_dim))
-        cif_block = lambda: PreConditionApplier(flow(input_dim,input_dim),CouplingPreconditionerAttn(attn(),pre_attention_mlp,input_dim//2,event_dim=event_dim))
+        
+        return PreConditionApplier(flow(input_dim,context_dim),CouplingPreconditionerAttn(attn(),pre_attention_mlp(input_dim//2),input_dim//2,event_dim=event_dim))
     else:
         raise Exception('Augment dim smaller than main latent!')
 
@@ -64,7 +64,7 @@ class CIFblock(Transform):
         x,ldj = self.flow(x,context=attention_emb)
         ldj_cif+=ldj
         
-        x._ = self.reverse(x,context=None)
+        x,_ = self.reverse(x,context=None)
         x,ldj =self.slicer(x,context=None)
         ldj_cif+= ldj
 

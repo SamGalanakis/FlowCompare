@@ -67,12 +67,14 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
 
         if config['augmenter_dist'] == 'StandardUniform':
             augmenter_dist = StandardUniform(shape = (config['sample_size'],config['latent_dim']-config['input_dim']))
+        elif config['augmenter_dist'] == 'StandardNormal':
+            augmenter_dist = StandardNormal(shape = (config['sample_size'],config['latent_dim']-config['input_dim']))
         elif config['augmenter_dist'] == 'ConditionalMeanStdNormal':
             net_augmenter_dist = MLP(config['input_dim'],config['net_augmenter_dist_hidden_dims'],config['latent_dim']-config['input_dim'],coupling_block_nonlinearity)
             augmenter_dist = ConditionalMeanStdNormal( net = net_augmenter_dist,scale_shape =  config['latent_dim']-config['input_dim'])
         elif config['augmenter_dist'] == 'ConditionalNormal':
             net_augmenter_dist = MLP(config['input_dim'],config['net_augmenter_dist_hidden_dims'],(config['latent_dim']-config['input_dim'])*2,coupling_block_nonlinearity)
-            augmenter_dist = ConditionalNormal( net = net_augmenter_dist,scale_shape =  config['latent_dim']-config['input_dim'])
+            augmenter_dist = ConditionalNormal( net = net_augmenter_dist)#scale_shape =  config['latent_dim']-config['input_dim'])
         else: 
             raise Exception('Invalid augmenter_dist')
     
@@ -252,7 +254,7 @@ def main(rank, world_size):
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     elif config['data_loader'] == 'AmsGridLoader':
-        dataset=AmsGridLoader('/media/raid/sam/ams_dataset/',out_path='/media/raid/sam/processed_ams',preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+        dataset=AmsGridLoader('save/processed_dataset',out_path='/media/raid/sam/processed_ams',preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
 
     else:
         raise Exception('Invalid dataloader type!')
@@ -343,7 +345,7 @@ def main(rank, world_size):
                             sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
                             cond_nump = extract_0[0].cpu().numpy()
                             cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
-                            wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6])})
+                            wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6]),'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
             else:
                 wandb.log({'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
             
