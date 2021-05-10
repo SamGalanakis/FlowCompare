@@ -41,21 +41,7 @@ classified_point_list_files = [os.path.join(classified_dir,f) for f in os.listdi
 classified_point_list_files = {int(os.path.basename(x).split("_")[0]):x for x in classified_point_list_files}
 
 
-def create_plots(point_list_df,file_1,file_2,sample_size=2048,clearance=2,shape='circle'):
-    points1 = load_las(file_1)
-    points2 = load_las(file_2)
-    current_figure_tuples = []
-    for index, row in point_list_df.iterrows():
-        center = np.array([row['x'],row['y']])
-        #Remove ground
-        # points1 = points1[points1[:,2]>0.43]
-        # points2 = points2[points2[:,2]>0.43]
-        extraction_1 = random_subsample(extract_area(points1,center,clearance,shape),sample_size)
-        extraction_2 = random_subsample(extract_area(points2,center,clearance,shape),sample_size)
-        fig_1 = view_cloud_plotly(extraction_1[:,:3],extraction_1[:,3:],show=False,point_size=point_size)
-        fig_2 = view_cloud_plotly(extraction_2[:,:3],extraction_2[:,3:],show=False,point_size=point_size)
-        current_figure_tuples.append((fig_1,fig_2))
-    return current_figure_tuples
+
 
 
 

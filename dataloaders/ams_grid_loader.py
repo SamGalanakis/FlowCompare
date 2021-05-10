@@ -12,6 +12,22 @@ import json
 from datetime import datetime
 from collections import Counter
 eps = 1e-8
+
+
+
+
+def is_only_ground(cloud,perc=0.95):
+    clouz_z = cloud[:,2]
+    cloud_min = clouz_z.min()
+    n_close_ground = (clouz_z<(cloud_min + 0.3)).sum()
+    
+    return n_close_ground/cloud.shape[0] >=perc
+
+
+
+
+
+
 def filter_scans(scans_list,dist):
     print(f"Filtering scans")
     ignore_list = []
@@ -132,7 +148,16 @@ class AmsGridLoader(Dataset):
         else:
             self.extract_id_dict = torch.load(os.path.join(self.out_path,self.save_name))
         
-        
+        keep_extracts = {}
+        keep_index = 0
+        print('Filtering!')
+        for extract_dict in tqdm(self.extract_id_dict.values()):
+            ground_bools = [is_only_ground(x) for x in extract_dict]
+            if not any(ground_bools):
+                keep_extracts[keep_index] = extract_dict
+                keep_index+=1
+        print(f"Removed {len(self.extract_id_dict)-len(keep_extracts)} of {len(self.extract_id_dict)}!")
+        self.extract_id_dict = keep_extracts
         self.combinations_list=[]
         for id,path_list in self.extract_id_dict.items():
             index_permutations = list(permutations(range(len(path_list)),2))
@@ -148,6 +173,10 @@ class AmsGridLoader(Dataset):
 
             
         print('Loaded dataset!')
+
+    
+    
+
 
 
     def __len__(self):

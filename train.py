@@ -17,7 +17,6 @@ from time import time,perf_counter
 from models import (
 ExponentialCombiner,
 NeighborhoodEmbedder,
-affine_coupling,
 get_cross_attn,
 ExponentialCoupling,
 DGCNNembedder,
@@ -36,7 +35,8 @@ ActNormBijectionCloud,
 FullCombiner,
 AffineCoupling,
 cif_helper,
-ConditionalNormal
+ConditionalNormal,
+LinearLU
 )
 
 
@@ -66,9 +66,9 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     if config['latent_dim'] > config['input_dim']:
 
         if config['augmenter_dist'] == 'StandardUniform':
-            augmenter_dist = StandardUniform(shape = (config['sample_size'],config['latent_dim']-config['input_dim']))
+            augmenter_dist = StandardUniform(shape = (config['min_points'],config['latent_dim']-config['input_dim']))
         elif config['augmenter_dist'] == 'StandardNormal':
-            augmenter_dist = StandardNormal(shape = (config['sample_size'],config['latent_dim']-config['input_dim']))
+            augmenter_dist = StandardNormal(shape = (config['min_points'],config['latent_dim']-config['input_dim']))
         elif config['augmenter_dist'] == 'ConditionalMeanStdNormal':
             net_augmenter_dist = MLP(config['input_dim'],config['net_augmenter_dist_hidden_dims'],config['latent_dim']-config['input_dim'],coupling_block_nonlinearity)
             augmenter_dist = ConditionalMeanStdNormal( net = net_augmenter_dist,scale_shape =  config['latent_dim']-config['input_dim'])
@@ -115,6 +115,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         permuter = lambda dim: ExponentialCombiner(dim,eps_expm=config['eps_expm'])
     elif config['permuter_type'] == "random_permute":
         permuter = lambda dim: Permuter(permutation = torch.randperm(dim, dtype=torch.long).to(device))
+    elif config['permuter_type'] == "LinearLU":
+        permuter = lambda dim: LinearLU(num_features=dim)
     elif config['permuter_type'] == 'FullCombiner':
         permuter = lambda dim: FullCombiner(dim=dim)
     else:
@@ -155,8 +157,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
             transforms.append(permuter(config['latent_dim']))
 
 
-    base_dist =  StandardNormal(shape = (config['sample_size'],config['latent_dim']))
-    sample_dist = Normal(torch.zeros(1),torch.ones(1)*0.6,shape = (config['sample_size'],config['latent_dim']))
+    base_dist =  StandardNormal(shape = (config['min_points'],config['latent_dim']))
+    sample_dist = Normal(torch.zeros(1),torch.ones(1)*0.6,shape = (config['min_points'],config['latent_dim']))
     final_flow = Flow(transforms,base_dist,sample_dist)
       
     

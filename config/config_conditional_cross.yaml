@@ -18,7 +18,7 @@ hidden_dims:
   value: [512,512,512] # was [512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
-  value: random_permute #FullCombiner # ExponentialCombiner # random_permute 
+  value: LinearLU #ExponentialCombiner #FullCombiner # ExponentialCombiner # random_permute, LinearLU 
 early_stop_margin:
   desc: early_stop_margin
   value: 0.0003
@@ -129,7 +129,7 @@ grad_clip_val:
   value: 1.0 # was 2.0
 batches_per_sample:
   desc: Every how many batches to create a sample
-  value: 10
+  value: 1
 batches_per_save:
   desc: Every how many batches to create a sample
   value: 5000 
