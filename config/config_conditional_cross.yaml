@@ -126,7 +126,7 @@ attn_connection:
   value: false
 grad_clip_val:
   desc: What value to clip grad norms to
-  value: 1.0 # was 2.0
+  value: 0.1 # was 1.0
 batches_per_sample:
   desc: Every how many batches to create a sample
   value: 15
@@ -175,4 +175,10 @@ cif_act_norm:
 make_samples:
   desc: Make samples during training
   value: true
+clamp_dist:
+  desc: Clamp std val for stability
+  value: 10.0
+time_stats:
+  desc: Use cuda synchronize to get time stats
+  value: false
 

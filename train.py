@@ -1,3 +1,4 @@
+from numpy.core.numeric import NaN
 import torch
 import pyro
 import pyro.distributions as dist
@@ -131,7 +132,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         cif_dist = lambda : ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['cif_latent_dim']-config['latent_dim'])
     elif config['cif_dist'] == 'ConditionalNormal':
         net_cif_dist = MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],(config['cif_latent_dim']-config['latent_dim'])*2,coupling_block_nonlinearity)
-        cif_dist = lambda : ConditionalNormal( net = net_cif_dist,split_dim=-1)
+        cif_dist = lambda : ConditionalNormal( net = net_cif_dist,split_dim=-1,clamp=config['clamp_dist'])
     else: 
         raise Exception('Invalid cif_dist')
 
@@ -311,8 +312,9 @@ def main(rank, world_size):
         loss_running_avg = 0
         for batch_ind,batch in enumerate(tqdm(dataloader)):
             with torch.cuda.amp.autocast(enabled=config['amp']):
-                torch.cuda.synchronize()
-                t0 = perf_counter()
+                if config['time_stats']: 
+                    torch.cuda.synchronize()
+                    t0 = perf_counter()
                 batch = [x.to(device) for x in batch]
                 extract_0,extract_1 = batch
     
@@ -332,9 +334,11 @@ def main(rank, world_size):
             
             optimizer.zero_grad(set_to_none=True)
             current_lr = optimizer.param_groups[0]['lr']
-            torch.cuda.synchronize()
-            time_batch = perf_counter() - t0
-            
+            if config['time_stats']: 
+                torch.cuda.synchronize()
+                time_batch = perf_counter() - t0
+            else:
+                time_batch = NaN
             loss_item = loss.item()
             loss_running_avg = (loss_running_avg*(batch_ind) + loss_item)/(batch_ind+1)
             

@@ -171,14 +171,20 @@ class ConditionalNormalAll(ConditionalDistribution):
 class ConditionalNormal(ConditionalDistribution):
     """A multivariate Normal with conditional mean and log_std."""
 
-    def __init__(self, net, split_dim=-1):
+    def __init__(self, net, split_dim=-1,clamp=False):
         super().__init__()
         self.net = net
+        self.clamp=clamp
+        
 
     def cond_dist(self, context):
         params = self.net(context)
         mean, log_std = torch.chunk(params, chunks=2, dim=-1)
-        return torch.distributions.Normal(loc=mean, scale=log_std.exp())
+        scale = log_std.exp()
+        if self.clamp:
+            scale = scale.clamp_max(self.clamp)
+        
+        return torch.distributions.Normal(loc=mean, scale=scale)
 
     def log_prob(self, x, context):
         dist = self.cond_dist(context)
