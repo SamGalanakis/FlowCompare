@@ -353,7 +353,7 @@ def main(rank, world_size):
             if (batch_ind+1) % config['batches_per_save'] == 0:
                 print(f'Saving!')
                 save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"flow":models_dict['flow'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
-                torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
+                torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{batch_ind}_{epoch}_model_dict.pt"))
         scheduler.step(loss_running_avg)
         wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})
 if __name__ == "__main__":

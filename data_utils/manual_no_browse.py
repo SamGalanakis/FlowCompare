@@ -51,9 +51,11 @@ laz_paths_0 = {int(x.split('_')[0]):os.path.join(dir_0,x) for x in os.listdir(di
 laz_paths_1 = {int(x.split('_')[0]):os.path.join(dir_1,x) for x in os.listdir(dir_1)}
 laz_clouds_0 = {}
 laz_clouds_1 = {}
+df.index = list(range(df.shape[0]))
 df_copy = df.copy(deep=True)
-new_classifications = []
-for index,row in df_copy.iterrows():
+df_copy['classifications'] = ['UNSET']*df.shape[0]
+
+for index,row in df.iterrows():
     print(f'{index} of {df.shape[0]}')
     scene_num = row['scene']
     if not scene_num in laz_clouds_0:
@@ -73,14 +75,16 @@ for index,row in df_copy.iterrows():
     plot = view_cloud_plotly(combined[:,:3],combined[:,3:],show=False)
     plot.show()
     classification = row['classification']
-    change_label =input(f'Old": {classification}, enter new:')
+    change_label =input(f'Old: {classification}, enter new: ')
+
     if change_label == "":
-        new_classifications.append(classification)
+        new_classification = classification
     else:
-        new_classifications.append(change_label)
-    
-df['classification'] = new_classifications
-df.to_csv('new.csv')
+        new_classification = change_label
+    df_copy.at[index,'classification'] = new_classification
+    df_copy.to_csv('new.csv')
+
+
         
 
 
