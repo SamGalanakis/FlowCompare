@@ -3,7 +3,7 @@ sample_size:
   value: 2048 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 46 # was 33
+  value: 40 # was 33
 data_loader:
   desc: What loader to use
   value: AmsGridLoader #AmsGridLoader
@@ -51,7 +51,7 @@ batch_size:
   value: 12  #14
 lr:
   desc: Initial learning rate for optimizer
-  value: 1.0E-4 # was  1.0E-4
+  value: 1.0E-5 # was  1.0E-4
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -72,13 +72,13 @@ coupling_block_nonlinearity:
   value: GELU
 min_lr:
   desc: Minimum schedules learning rate
-  value: 1.0E-5
+  value: 1.0E-4
 normalization:
   desc: How pairs are normalized
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: False
+  value: false
 preselected_points:
   desc: Use preselected points
   value: true
@@ -129,10 +129,10 @@ grad_clip_val:
   value: 1.0 # was 2.0
 batches_per_sample:
   desc: Every how many batches to create a sample
-  value: 1
+  value: 15
 batches_per_save:
   desc: Every how many batches to create a sample
-  value: 5000 
+  value: 1000 
 global_input_embedding_dim:
   desc: Size of global context vector from combo
   value: 256
@@ -159,10 +159,10 @@ cif_dist:
   value: ConditionalNormal
 net_cif_dist_hidden_dims:
   desc: Hidden dims for conditional distribution nets in the cif augmenter/slicer
-  value: [128,128,128]
+  value: [128,128]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 32
+  value: 40
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
   value: torch # Was original

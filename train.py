@@ -290,7 +290,7 @@ def main(rank, world_size):
         checkpoint_dict = torch.load(config['load_checkpoint'])
         models_dict = load_cross_flow(checkpoint_dict,models_dict)
         scheduler.load_state_dict(checkpoint_dict['scheduler'])
-        optimizer.load_state_dict(checkpoint_dict['optimizer'])
+        #optimizer.load_state_dict(checkpoint_dict['optimizer'])
     else:
         print("Starting training from scratch!")
     #Override min lr to allow for changing after checkpointing
@@ -350,10 +350,11 @@ def main(rank, world_size):
                             wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6]),'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
             else:
                 wandb.log({'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
-            
+            if (batch_ind+1) % config['batches_per_save'] == 0:
+                print(f'Saving!')
+                save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"flow":models_dict['flow'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
+                torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
         scheduler.step(loss_running_avg)
-        save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"flow":models_dict['flow'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
-        torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{epoch}_model_dict.pt"))
         wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
