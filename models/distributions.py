@@ -168,6 +168,8 @@ class ConditionalNormalAll(ConditionalDistribution):
     def mean(self, context):
         return self.cond_dist(context).mean
 
+
+
 class ConditionalNormal(ConditionalDistribution):
     """A multivariate Normal with conditional mean and log_std."""
 

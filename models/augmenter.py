@@ -29,7 +29,11 @@ class Augment(Transform):
         return torch.split(z, split_proportions, dim=self.split_dim)
 
     def forward(self, x,context=None):
-        if self.cond: z2, logqz2 = self.noise_dist.sample_with_log_prob(context=x)
+        if context is not None:
+            context=torch.cat((x,context),axis=self.split_dim)
+        else:
+            context=x
+        if self.cond: z2, logqz2 = self.noise_dist.sample_with_log_prob(context=context)
         else:         z2, logqz2 = self.noise_dist.sample_with_log_prob(num_samples=x.shape[0])
 
 

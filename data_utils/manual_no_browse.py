@@ -53,9 +53,9 @@ laz_clouds_0 = {}
 laz_clouds_1 = {}
 df.index = list(range(df.shape[0]))
 df_copy = df.copy(deep=True)
-df_copy['classifications'] = ['UNSET']*df.shape[0]
-
-for index,row in df.iterrows():
+df_copy['classification'] = ['UNSET']*df.shape[0]
+start = int(input('Start index'))
+for index,row in list(df.iterrows())[start:]:
     print(f'{index} of {df.shape[0]}')
     scene_num = row['scene']
     if not scene_num in laz_clouds_0:

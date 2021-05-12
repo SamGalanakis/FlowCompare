@@ -1,8 +1,9 @@
 from models import transform
 from models.transform import Transform
-from models import Augment,Slice, PreConditionApplier, IdentityTransform, ActNormBijectionCloud,Reverse
+from models import Augment,Slice, PreConditionApplier, IdentityTransform, ActNormBijectionCloud, Reverse
 import torch
 import torch.nn as nn 
+
 
 
 
@@ -32,12 +33,13 @@ def cif_helper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_atte
 
 
 class CIFblock(Transform):
-    def __init__(self,input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim):
+    def __init__(self,input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim,conditional_aug=True,conditional_slice=True):
         super().__init__()
         self.input_dim = input_dim
         self.augment_dim = augment_dim
         self.event_dim = event_dim
-        
+        self.conditional_aug = conditional_aug
+        self.conditional_slice = conditional_slice
         
  
         distrib_augment = distribution()
@@ -51,10 +53,21 @@ class CIFblock(Transform):
         self.slicer = Slice(distrib_slice,input_dim,dim=self.event_dim)
         self.reverse = Reverse(augment_dim,dim=self.event_dim)
 
+        if self.conditional_aug:
+            self.pre_attention_mlp_aug = pre_attention_mlp(input_dim)
+            self.attention_aug = attn()
+        
+        if self.conditional_slice:
+            self.pre_attention_mlp_slice = pre_attention_mlp(input_dim)
+            self.attention_slice = attn()
+
+
         
     def forward(self,x,context=None):
         ldj_cif = torch.zeros(x.shape[:-1], device=x.device,dtype=x.dtype)
-        combined,ldj = self.augmenter(x,context=None)
+
+        context_aug = self.attention_aug(self.pre_attention_mlp_aug(x)) if self.conditional_aug else None
+        combined,ldj = self.augmenter(x,context=context_aug)
         ldj_cif +=ldj 
         x,noise = combined.split([self.input_dim,self.augment_dim-self.input_dim],dim=self.event_dim)
         
@@ -65,12 +78,16 @@ class CIFblock(Transform):
         ldj_cif+=ldj
         
         x,_ = self.reverse(x,context=None)
-        x,ldj =self.slicer(x,context=None)
+
+        context_slice = self.attention_slice(self.pre_attention_mlp_slice(x[...,:self.input_dim])) if self.conditional_slice else None
+        x,ldj =self.slicer(x,context=context_slice)
         ldj_cif+= ldj
 
         return x,ldj_cif
     def inverse(self,y,context=None):
-        y = self.slicer.inverse(y,context=None)
+
+        context_slice = self.attention_slice(self.pre_attention_mlp_slice(y)) if self.conditional_slice else None
+        y = self.slicer.inverse(y,context=context_slice)
         y = self.reverse.inverse(y,context=None)
 
         noise,_ = torch.split(y,[self.augment_dim-self.input_dim,self.input_dim],dim=self.event_dim)
@@ -79,7 +96,8 @@ class CIFblock(Transform):
         y = self.flow.inverse(y,context=attention_emb)
         y = self.reverse.inverse(y,context=None)
 
-        y = self.augmenter.inverse(y,context =None)
+        
+        y = self.augmenter.inverse(y,context = None)
             
         return y
         
