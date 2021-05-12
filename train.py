@@ -1,44 +1,16 @@
-from numpy.core.numeric import NaN
 import torch
-import pyro
-import pyro.distributions as dist
-import pyro.distributions.transforms as T
 import os
 import numpy as np
-from torch.utils.data import Dataset,DataLoader
-from torch.distributions.utils import _sum_rightmost
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from dataloaders import ConditionalDataGrid, ShapeNetLoader,AmsGridLoader
 import wandb
 from torch import nn
 import pandas as pd
-import einops
 import math
 from time import time,perf_counter
-from models import (
-ExponentialCombiner,
-NeighborhoodEmbedder,
-get_cross_attn,
-ExponentialCoupling,
-DGCNNembedder,
-GCNembedder,
-DGCNNembedderCombo,
-MLP,
-Permuter,
-Augment,
-StandardUniform,
-StandardNormal,
-ConditionalMeanStdNormal,
-Flow,
-IdentityTransform,
-Normal,
-ActNormBijectionCloud,
-FullCombiner,
-AffineCoupling,
-cif_helper,
-ConditionalNormal,
-LinearLU
-)
+import models
+
 
 
 def load_flow(load_dict,models_dict):
@@ -67,22 +39,22 @@ def initialize_flow(config,device = 'cuda',mode='train'):
     if config['latent_dim'] > config['input_dim']:
 
         if config['augmenter_dist'] == 'StandardUniform':
-            augmenter_dist = StandardUniform(shape = (config['min_points'],config['latent_dim']-config['input_dim']))
+            augmenter_dist = models.StandardUniform(shape = (config['min_points'],config['latent_dim']-config['input_dim']))
         elif config['augmenter_dist'] == 'StandardNormal':
-            augmenter_dist = StandardNormal(shape = (config['min_points'],config['latent_dim']-config['input_dim']))
+            augmenter_dist = models.StandardNormal(shape = (config['min_points'],config['latent_dim']-config['input_dim']))
         elif config['augmenter_dist'] == 'ConditionalMeanStdNormal':
-            net_augmenter_dist = MLP(config['input_dim'],config['net_augmenter_dist_hidden_dims'],config['latent_dim']-config['input_dim'],coupling_block_nonlinearity)
-            augmenter_dist = ConditionalMeanStdNormal( net = net_augmenter_dist,scale_shape =  config['latent_dim']-config['input_dim'])
+            net_augmenter_dist = models.MLP(config['input_dim'],config['net_augmenter_dist_hidden_dims'],config['latent_dim']-config['input_dim'],coupling_block_nonlinearity)
+            augmenter_dist = models.ConditionalMeanStdNormal( net = net_augmenter_dist,scale_shape =  config['latent_dim']-config['input_dim'])
         elif config['augmenter_dist'] == 'ConditionalNormal':
-            net_augmenter_dist = MLP(config['input_dim'],config['net_augmenter_dist_hidden_dims'],(config['latent_dim']-config['input_dim'])*2,coupling_block_nonlinearity)
-            augmenter_dist = ConditionalNormal( net = net_augmenter_dist)#scale_shape =  config['latent_dim']-config['input_dim'])
+            net_augmenter_dist = models.MLP(config['input_dim'],config['net_augmenter_dist_hidden_dims'],(config['latent_dim']-config['input_dim'])*2,coupling_block_nonlinearity)
+            augmenter_dist = models.ConditionalNormal( net = net_augmenter_dist)#scale_shape =  config['latent_dim']-config['input_dim'])
         else: 
             raise Exception('Invalid augmenter_dist')
     
 
-        augmenter = Augment(augmenter_dist,split_dim=-1,x_size = config['input_dim'])
+        augmenter = models.Augment(augmenter_dist,split_dim=-1,x_size = config['input_dim'])
     elif config['latent_dim'] == config['input_dim']:
-        augmenter = IdentityTransform()
+        augmenter = models.IdentityTransform()
     else:
         raise Exception('Latent dim < Input dim')
 
@@ -93,51 +65,55 @@ def initialize_flow(config,device = 'cuda',mode='train'):
     
 
     if config['flow_type'] == 'AffineCoupling':
-        flow_for_cif = lambda input_dim,context_dim: AffineCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
+        flow_for_cif = lambda input_dim,context_dim: models.AffineCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
     elif config['flow_type'] == 'ExponentialCoupling':
-        flow_for_cif = lambda input_dim,context_dim: ExponentialCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'],
+        flow_for_cif = lambda input_dim,context_dim: models.ExponentialCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'],
         eps_expm = config['eps_expm'],algo=config['coupling_expm_algo']) 
+    elif config['flow_type'] == 'RationalQuadraticSplineCoupling':
+        flow_for_cif = lambda input_dim,context_dim: models.RationalQuadraticSplineCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'],
+        num_bins = config['num_bins_spline']
+        )
          
     else:
         raise Exception('Invalid flow type')
     
     
     #out_dim,query_dim, context_dim, heads, dim_head, dropout
-    attn = lambda : get_cross_attn(config['attn_dim'],config['attn_input_dim'],config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
+    attn = lambda : models.get_cross_attn(config['attn_dim'],config['attn_input_dim'],config['input_embedding_dim'],config['cross_heads'],config['cross_dim_head'],config['attn_dropout'])
 
     
     
     
 
-    pre_attention_mlp = lambda input_dim_pre_attention_mlp: MLP(input_dim_pre_attention_mlp,config['pre_attention_mlp_hidden_dims'],config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
+    pre_attention_mlp = lambda input_dim_pre_attention_mlp: models.MLP(input_dim_pre_attention_mlp,config['pre_attention_mlp_hidden_dims'],config['attn_input_dim'],coupling_block_nonlinearity,residual=True)
     
     
     if config['permuter_type'] == 'ExponentialCombiner':
-        permuter = lambda dim: ExponentialCombiner(dim,eps_expm=config['eps_expm'])
+        permuter = lambda dim: models.ExponentialCombiner(dim,eps_expm=config['eps_expm'])
     elif config['permuter_type'] == "random_permute":
-        permuter = lambda dim: Permuter(permutation = torch.randperm(dim, dtype=torch.long).to(device))
+        permuter = lambda dim: models.Permuter(permutation = torch.randperm(dim, dtype=torch.long).to(device))
     elif config['permuter_type'] == "LinearLU":
-        permuter = lambda dim: LinearLU(num_features=dim)
+        permuter = lambda dim: models.LinearLU(num_features=dim)
     elif config['permuter_type'] == 'FullCombiner':
-        permuter = lambda dim: FullCombiner(dim=dim)
+        permuter = lambda dim: models.FullCombiner(dim=dim)
     else:
         raise Exception(f'Invalid permuter type: {config["""permuter_type"""]}')
 
 
 
     if config['cif_dist'] == 'StandardUniform':
-        cif_dist = lambda : StandardUniform(shape = (config['sample_size'],config['cif_latent_dim']-config['latent_dim']))
+        cif_dist = lambda : models.StandardUniform(shape = (config['sample_size'],config['cif_latent_dim']-config['latent_dim']))
     elif config['cif_dist'] == 'ConditionalMeanStdNormal':
-        net_cif_dist = MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],config['cif_latent_dim']-config['latent_dim'],coupling_block_nonlinearity)
-        cif_dist = lambda : ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['cif_latent_dim']-config['latent_dim'])
+        net_cif_dist = models.MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],config['cif_latent_dim']-config['latent_dim'],coupling_block_nonlinearity)
+        cif_dist = lambda : models.ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['cif_latent_dim']-config['latent_dim'])
     elif config['cif_dist'] == 'ConditionalNormal':
-        net_cif_dist = MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],(config['cif_latent_dim']-config['latent_dim'])*2,coupling_block_nonlinearity)
-        cif_dist = lambda : ConditionalNormal( net = net_cif_dist,split_dim=-1,clamp=config['clamp_dist'])
+        net_cif_dist = models.MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],(config['cif_latent_dim']-config['latent_dim'])*2,coupling_block_nonlinearity)
+        cif_dist = lambda : models.ConditionalNormal( net = net_cif_dist,split_dim=-1,clamp=config['clamp_dist'])
     else: 
         raise Exception('Invalid cif_dist')
 
     
-    cif_block = lambda : cif_helper(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,
+    cif_block = lambda : models.cif_helper(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,
     pre_attention_mlp,event_dim=-1,conditional_aug=config['conditional_aug_cif'],conditional_slice=config['conditional_slice_cif'])
    
 
@@ -155,24 +131,24 @@ def initialize_flow(config,device = 'cuda',mode='train'):
         #Don't permute output
         if index != config['n_flow_layers']-1:
             if config['act_norm']:
-                transforms.append(ActNormBijectionCloud(config['latent_dim'],data_dep_init=True))
+                transforms.append(models.ActNormBijectionCloud(config['latent_dim'],data_dep_init=True))
             transforms.append(permuter(config['latent_dim']))
 
 
-    base_dist =  StandardNormal(shape = (config['min_points'],config['latent_dim']))
-    sample_dist = Normal(torch.zeros(1),torch.ones(1)*0.6,shape = (config['min_points'],config['latent_dim']))
-    final_flow = Flow(transforms,base_dist,sample_dist)
+    base_dist =  models.StandardNormal(shape = (config['min_points'],config['latent_dim']))
+    sample_dist = models.Normal(torch.zeros(1),torch.ones(1)*0.6,shape = (config['min_points'],config['latent_dim']))
+    final_flow = models.Flow(transforms,base_dist,sample_dist)
       
     
    
 
 
     if config['input_embedder'] == 'NeighborhoodEmbedder':
-        input_embedder = NeighborhoodEmbedder(config['input_dim'],out_dim = config['input_embedding_dim'])
+        input_embedder = models.NeighborhoodEmbedder(config['input_dim'],out_dim = config['input_embedding_dim'])
     elif config['input_embedder'] == 'DGCNNembedder':
-        input_embedder = DGCNNembedder(emb_dim= config['input_embedding_dim'],n_neighbors=config['n_neighbors'])
+        input_embedder = models.DGCNNembedder(emb_dim= config['input_embedding_dim'],n_neighbors=config['n_neighbors'])
     elif config['input_embedder'] == 'DGCNNembedderCombo':
-        input_embedder = DGCNNembedderCombo(config['input_embedding_dim'],config['global_input_embedding_dim'],n_neighbors=config['n_neighbors'])
+        input_embedder = models.DGCNNembedderCombo(config['input_embedding_dim'],config['global_input_embedding_dim'],n_neighbors=config['n_neighbors'])
 
     elif config['input_embedder'] == 'idenity':
         input_embedder = nn.Identity()

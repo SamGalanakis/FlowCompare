@@ -184,5 +184,8 @@ conditional_aug_cif:
 conditional_slice_cif:
   desc: Use conditional info in slice of cif
   value: True
+num_bins_spline:
+  desc: How many bins to use for spline flow
+  value: 8 # 128
 
 

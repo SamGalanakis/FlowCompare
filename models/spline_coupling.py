@@ -21,14 +21,14 @@ def searchsorted(bin_locations, inputs, eps=1e-6):
     ) - 1
 
 
-
+ # Changed tail bound to 3
 def unconstrained_rational_quadratic_spline(inputs,
                                             unnormalized_widths,
                                             unnormalized_heights,
                                             unnormalized_derivatives,
                                             inverse=False,
                                             tails='linear',
-                                            tail_bound=1.,
+                                            tail_bound=3.,
                                             min_bin_width=DEFAULT_MIN_BIN_WIDTH,
                                             min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
                                             min_derivative=DEFAULT_MIN_DERIVATIVE):
@@ -190,7 +190,7 @@ class RationalQuadraticSplineCoupling(Transform):
         x1, x2 = x.split([self.split_dim, x2_size], dim=self.event_dim)
         nn_input = torch.cat((x1,context),dim=self.event_dim) if self.context_dim!= 0 else x1
         unnormalized_widths , unnormalized_heights, unnormalized_derivatives  = self.nn(nn_input).split(self.num_bins,dim=self.split_dim,dim=-1)
-        y2, ldj_elementwise = rational_quadratic_spline(x2,
+        y2, ldj_elementwise = unconstrained_rational_quadratic_spline(x2,
                                                         unnormalized_widths=unnormalized_widths,
                                                         unnormalized_heights=unnormalized_heights,
                                                         unnormalized_derivatives=unnormalized_derivatives,
@@ -209,7 +209,7 @@ class RationalQuadraticSplineCoupling(Transform):
 
         nn_input = torch.cat((y1,context),dim=self.event_dim) if self.context_dim!= 0 else y1
         unnormalized_widths , unnormalized_heights, unnormalized_derivatives  = self.nn(nn_input).split(self.num_bins,dim=self.split_dim,dim=-1)
-        x2, _ = rational_quadratic_spline(y2,
+        x2, _ = unconstrained_rational_quadratic_spline(y2,
                                                  unnormalized_widths=unnormalized_widths,
                                                  unnormalized_heights=unnormalized_heights,
                                                  unnormalized_derivatives=unnormalized_derivatives,
