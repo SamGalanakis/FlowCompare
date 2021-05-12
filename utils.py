@@ -472,5 +472,27 @@ def circle_cover(rectangle_height,rectangle_width,radius,overlap=0,show=False):
         plt.show()
     return np.array(list(zip(xx,yy)))
 
+def sum_except_batch(x, num_dims=1):
+    '''
+    Sums all dimensions except the first.
+    Args:
+        x: Tensor, shape (batch_size, ...)
+        num_dims: int, number of batch dims (default=1)
+    Returns:
+        x_sum: Tensor, shape (batch_size,)
+    '''
+    return x.reshape(*x.shape[:num_dims], -1).sum(-1)
+
+def mean_except_batch(x, num_dims=1):
+    '''
+    Averages all dimensions except the first.
+    Args:
+        x: Tensor, shape (batch_size, ...)
+        num_dims: int, number of batch dims (default=1)
+    Returns:
+        x_mean: Tensor, shape (batch_size,)
+    '''
+    return x.reshape(*x.shape[:num_dims], -1).mean(-1)
+
 if __name__ == '__main__':
     circle_cover(10,10,0.5,overlap=0.1,show=True)
