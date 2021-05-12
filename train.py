@@ -137,7 +137,8 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
         raise Exception('Invalid cif_dist')
 
     
-    cif_block = lambda : cif_helper(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,pre_attention_mlp,event_dim=-1)
+    cif_block = lambda : cif_helper(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,
+    pre_attention_mlp,event_dim=-1,conditional_aug=config['conditional_aug_cif'],conditional_slice=config['conditional_slice_cif'])
    
 
     

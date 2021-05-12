@@ -178,4 +178,11 @@ clamp_dist:
 time_stats:
   desc: Use cuda synchronize to get time stats
   value: false
+conditional_aug_cif:
+  desc: Use conditional info in augment of cif
+  value: True
+conditional_slice_cif:
+  desc: Use conditional info in slice of cif
+  value: True
+
 

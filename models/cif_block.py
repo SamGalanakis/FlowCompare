@@ -21,10 +21,10 @@ class CouplingPreconditionerAttn(nn.Module):
         attn_emb = self.attn(self.pre_attention_mlp(x1),context = context)
         return attn_emb
 
-def cif_helper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim):
+def cif_helper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim,conditional_aug,conditional_slice):
     #CIF if aug>base latent dim else normal flow
     if  input_dim < augment_dim:
-        return CIFblock(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim=-1)
+        return CIFblock(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim=event_dim,conditional_aug=conditional_aug,conditional_slice=conditional_slice)
     elif input_dim == augment_dim:
         
         return PreConditionApplier(flow(input_dim,context_dim),CouplingPreconditionerAttn(attn(),pre_attention_mlp(input_dim//2),input_dim//2,event_dim=event_dim))
