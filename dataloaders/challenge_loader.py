@@ -10,86 +10,73 @@ from tqdm import tqdm
 import pandas as pd
 
 class ChallengeDataset(Dataset):
-    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='random',normalization='min_max',device="cuda",subset= None,apply_normalization=True,remove_ground=True,mode='test',hsv=False):
+    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='fps',normalization='co_unit_sphere',device="cuda",apply_normalization=True):
         self.sample_size  = sample_size
         self.out_path = out_path
         self.subsample = subsample
         self.radius = radius
-        self.mode = mode
-        self.save_name = f"challenge_{self.subsample}_{self.sample_size}_{self.radius}_{self.mode}.pt"
+        self.save_name = f"challenge_{self.subsample}_{self.sample_size}_{self.radius}.pt"
         self.normalization = normalization
         self.class_labels = ['nochange','removed',"added",'change',"color_change"]
         self.class_int_dict = {x:self.class_labels.index(x) for x in self.class_labels}
         self.int_class_dict = {val:key for key,val in self.class_int_dict.items()}
-        self.subset = subset
         self.apply_normalization = apply_normalization
-        self.remove_ground = remove_ground
-        self.hsv = hsv
-        assert mode in csv_path, 'Possibly invalid csv path for mode'
+    
+        
         if not preload :
             print(f"Recreating challenge dataset, saving to: {self.out_path}")
-            csv_path_list = [os.path.join(csv_path,x) for x in os.listdir(csv_path) if x.split('.')[-1]=='csv']
-            scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(x) for x in csv_path_list}
+            df = pd.read_csv(csv_path)
+            df = df[df['classiciation'].isin(self.class_labels)] #Remove unfit!
             scene_dicts = [{int(os.path.basename(x).split("_")[0]): os.path.join(year_path,x) for x in os.listdir(year_path) if x.split('.')[-1]=='las'} for year_path in direcories_list]
             combined_scene_dicts = {x:[scene_dicts[0][x],scene_dicts[1][x]] for x in scene_dicts[0].keys()}
             
             self.pair_dict={}
             
             pair_id = 0
-            for scene_number, df in tqdm(sorted(scene_df_dict.items())):
-                scene_path_list=combined_scene_dicts[scene_number]
+            loaded_clouds = {}
+            for index, row in tqdm(df.iterrows()):
+                scene_num = row['scene']
+                scene_path_list=combined_scene_dicts[scene_num]
                 
-                scene_0 = torch.from_numpy(load_las(scene_path_list[0])).float().to(device)
-                scene_1 =  torch.from_numpy(load_las(scene_path_list[1])).float().to(device)
-                for index,row in df.iterrows():
+                if not scene_num in loaded_clouds:
+                    loaded_clouds[scene_num] = [torch.from_numpy(load_las(scene_path_list[x])).float().to(device) for x in range(2)]
+                scene_0,scene_1 = loaded_clouds[scene_num]
+                
+                
                     
-                    label = self.class_int_dict[row['classification']]
-                    center = torch.Tensor([row['x'],row["y"]]).to(device)
+                label = self.class_int_dict[row['classification']]
+                center = torch.Tensor([row['x'],row["y"]]).to(device)
 
-                    extract_0 = scene_0[extract_area(scene_0,center,self.radius,'circle'),:]
-                    extract_1 = scene_1[extract_area(scene_1,center,self.radius,'circle'),:]
-                    #Replace with placeholder if empty extract
-                    if extract_0.shape[0] == 0:
-                        extract_0 = extract_1.mean(axis=0).unsqueeze(0)
-                    if extract_1.shape[0] == 0:
-                        extract_1 = extract_0.mean(axis=0).unsqueeze(0)
-                    if subsample == 'random':
-                        extract_0 = random_subsample(extract_0,sample_size)
-                        extract_1 = random_subsample(extract_1,sample_size)
-                    elif subsample == "fps":
-                        if self.sample_size/extract_0.shape[0]<1:
-                            extract_0 = random_subsample(extract_0,sample_size*5)
-                            extract_0 = extract_0[fps(extract_0,ratio = self.sample_size/extract_0.shape[0]),...]
-                        if self.sample_size/extract_1.shape[0]<1:
-                            extract_1= random_subsample(extract_1,sample_size*5)
-                            extract_1 = extract_1[fps(extract_1,ratio = self.sample_size/extract_1.shape[0]),...]
-                    if self.hsv:
-                        extract_0[:,3:] = rgb_to_hsv(extract_0[:,3:])
-                        extract_1[:,3:] = rgb_to_hsv(extract_1[:,3:])
-                    assert not (extract_0.isnan().any().item() or extract_1.isnan().any().item())
-                    torch_label = torch.Tensor([label]).long()
-                    self.pair_dict[pair_id]=[extract_0.float().cpu(),extract_1.float().cpu(),torch_label.cpu()]
-                    pair_id +=1
-                    
+                extract_0 = scene_0[extract_area(scene_0,center,self.radius,'circle'),:]
+                extract_1 = scene_1[extract_area(scene_1,center,self.radius,'circle'),:]
+                #Replace with placeholder if empty extract
+                if extract_0.shape[0] == 0:
+                    extract_0 = extract_1.mean(axis=0).unsqueeze(0)
+                if extract_1.shape[0] == 0:
+                    extract_1 = extract_0.mean(axis=0).unsqueeze(0)
+                if subsample == 'random':
+                    extract_0 = random_subsample(extract_0,sample_size)
+                    extract_1 = random_subsample(extract_1,sample_size)
+                elif subsample == "fps":
+                    if self.sample_size/extract_0.shape[0]<1:
+                        extract_0 = random_subsample(extract_0,sample_size*5)
+                        extract_0 = extract_0[fps(extract_0,ratio = self.sample_size/extract_0.shape[0]),...]
+                    if self.sample_size/extract_1.shape[0]<1:
+                        extract_1= random_subsample(extract_1,sample_size*5)
+                        extract_1 = extract_1[fps(extract_1,ratio = self.sample_size/extract_1.shape[0]),...]
+                
+                assert not (extract_0.isnan().any().item() or extract_1.isnan().any().item())
+                torch_label = torch.Tensor([label]).long()
+                self.pair_dict[pair_id]=[extract_0.float().cpu(),extract_1.float().cpu(),torch_label.cpu()]
+                pair_id +=1
+                
 
 
             save_path  = os.path.join(self.out_path,self.save_name)
             print(f"Saving to {save_path}!")
             torch.save(self.pair_dict,save_path)
         else:
-            if mode == 'combined':
-                pair_dict_test = torch.load(os.path.join(self.out_path,self.save_name.replace('train','test')))
-                pair_dict_train = torch.load(os.path.join(self.out_path,self.save_name.replace('test','train')))
-                pair_dict_train.update({(key+len(pair_dict_train)):val for key,val in pair_dict_test})
-                self.pair_dict = pair_dict_train
-            else:
-                self.pair_dict = torch.load(os.path.join(self.out_path,self.save_name))
-        
-        if subset!=None:
-            assert all([x in self.pair_dict.keys() for x in subset]), "Invalid subset"
-            print(f"Using subset: {self.subset}")
-            self.pair_dict = {key:val for key,val in self.pair_dict.items() if key in self.subset}
-            self.subset_map = {x:sorted(self.subset)[x] for x in range(len(self.subset))}
+            self.pair_dict = torch.load(os.path.join(self.out_path,self.save_name))
         print('Loaded dataset!')
 
 
@@ -108,22 +95,6 @@ class ChallengeDataset(Dataset):
             idx = self.subset_map[idx]
         extract_0,extract_1,label = self.pair_dict[idx]
 
-        #Remove ground before normalize
-        if self.remove_ground:
-            
-            ground_mask_0 = ground_remover(extract_0,height_bin=0.35)
-            ground_mask_1 = ground_remover(extract_1,height_bin=0.35)
-            #Check for empty (only ground) and put dummy
-            if ground_mask_0.sum() == 0:
-                extract_0 = extract_0.mean(axis=0).unsqueeze(0)
-            else:
-                extract_0 = extract_0[ground_mask_0,:]
-            if ground_mask_1.sum() == 0:
-                extract_1 = extract_1.mean(axis=0).unsqueeze(0)
-            else:
-                extract_1 = extract_1[ground_mask_1,:]
-        # extract_0 = remove_outliers(extract_0,10)
-        # extract_1 = remove_outliers(extract_1,10)
         #Normalize
         if self.apply_normalization:
             if self.apply_normalization:
