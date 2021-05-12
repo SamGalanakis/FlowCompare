@@ -41,16 +41,16 @@ LinearLU
 )
 
 
-def load_cross_flow(load_dict,initialized_cross_flow):
+def load_flow(load_dict,models_dict):
     
 
-    initialized_cross_flow['input_embedder'].load_state_dict(load_dict['input_embedder'])
-    initialized_cross_flow['flow'].load_state_dict(load_dict['flow'])
-    return initialized_cross_flow
+    models_dict['input_embedder'].load_state_dict(load_dict['input_embedder'])
+    models_dict['flow'].load_state_dict(load_dict['flow'])
+    return models_dict
 
 
 
-def initialize_cross_flow(config,device = 'cuda',mode='train'):
+def initialize_flow(config,device = 'cuda',mode='train'):
     
 
     parameters = []
@@ -206,7 +206,7 @@ def initialize_cross_flow(config,device = 'cuda',mode='train'):
     return models_dict
 
 
-def inner_loop_cross(extract_0,extract_1,models_dict,config):
+def inner_loop(extract_0,extract_1,models_dict,config):
     
 
     input_embeddings = models_dict["input_embedder"](extract_0)
@@ -218,7 +218,7 @@ def inner_loop_cross(extract_0,extract_1,models_dict,config):
     loss = -log_prob.mean()
     nats =  -log_prob.sum() / (math.log(2) * x.numel())
     return loss,log_prob,nats
-def sample_cross(n_samples,extract_0,models_dict,config):
+def sample(n_samples,extract_0,models_dict,config):
 
     input_embeddings = models_dict["input_embedder"](extract_0[0].unsqueeze(0))
 
@@ -239,7 +239,7 @@ def main(rank, world_size):
     wandb.init(project="flow_change",config = config_path)
     config = wandb.config
 
-    models_dict = initialize_cross_flow(config,device,mode='train')
+    models_dict = initialize_flow(config,device,mode='train')
    
 
     if config['preselected_points']:
@@ -290,7 +290,7 @@ def main(rank, world_size):
     if config['load_checkpoint']:
         print(f"Loading from checkpoint: {config['load_checkpoint']}")
         checkpoint_dict = torch.load(config['load_checkpoint'])
-        models_dict = load_cross_flow(checkpoint_dict,models_dict)
+        models_dict = load_flow(checkpoint_dict,models_dict)
         scheduler.load_state_dict(checkpoint_dict['scheduler'])
         #optimizer.load_state_dict(checkpoint_dict['optimizer'])
     else:
@@ -320,7 +320,7 @@ def main(rank, world_size):
                 extract_0,extract_1 = batch
     
 
-                loss, _ , nats = inner_loop_cross(extract_0,extract_1,models_dict,config)
+                loss, _ , nats = inner_loop(extract_0,extract_1,models_dict,config)
     
             
             scaler.scale(loss).backward()
@@ -347,7 +347,7 @@ def main(rank, world_size):
             if (batch_ind+1) % config['batches_per_sample'] == 0:
                     with torch.no_grad():
                         if config['make_samples']:
-                            sample = sample_cross(4000,extract_0,models_dict,config)
+                            sample = sample(4000,extract_0,models_dict,config)
                             sample = sample.cpu().numpy().squeeze()
                             sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
                             cond_nump = extract_0[0].cpu().numpy()

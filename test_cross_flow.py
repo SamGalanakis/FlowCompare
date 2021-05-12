@@ -1,5 +1,5 @@
 import torch
-from conditional_cross_flow import initialize_cross_flow,load_cross_flow,inner_loop_cross
+from train import initialize_flow,load_flow,inner_loop
 from dataloaders import ConditionalDataGrid, ShapeNetLoader,ChallengeDataset,AmsGridLoader
 import wandb
 import os
