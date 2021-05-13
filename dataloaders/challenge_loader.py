@@ -109,5 +109,6 @@ class ChallengeDataset(Dataset):
                 else:
                     raise Exception('Invalid normalization type')
         
-     
+        extract_0 = extract_0[:,:2000]
+        extract_1 = extract_1[:,:2000]
         return extract_0,extract_1,label,idx

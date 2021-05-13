@@ -18,7 +18,9 @@ class CouplingPreconditionerAttn(nn.Module):
         self.x1_dim = x1_dim
     def forward(self,x,context):
         x1,x2 = x.split([self.x1_dim, self.x1_dim], dim=self.event_dim)
-        attn_emb = self.attn(self.pre_attention_mlp(x1),context = context)
+        mlp_out  = torch.utils.checkpoint.checkpoint(self.pre_attention_mlp,x1)
+        #attn_emb = self.attn(mlp_out,context)
+        attn_emb = torch.utils.checkpoint.checkpoint(self.attn,mlp_out,context)
         return attn_emb
 
 def cif_helper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim,conditional_aug,conditional_slice):

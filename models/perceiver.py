@@ -50,15 +50,17 @@ class PreNorm(nn.Module):
         self.norm = nn.LayerNorm(dim)
         self.norm_context = nn.LayerNorm(context_dim) if exists(context_dim) else None
 
-    def forward(self, x, **kwargs):
+    def forward(self, x, context):
         x = self.norm(x)
 
         if exists(self.norm_context):
-            context = kwargs['context']
+            context = context
             normed_context = self.norm_context(context)
-            kwargs.update(context = normed_context)
+        else:
+            normed_context = context
+            
 
-        return self.fn(x, **kwargs)
+        return self.fn(x, normed_context)
 
 def fourier_encode(x, max_freq, num_bands = 4, base = 2):
     x = x.unsqueeze(-1)

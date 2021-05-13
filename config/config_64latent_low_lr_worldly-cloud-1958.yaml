@@ -3,13 +3,13 @@ sample_size:
   value: 2048 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 31 # was 46 for 64 latent
+  value: 46 # was 46 for 64 latent
 data_loader:
   desc: What loader to use
   value: AmsGridLoader #AmsGridLoader
 flow_type:
   desc: What flow blocks to use
-  value: RationalQuadraticSplineCoupling #ExponentialCoupling
+  value: AffineCoupling #ExponentialCoupling
 hidden_dims:
   desc: linear layers for flow coupling
   value: [512,512,512] # was [512,512,512]
@@ -129,7 +129,7 @@ batches_per_sample:
   value: 15
 batches_per_save:
   desc: Every how many batches to create a sample
-  value: 5000 
+  value: 1000 
 global_input_embedding_dim:
   desc: Size of global context vector from combo
   value: 256

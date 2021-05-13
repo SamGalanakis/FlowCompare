@@ -1,12 +1,11 @@
 import torch
 from train import initialize_flow,load_flow,inner_loop
-from dataloaders import ConditionalDataGrid, ShapeNetLoader,ChallengeDataset,AmsGridLoader
+from dataloaders import ConditionalDataGrid,ChallengeDataset,AmsGridLoader
 import wandb
 import os
 import pyro.distributions as dist
 from utils import view_cloud_plotly, bin_probs, bits_per_dim, config_loader
 import pandas as pd
-
 from visualize_change_map import visualize_change
 import matplotlib.pyplot as plt
 import  numpy as np
@@ -15,18 +14,18 @@ from tqdm import tqdm
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-config_path = r"config/config_conditional_cross.yaml"
+config_path = r"config/config_64latent_low_lr_worldly-cloud-1958.yaml"
 config = config_loader(config_path)
-load_path = r"save/conditional_flow_compare/firm-resonance-1606_1_model_dict.pt"  # "save/conditional_flow_compare/expert-elevator-1560_12_model_dict.pt"  # r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"            #r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
+load_path = r"save/conditional_flow_compare/worldly-cloud-1958_47999_1_model_dict.pt"  # "save/conditional_flow_compare/expert-elevator-1560_12_model_dict.pt"  # r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"            #r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
 save_dict = torch.load(load_path)
 model_dict = initialize_flow(config,device,mode='test')
 model_dict = load_flow(save_dict,model_dict)
-mode = 'test'
+mode = 'train'
 
-dataset_type  = 'ams'
+dataset_type  = 'challenge'
 one_up_path = os.path.dirname(__file__)
 out_path = os.path.join(one_up_path,r"save/processed_dataset")
-if dataset_type == 'multiview':
+if dataset_type == 'challenge':
     if config['preselected_points']:
             scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(os.path.join(config['dirs_challenge_csv'].replace('train',mode),x)) for x in os.listdir(config['dirs_challenge_csv'].replace('train',mode)) }
             preselected_points_dict = {key:val[['x','y']].values for key,val in scene_df_dict.items()}
@@ -47,9 +46,9 @@ else:
 def calc_change(extract_0,extract_1,model_dict,config,preprocess=False):
     if preprocess:
         extract_0, extract_1 = ConditionalDataGrid.last_processing(extract_0, extract_1,config['normalization'])
-    base_dist = dist.Normal(torch.zeros(config['latent_dim']).to(device), torch.ones(config['latent_dim']).to(device))
+    
   
-    loss,log_prob_1_given_0,_ = inner_loop(extract_0.unsqueeze(0),extract_1.unsqueeze(0),model_dict,base_dist,config)
+    loss,log_prob_1_given_0,_ = inner_loop(extract_0.unsqueeze(0),extract_1.unsqueeze(0),model_dict,config)
 
     return log_prob_1_given_0.squeeze()
 

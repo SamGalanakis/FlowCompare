@@ -194,7 +194,7 @@ def inner_loop(extract_0,extract_1,models_dict,config):
     loss = -log_prob.mean()
     nats =  -log_prob.sum() / (math.log(2) * x.numel())
     return loss,log_prob,nats
-def sample(n_samples,extract_0,models_dict,config):
+def make_sample(n_samples,extract_0,models_dict,config):
 
     input_embeddings = models_dict["input_embedder"](extract_0[0].unsqueeze(0))
 
@@ -234,7 +234,7 @@ def main(rank, world_size):
     elif config['data_loader']=='ShapeNet':
         dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     elif config['data_loader'] == 'AmsGridLoader':
-        dataset=AmsGridLoader('save/processed_dataset',out_path='/media/raid/sam/processed_ams',preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
+        dataset=AmsGridLoader('save/processed_dataset',out_path='save/processed_dataset',preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
 
     else:
         raise Exception('Invalid dataloader type!')
@@ -315,7 +315,7 @@ def main(rank, world_size):
                 torch.cuda.synchronize()
                 time_batch = perf_counter() - t0
             else:
-                time_batch = NaN
+                time_batch = np.NaN
             loss_item = loss.item()
             loss_running_avg = (loss_running_avg*(batch_ind) + loss_item)/(batch_ind+1)
             
@@ -323,18 +323,18 @@ def main(rank, world_size):
             if (batch_ind+1) % config['batches_per_sample'] == 0:
                     with torch.no_grad():
                         if config['make_samples']:
-                            sample = sample(4000,extract_0,models_dict,config)
-                            sample = sample.cpu().numpy().squeeze()
-                            sample[:,3:6] = np.clip(sample[:,3:6]*255,0,255)
+                            sample_points = make_sample(4000,extract_0,models_dict,config)
+                            sample_points = sample_points.cpu().numpy().squeeze()
+                            sample_points[:,3:6] = np.clip(sample_points[:,3:6]*255,0,255)
                             cond_nump = extract_0[0].cpu().numpy()
                             cond_nump[:,3:6] = np.clip(cond_nump[:,3:6]*255,0,255)
-                            wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample[:,:6]),'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
+                            wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:,:6]),"Gen_cloud": wandb.Object3D(sample_points[:,:6]),'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
             else:
                 wandb.log({'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
             if (batch_ind+1) % config['batches_per_save'] == 0:
                 print(f'Saving!')
                 save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"flow":models_dict['flow'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
-                torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_{batch_ind}_{epoch}_model_dict.pt"))
+                torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_e{epoch}_b{batch_ind}_model_dict.pt"))
         scheduler.step(loss_running_avg)
         wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})
 if __name__ == "__main__":

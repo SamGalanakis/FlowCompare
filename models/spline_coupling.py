@@ -1,13 +1,14 @@
 import torch
 from torch import nn
+from torch._C import dtype
 from models.nets import MLP
 from models import Transform
 from torch.nn import functional as F
 import numpy as np
 import einops
 from utils import sum_except_batch
-
-#Adapted from https://github.com/didriknielsen/survae_flows
+import math
+#Adapted from https://github.com/bayesiains/nsf/blob/master/nde/transforms/splines/rational_quadratic_test.py
 
 DEFAULT_MIN_BIN_WIDTH = 1e-3
 DEFAULT_MIN_BIN_HEIGHT = 1e-3
@@ -15,10 +16,8 @@ DEFAULT_MIN_DERIVATIVE = 1e-3
 
 def searchsorted(bin_locations, inputs, eps=1e-6):
     bin_locations[..., -1] += eps
-    return torch.sum(
-        inputs[..., None] >= bin_locations,
-        dim=-1
-    ) - 1
+    return torch.sum(inputs[..., None] >= bin_locations,dim=-1) - 1
+    
 
 
  # Changed tail bound to 3
@@ -32,6 +31,7 @@ def unconstrained_rational_quadratic_spline(inputs,
                                             min_bin_width=DEFAULT_MIN_BIN_WIDTH,
                                             min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
                                             min_derivative=DEFAULT_MIN_DERIVATIVE):
+    
     inside_interval_mask = (inputs >= -tail_bound) & (inputs <= tail_bound)
     outside_interval_mask = ~inside_interval_mask
 
@@ -40,7 +40,7 @@ def unconstrained_rational_quadratic_spline(inputs,
 
     if tails == 'linear':
         unnormalized_derivatives = F.pad(unnormalized_derivatives, pad=(1, 1))
-        constant = np.log(np.exp(1 - min_derivative) - 1)
+        constant = torch.tensor(math.log(math.exp((1 - min_derivative) - 1)))
         unnormalized_derivatives[..., 0] = constant
         unnormalized_derivatives[..., -1] = constant
 
@@ -49,7 +49,7 @@ def unconstrained_rational_quadratic_spline(inputs,
     else:
         raise RuntimeError('{} tails are not implemented.'.format(tails))
 
-    outputs[inside_interval_mask], logabsdet[inside_interval_mask] = rational_quadratic_spline(
+    a,b = rational_quadratic_spline(
         inputs=inputs[inside_interval_mask],
         unnormalized_widths=unnormalized_widths[inside_interval_mask, :],
         unnormalized_heights=unnormalized_heights[inside_interval_mask, :],
@@ -60,7 +60,9 @@ def unconstrained_rational_quadratic_spline(inputs,
         min_bin_height=min_bin_height,
         min_derivative=min_derivative
     )
-
+    outputs[inside_interval_mask] = a.type(outputs.dtype)
+    logabsdet[inside_interval_mask] = b.type(logabsdet.dtype)
+    
     return outputs, logabsdet
 
 def rational_quadratic_spline(inputs,
@@ -72,7 +74,8 @@ def rational_quadratic_spline(inputs,
                               min_bin_width=DEFAULT_MIN_BIN_WIDTH,
                               min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
                               min_derivative=DEFAULT_MIN_DERIVATIVE):
-    assert left <= torch.min(inputs) and torch.max(inputs) <= right, 'Inputs < 0 or > 1. Min: {}, Max: {}'.format(torch.min(inputs), torch.max(inputs))
+    if torch.min(inputs) < left or torch.max(inputs) > right:
+        raise Exception()
 
     num_bins = unnormalized_widths.shape[-1]
 
@@ -175,7 +178,7 @@ class RationalQuadraticSplineCoupling(Transform):
         self.split_dim = input_dim//2
         self.context_dim = context_dim
         self.num_bins = num_bins
-        out_dim = self.num_bins*3 - 1
+        out_dim = (self.num_bins*3 +1)*self.split_dim
         self.nn = MLP(self.split_dim +context_dim,hidden_dims,out_dim,nonlinearity,residual=True)
         
 
@@ -189,13 +192,13 @@ class RationalQuadraticSplineCoupling(Transform):
         
         x1, x2 = x.split([self.split_dim, x2_size], dim=self.event_dim)
         nn_input = torch.cat((x1,context),dim=self.event_dim) if self.context_dim!= 0 else x1
-        unnormalized_widths , unnormalized_heights, unnormalized_derivatives  = self.nn(nn_input).split(self.num_bins,dim=self.split_dim,dim=-1)
-        y2, ldj_elementwise = unconstrained_rational_quadratic_spline(x2,
+        unnormalized_widths , unnormalized_heights, unnormalized_derivatives  = self.nn(nn_input).reshape(nn_input.shape[:2]+(-1,self._output_dim_multiplier())).split([self.num_bins,self.num_bins,self.num_bins+1],dim=self.event_dim)
+        y2, ldj = unconstrained_rational_quadratic_spline(x2,
                                                         unnormalized_widths=unnormalized_widths,
                                                         unnormalized_heights=unnormalized_heights,
                                                         unnormalized_derivatives=unnormalized_derivatives,
                                                         inverse=False)
-        ldj = sum_except_batch(ldj_elementwise,num_dims=2)
+        ldj = sum_except_batch(ldj,num_dims=2)
 
         y1=x1
         return torch.cat([y1, y2], dim=self.event_dim), ldj
@@ -208,7 +211,7 @@ class RationalQuadraticSplineCoupling(Transform):
         x1 = y1
 
         nn_input = torch.cat((y1,context),dim=self.event_dim) if self.context_dim!= 0 else y1
-        unnormalized_widths , unnormalized_heights, unnormalized_derivatives  = self.nn(nn_input).split(self.num_bins,dim=self.split_dim,dim=-1)
+        unnormalized_widths , unnormalized_heights, unnormalized_derivatives  = self.nn(nn_input).reshape(nn_input.shape[:2]+(-1,self._output_dim_multiplier())).split([self.num_bins,self.num_bins,self.num_bins+1],dim=self.event_dim)
         x2, _ = unconstrained_rational_quadratic_spline(y2,
                                                  unnormalized_widths=unnormalized_widths,
                                                  unnormalized_heights=unnormalized_heights,

@@ -2,15 +2,14 @@ import torch
 import matplotlib.pyplot as plt
 import os
 import numpy as np
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split,co_standardize,sep_standardize,unit_sphere,co_unit_sphere,extract_area
+from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split,co_standardize,sep_standardize,co_unit_sphere,extract_area
 from itertools import permutations 
 from torch_geometric.nn import fps
 from tqdm import tqdm
 from torch.utils.data import Dataset
 import json
 from datetime import datetime
-from collections import Counter
+
 eps = 1e-8
 
 
@@ -173,10 +172,6 @@ class AmsGridLoader(Dataset):
 
             
         print('Loaded dataset!')
-
-    
-    
-
 
 
     def __len__(self):
