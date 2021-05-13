@@ -20,9 +20,11 @@ class AffineCoupling(Transform):
     def forward(self,x,context=None):
         x2_size = self.input_dim - self.split_dim
         x1, x2 = x.split([self.split_dim, x2_size], dim=self.event_dim)
-
+        
         nn_input = torch.cat((x1,context),dim=self.event_dim) if self.context_dim!= 0 else x1
-        s,t = self.nn(nn_input).split([x2_size,x2_size],dim=-1)
+
+        s,t = torch.utils.checkpoint.checkpoint(self.nn,nn_input,preserve_rng_state=False).split([x2_size,x2_size],dim=-1)
+        
         s = self.scale_fn(s)
 
         y1 = x1

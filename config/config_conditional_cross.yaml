@@ -3,13 +3,13 @@ sample_size:
   value: 2048 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 31 # was 46 for 64 latent
+  value: 120 # was 46 for 64 latent
 data_loader:
   desc: What loader to use
   value: AmsGridLoader #AmsGridLoader
 flow_type:
   desc: What flow blocks to use
-  value: RationalQuadraticSplineCoupling #ExponentialCoupling
+  value:  AffineCoupling #RationalQuadraticSplineCoupling #ExponentialCoupling
 hidden_dims:
   desc: linear layers for flow coupling
   value: [512,512,512] # was [512,512,512]
@@ -144,7 +144,7 @@ augmenter_dist:
   value: StandardNormal # ConditionalMeanStdNormal #ConditionalNormal, StandardUniform
 net_augmenter_dist_hidden_dims: 
   desc: Net hidden sizes for initial augmenter dim if using conditional distribution
-  value: [128,128,128]
+  value: [128,128,128] #Not being used 
 pre_attention_mlp_hidden_dims:
   desc: Hidden dims for pre attention mlp
   value: [64,64,64,64] # was # 64 64 64 64

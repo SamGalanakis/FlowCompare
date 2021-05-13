@@ -116,38 +116,6 @@ class ConditionalMeanStdNormal(ConditionalDistribution):
         return self.cond_dist(context).mean
 
 
-class ConditionalNormalAll(ConditionalDistribution):
-    """A multivariate Normal with conditional mean and learned std."""
-
-    def __init__(self, net, scale_shape):
-        super().__init__()
-        self.net = net
-        self.scale_shape = scale_shape
-        
-
-    def cond_dist(self, context):
-        mean,log_scale = self.net(context).split([self.scale_shape,self.scale_shape],dim=-1)
-        return torch.distributions.Normal(loc=mean, scale=log_scale.exp())
-
-    def log_prob(self, x, context):
-        dist = self.cond_dist(context)
-        return sum_except_batch(dist.log_prob(x),num_dims=2)
-
-    def sample(self, context):
-        dist = self.cond_dist(context)
-        return dist.rsample()
-
-    def sample_with_log_prob(self, context):
-        dist = self.cond_dist(context)
-        z = dist.rsample()
-        log_prob = dist.log_prob(z)
-        log_prob = sum_except_batch(log_prob,num_dims=2)
-        return z, log_prob
-
-    def mean(self, context):
-        return self.cond_dist(context).mean
-
-
 
 class ConditionalNormal(ConditionalDistribution):
     """A multivariate Normal with conditional mean and log_std."""
@@ -159,7 +127,8 @@ class ConditionalNormal(ConditionalDistribution):
         
 
     def cond_dist(self, context):
-        params = self.net(context)
+        params = torch.utils.checkpoint.checkpoint(self.net,context,preserve_rng_state=False)
+        #params = self.net(context)
         mean, log_std = torch.chunk(params, chunks=2, dim=-1)
         scale = log_std.exp()
         if self.clamp:

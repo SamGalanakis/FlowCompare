@@ -18,9 +18,9 @@ class CouplingPreconditionerAttn(nn.Module):
         self.x1_dim = x1_dim
     def forward(self,x,context):
         x1,x2 = x.split([self.x1_dim, self.x1_dim], dim=self.event_dim)
-        mlp_out  = torch.utils.checkpoint.checkpoint(self.pre_attention_mlp,x1)
+        mlp_out  = torch.utils.checkpoint.checkpoint(self.pre_attention_mlp,x1,preserve_rng_state =False)
         #attn_emb = self.attn(mlp_out,context)
-        attn_emb = torch.utils.checkpoint.checkpoint(self.attn,mlp_out,context)
+        attn_emb = torch.utils.checkpoint.checkpoint(self.attn,mlp_out,context,preserve_rng_state =False)
         return attn_emb
 
 def cif_helper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim,conditional_aug,conditional_slice):
@@ -73,7 +73,8 @@ class CIFblock(Transform):
         ldj_cif +=ldj 
         x,noise = combined.split([self.input_dim,self.augment_dim-self.input_dim],dim=self.event_dim)
         
-        attention_emb = self.attention(self.pre_attention_mlp(noise),context=context)
+        mlp_out = torch.utils.checkpoint.checkpoint(self.pre_attention_mlp,noise,preserve_rng_state=False)
+        attention_emb = torch.utils.checkpoint.checkpoint(self.attention,mlp_out,context,preserve_rng_state=False)
         
         x,_ = self.reverse(combined,context=None) #0 ldj
         x,ldj = self.flow(x,context=attention_emb)
