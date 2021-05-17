@@ -107,14 +107,20 @@ def initialize_flow(config,device = 'cuda',mode='train'):
         net_cif_dist = models.MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],config['cif_latent_dim']-config['latent_dim'],coupling_block_nonlinearity)
         cif_dist = lambda : models.ConditionalMeanStdNormal( net = net_cif_dist,scale_shape =  config['cif_latent_dim']-config['latent_dim'])
     elif config['cif_dist'] == 'ConditionalNormal':
-        net_cif_dist = models.MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],(config['cif_latent_dim']-config['latent_dim'])*2,coupling_block_nonlinearity)
-        cif_dist = lambda : models.ConditionalNormal( net = net_cif_dist,split_dim=-1,clamp=config['clamp_dist'])
+        cif_dist_aug_in = (config['attn_dim']+config['latent_dim']) if config['conditional_aug_cif'] else config['latent_dim']
+        cif_dist_aug_mlp = models.MLP(cif_dist_aug_in,config['net_cif_dist_hidden_dims'],(config['cif_latent_dim']-config['latent_dim'])*2,coupling_block_nonlinearity)
+        cif_dist_aug = lambda : models.ConditionalNormal( net = cif_dist_aug_mlp,split_dim=-1,clamp=config['clamp_dist'])
+
+        cif_dist_slice_in = (config['attn_dim']+config['latent_dim']) if config['conditional_aug_cif'] else config['latent_dim']
+        cif_dist_slice_mlp = models.MLP(cif_dist_slice_in,config['net_cif_dist_hidden_dims'],(config['cif_latent_dim']-config['latent_dim'])*2,coupling_block_nonlinearity)
+        cif_dist_slice = lambda : models.ConditionalNormal( net = cif_dist_slice_mlp,split_dim=-1,clamp=config['clamp_dist'])
     else: 
         raise Exception('Invalid cif_dist')
 
     
-    cif_block = lambda : models.cif_helper(config['latent_dim'],config['cif_latent_dim'],cif_dist,config['attn_dim'],flow_for_cif,attn,
-    pre_attention_mlp,event_dim=-1,conditional_aug=config['conditional_aug_cif'],conditional_slice=config['conditional_slice_cif'])
+    cif_block = lambda : models.cif_helper(input_dim = config['latent_dim'],augment_dim = config['cif_latent_dim'],distribution_aug = cif_dist_aug,distribution_slice = cif_dist_slice
+    ,context_dim = config['attn_dim'],flow = flow_for_cif,attn= attn,
+    pre_attention_mlp = pre_attention_mlp,event_dim=-1,conditional_aug=config['conditional_aug_cif'],conditional_slice=config['conditional_slice_cif'])
    
 
     
@@ -185,7 +191,7 @@ def initialize_flow(config,device = 'cuda',mode='train'):
 def inner_loop(extract_0,extract_1,models_dict,config):
     
 
-    input_embeddings = models_dict["input_embedder"](extract_0)
+    input_embeddings =models_dict["input_embedder"](extract_0)
     
     x= extract_1
     
@@ -333,7 +339,7 @@ def main(rank, world_size):
                 wandb.log({'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
             if (batch_ind+1) % config['batches_per_save'] == 0:
                 print(f'Saving!')
-                save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"flow":models_dict['flow'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
+                save_dict = {'config' : config,"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"flow":models_dict['flow'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
                 torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_e{epoch}_b{batch_ind}_model_dict.pt"))
         scheduler.step(loss_running_avg)
         wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})

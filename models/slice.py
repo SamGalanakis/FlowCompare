@@ -28,12 +28,16 @@ class Slice(Transform):
 
     def forward(self, x,context=None):
 
-        if context is not None:
-            context=torch.cat((x,context),axis=self.split_dim)
-        else:
-            context=x
+        
 
         z, x2 = self.split_input(x)
+
+
+        if context is not None:
+            context=torch.cat((z,context),axis=self.dim)
+        else:
+            context=z
+
         if self.cond: ldj = self.noise_dist.log_prob(x2, context=context)
         else:         ldj = self.noise_dist.log_prob(x2)
         return z, ldj
@@ -41,7 +45,7 @@ class Slice(Transform):
     def inverse(self, z,context=None):
 
         if context is not None:
-            context=torch.cat((z,context),axis=self.split_dim)
+            context=torch.cat((z,context),axis=self.dim)
         else:
             context=z
 

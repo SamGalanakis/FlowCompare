@@ -127,6 +127,7 @@ class ConditionalNormal(ConditionalDistribution):
         
 
     def cond_dist(self, context):
+        
         params = torch.utils.checkpoint.checkpoint(self.net,context,preserve_rng_state=False)
         #params = self.net(context)
         mean, log_std = torch.chunk(params, chunks=2, dim=-1)

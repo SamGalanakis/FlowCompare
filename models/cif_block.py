@@ -23,10 +23,10 @@ class CouplingPreconditionerAttn(nn.Module):
         attn_emb = torch.utils.checkpoint.checkpoint(self.attn,mlp_out,context,preserve_rng_state =False)
         return attn_emb
 
-def cif_helper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim,conditional_aug,conditional_slice):
+def cif_helper(input_dim,augment_dim,distribution_aug,distribution_slice,context_dim,flow,attn,pre_attention_mlp,event_dim,conditional_aug,conditional_slice):
     #CIF if aug>base latent dim else normal flow
     if  input_dim < augment_dim:
-        return CIFblock(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim=event_dim,conditional_aug=conditional_aug,conditional_slice=conditional_slice)
+        return CIFblock(input_dim,augment_dim,distribution_aug,distribution_slice,context_dim,flow,attn,pre_attention_mlp,event_dim=event_dim,conditional_aug=conditional_aug,conditional_slice=conditional_slice)
     elif input_dim == augment_dim:
         
         return PreConditionApplier(flow(input_dim,context_dim),CouplingPreconditionerAttn(attn(),pre_attention_mlp(input_dim//2),input_dim//2,event_dim=event_dim))
@@ -35,7 +35,7 @@ def cif_helper(input_dim,augment_dim,distribution,context_dim,flow,attn,pre_atte
 
 
 class CIFblock(Transform):
-    def __init__(self,input_dim,augment_dim,distribution,context_dim,flow,attn,pre_attention_mlp,event_dim,conditional_aug=True,conditional_slice=True):
+    def __init__(self,input_dim,augment_dim,distribution_aug,distribution_slice,context_dim,flow,attn,pre_attention_mlp,event_dim,conditional_aug=True,conditional_slice=True,share_attn_weights=True):
         super().__init__()
         self.input_dim = input_dim
         self.augment_dim = augment_dim
@@ -44,8 +44,8 @@ class CIFblock(Transform):
         self.conditional_slice = conditional_slice
         
  
-        distrib_augment = distribution()
-        distrib_slice = distribution()
+        distrib_augment = distribution_aug()
+        distrib_slice = distribution_slice()
         self.augmenter =  Augment(distrib_augment,input_dim,split_dim=event_dim)
         
         pre_attention_mlp_input_dim =  augment_dim-input_dim # - input_dim//2  #Context is x1,noise
@@ -68,7 +68,13 @@ class CIFblock(Transform):
     def forward(self,x,context=None):
         ldj_cif = torch.zeros(x.shape[:-1], device=x.device,dtype=x.dtype)
 
-        context_aug = self.attention_aug(self.pre_attention_mlp_aug(x)) if self.conditional_aug else None
+        if self.conditional_aug: 
+            aug_mlp_out = torch.utils.checkpoint.checkpoint(self.pre_attention_mlp_aug,x,preserve_rng_state=False)
+            context_aug = torch.utils.checkpoint.checkpoint(self.attention_aug,aug_mlp_out,context,preserve_rng_state=False)
+        else:
+            context_aug = None
+
+
         combined,ldj = self.augmenter(x,context=context_aug)
         ldj_cif +=ldj 
         x,noise = combined.split([self.input_dim,self.augment_dim-self.input_dim],dim=self.event_dim)
@@ -82,14 +88,20 @@ class CIFblock(Transform):
         
         x,_ = self.reverse(x,context=None)
 
-        context_slice = self.attention_slice(self.pre_attention_mlp_slice(x[...,:self.input_dim])) if self.conditional_slice else None
+        
+        if self.conditional_slice: 
+            slice_mlp_out = torch.utils.checkpoint.checkpoint(self.pre_attention_mlp_slice,x[...,:self.input_dim],preserve_rng_state=False)
+            context_slice = torch.utils.checkpoint.checkpoint(self.attention_slice,slice_mlp_out,context,preserve_rng_state=False)
+        else:
+            context_slice = None
+
         x,ldj =self.slicer(x,context=context_slice)
         ldj_cif+= ldj
 
         return x,ldj_cif
     def inverse(self,y,context=None):
 
-        context_slice = self.attention_slice(self.pre_attention_mlp_slice(y)) if self.conditional_slice else None
+        context_slice = self.attention_slice(self.pre_attention_mlp_slice(y),context=context) if self.conditional_slice else None
         y = self.slicer.inverse(y,context=context_slice)
         y = self.reverse.inverse(y,context=None)
 

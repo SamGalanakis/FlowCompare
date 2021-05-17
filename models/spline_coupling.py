@@ -192,12 +192,22 @@ class RationalQuadraticSplineCoupling(Transform):
         
         x1, x2 = x.split([self.split_dim, x2_size], dim=self.event_dim)
         nn_input = torch.cat((x1,context),dim=self.event_dim) if self.context_dim!= 0 else x1
-        unnormalized_widths , unnormalized_heights, unnormalized_derivatives  = self.nn(nn_input).reshape(nn_input.shape[:2]+(-1,self._output_dim_multiplier())).split([self.num_bins,self.num_bins,self.num_bins+1],dim=self.event_dim)
-        y2, ldj = unconstrained_rational_quadratic_spline(x2,
-                                                        unnormalized_widths=unnormalized_widths,
-                                                        unnormalized_heights=unnormalized_heights,
-                                                        unnormalized_derivatives=unnormalized_derivatives,
-                                                        inverse=False)
+
+        nn_out = torch.utils.checkpoint.checkpoint(self.nn,nn_input,preserve_rng_state=False)
+        unnormalized_widths , unnormalized_heights, unnormalized_derivatives  = nn_out.reshape(nn_input.shape[:2]+(-1,self._output_dim_multiplier())).split([self.num_bins,self.num_bins,self.num_bins+1],dim=self.event_dim)
+
+        #Inverse not specified as default is false
+        y2,ldj = torch.utils.checkpoint.checkpoint(unconstrained_rational_quadratic_spline,
+        x2,
+        unnormalized_widths,
+        unnormalized_heights,
+        unnormalized_derivatives,
+        preserve_rng_state=False)
+        # y2, ldj = unconstrained_rational_quadratic_spline(x2,
+        #                                                 unnormalized_widths=unnormalized_widths,
+        #                                                 unnormalized_heights=unnormalized_heights,
+        #                                                 unnormalized_derivatives=unnormalized_derivatives,
+        #                                                 inverse=False)
         ldj = sum_except_batch(ldj,num_dims=2)
 
         y1=x1

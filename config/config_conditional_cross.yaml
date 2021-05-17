@@ -3,13 +3,13 @@ sample_size:
   value: 2048 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 120 # was 46 for 64 latent
+  value: 100 # was 46 for 64 latent
 data_loader:
   desc: What loader to use
   value: AmsGridLoader #AmsGridLoader
 flow_type:
   desc: What flow blocks to use
-  value:  AffineCoupling #RationalQuadraticSplineCoupling #ExponentialCoupling
+  value:  AffineCoupling #RationalQuadraticSplineCoupling #AffineCoupling
 hidden_dims:
   desc: linear layers for flow coupling
   value: [512,512,512] # was [512,512,512]
@@ -45,10 +45,10 @@ n_epochs:
   value: 2000
 batch_size:
   desc: Batch size
-  value: 12  #14
+  value: 14  #14
 lr:
   desc: Initial learning rate for optimizer
-  value: 5.0E-5 # was  1.0E-4
+  value: 1.0E-4 # was  1.0E-4
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -87,7 +87,7 @@ attn_dim:
   value: 512
 latent_dim:
   desc: Latent dim for main flow - output of first augment
-  value: 64
+  value: 32
 attn_input_dim:
   desc: dim of input to attn
   value: 128
@@ -156,10 +156,10 @@ cif_dist:
   value: ConditionalNormal
 net_cif_dist_hidden_dims:
   desc: Hidden dims for conditional distribution nets in the cif augmenter/slicer
-  value: [128,128]
+  value: [64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 64
+  value: 40
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
   value: torch # Was original
