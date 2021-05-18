@@ -10,7 +10,7 @@ from tqdm import tqdm
 import pandas as pd
 
 class ChallengeDataset(Dataset):
-    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 4,preload=False,subsample='fps',normalization='co_unit_sphere',device="cuda",apply_normalization=True):
+    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 1,preload=False,subsample='fps',normalization='co_unit_sphere',device="cuda",apply_normalization=True):
         self.sample_size  = sample_size
         self.out_path = out_path
         self.subsample = subsample
@@ -26,7 +26,7 @@ class ChallengeDataset(Dataset):
         if not preload :
             print(f"Recreating challenge dataset, saving to: {self.out_path}")
             df = pd.read_csv(csv_path)
-            df = df[df['classiciation'].isin(self.class_labels)] #Remove unfit!
+            df = df[df['classification'].isin(self.class_labels)] #Remove unfit!
             scene_dicts = [{int(os.path.basename(x).split("_")[0]): os.path.join(year_path,x) for x in os.listdir(year_path) if x.split('.')[-1]=='las'} for year_path in direcories_list]
             combined_scene_dicts = {x:[scene_dicts[0][x],scene_dicts[1][x]] for x in scene_dicts[0].keys()}
             
@@ -91,8 +91,7 @@ class ChallengeDataset(Dataset):
         view_cloud_plotly(extract_1[:,:3],extract_1[:,3:],point_size=point_size)
 
     def __getitem__(self, idx):
-        if self.subset!=None:
-            idx = self.subset_map[idx]
+        
         extract_0,extract_1,label = self.pair_dict[idx]
 
         #Normalize

@@ -494,5 +494,14 @@ def mean_except_batch(x, num_dims=1):
     '''
     return x.reshape(*x.shape[:num_dims], -1).mean(-1)
 
+
+
+def random_oversample(cloud,n_points):
+    n_points_original = cloud.shape[0]
+    if n_points_original>= n_points:
+        return cloud
+    else:
+        
+        return torch.cat((cloud,random_subsample(cloud,n_points - n_points_original)),dim=-1)
 if __name__ == '__main__':
     circle_cover(10,10,0.5,overlap=0.1,show=True)

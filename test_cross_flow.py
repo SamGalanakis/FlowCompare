@@ -1,10 +1,8 @@
 import torch
 from train import initialize_flow,load_flow,inner_loop
 from dataloaders import ConditionalDataGrid,ChallengeDataset,AmsGridLoader
-import wandb
 import os
-import pyro.distributions as dist
-from utils import view_cloud_plotly, bin_probs, bits_per_dim, config_loader
+from utils import view_cloud_plotly, bits_per_dim, config_loader, random_oversample
 import pandas as pd
 from visualize_change_map import visualize_change
 import matplotlib.pyplot as plt
@@ -13,6 +11,7 @@ from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+device = 'cpu'
 
 config_path = r"config/config_64latent_low_lr_worldly-cloud-1958.yaml"
 config = config_loader(config_path)
@@ -25,7 +24,7 @@ mode = 'train'
 dataset_type  = 'challenge'
 one_up_path = os.path.dirname(__file__)
 out_path = os.path.join(one_up_path,r"save/processed_dataset")
-if dataset_type == 'challenge':
+if dataset_type == 'challenge_grid':
     if config['preselected_points']:
             scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(os.path.join(config['dirs_challenge_csv'].replace('train',mode),x)) for x in os.listdir(config['dirs_challenge_csv'].replace('train',mode)) }
             preselected_points_dict = {key:val[['x','y']].values for key,val in scene_df_dict.items()}
@@ -35,9 +34,9 @@ if dataset_type == 'challenge':
     dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
     dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=True,subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'],preselected_points=preselected_points_dict,mode=mode)
 elif dataset_type == 'challenge':
-    dirs_challenge_csv = 'save/2016-2020-train/'.replace('train',mode)
+    csv_path = 'save/challenge_data/Shrec_change_detection_dataset_public/new_final.csv'
     dirs = ['save/challenge_data/Shrec_change_detection_dataset_public/'+year for year in ["2016","2020"]]
-    dataset = ChallengeDataset(dirs_challenge_csv, dirs, out_path,subsample="fps",sample_size=2000,preload=True,normalization=config['normalization'],subset=None,radius=int(config['grid_square_size']/2),remove_ground=False,mode = mode,hsv=False)
+    dataset = ChallengeDataset(csv_path, dirs, out_path,subsample="fps",sample_size=2048,preload=True,normalization=config['normalization'],radius=int(config['grid_square_size']/2),device=device)
 elif dataset_type=='ams':
     dataset=AmsGridLoader('/media/raid/sam/ams_dataset/',out_path='/media/raid/sam/processed_ams',preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
 else:
@@ -85,11 +84,13 @@ def create_dataset(dataset,model_dict,dataset_out = 'save/processed_dataset/'):
     print(f"Skipped {skipped}")
 
 
-def dataset_view(dataset,index,multiple =3.,show=False):
+def dataset_view(dataset,index,multiple =3.,show=False,n_points=2000):
     
     
     extract_0, extract_1, *other = dataset[index]
+    extract_0, extract_1 = extract_0[:2000,:] , extract_1[:2000,:] # TODO Remove this !
     extract_0, extract_1 = extract_0.to(device),extract_1.to(device)
+    extract_0, extract_1 = random_oversample(extract_0,n_points),random_oversample(extract_1,n_points) #
     print('starting calc ')
     log_prob_1_given_0 = calc_change(extract_0, extract_1,model_dict,config,preprocess=False)
     bpd = bits_per_dim(log_prob_1_given_0,6)
@@ -111,7 +112,10 @@ if __name__ == '__main__':
     #dataset_out = f"save/processed_dataset/{name}_{mode}_probs_dataset.pt"
     #create_dataset(dataset,model_dict,dataset_out = dataset_out)
     #score_on_test(dataset,model_dict,n_bins=12)
-    visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple),range(len(dataset)))
+
+    #dataset_view(dataset,0,multiple = 3.,show=True)
+    pass
+    visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple,n_points = 2000),range(len(dataset)))
     
 
 
