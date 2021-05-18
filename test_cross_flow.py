@@ -88,9 +88,9 @@ def dataset_view(dataset,index,multiple =3.,show=False,n_points=2000):
     
     
     extract_0, extract_1, *other = dataset[index]
-    extract_0, extract_1 = extract_0[:2000,:] , extract_1[:2000,:] # TODO Remove this !
+   # extract_0, extract_1 = extract_0[:2000,:] , extract_1[:2000,:] # TODO Remove this !
     extract_0, extract_1 = extract_0.to(device),extract_1.to(device)
-    extract_0, extract_1 = random_oversample(extract_0,n_points),random_oversample(extract_1,n_points) #
+    #extract_0, extract_1 = random_oversample(extract_0,n_points),random_oversample(extract_1,n_points) #
     print('starting calc ')
     log_prob_1_given_0 = calc_change(extract_0, extract_1,model_dict,config,preprocess=False)
     bpd = bits_per_dim(log_prob_1_given_0,6)

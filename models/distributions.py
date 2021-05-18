@@ -28,7 +28,7 @@ class Distribution(nn.Module):
         """
         raise NotImplementedError()
 
-    def sample_with_log_prob(self, num_samples,context=None):
+    def sample_with_log_prob(self, num_samples,context=None,n_points=None):
         """Generates samples from the distribution together with their log probability.
         Args:
             num_samples: int, number of samples to generate.
@@ -36,7 +36,7 @@ class Distribution(nn.Module):
             samples: Tensor, shape (num_samples, ...)
             log_prob: Tensor, shape (num_samples,)
         """
-        samples = self.sample(num_samples,context=context)
+        samples = self.sample(num_samples,context=context,n_points=n_points)
         log_prob = self.log_prob(samples,context=context)
         return samples, log_prob
 
@@ -158,6 +158,7 @@ class ConditionalNormal(ConditionalDistribution):
     def mean_stddev(self, context):
         dist = self.cond_dist(context)
         return dist.mean, dist.stddev
+
 class StandardUniform(Distribution):
     """A multivariate Uniform with boundaries (0,1)."""
 
@@ -172,8 +173,10 @@ class StandardUniform(Distribution):
         ub = mean_except_batch(x.le(self.one).type(self.one.dtype),num_dims=2)
         return torch.log(lb*ub)
 
-    def sample(self, num_samples,context=None):
-        return torch.rand((num_samples,) + self.shape, device=self.zero.device, dtype=self.zero.dtype)
+    def sample(self, num_samples,context=None,n_points = None):
+        sample_shape = list(self.shape)
+        sample_shape[-2] = n_points
+        return torch.rand((num_samples,) + sample_shape, device=self.zero.device, dtype=self.zero.dtype)
 
 
 class StandardNormal(Distribution):
@@ -189,8 +192,10 @@ class StandardNormal(Distribution):
         log_inner = - 0.5 * x**2
         return sum_except_batch(log_base+log_inner,num_dims=2)
 
-    def sample(self, num_samples,context= None):
-        return torch.randn(num_samples, *self.shape, device=self.buffer.device, dtype=self.buffer.dtype)
+    def sample(self, num_samples,context= None,n_points=None):
+        sample_shape = list(self.shape)
+        sample_shape[-2] = n_points
+        return torch.randn(num_samples, *sample_shape, device=self.buffer.device, dtype=self.buffer.dtype)
 
 class Normal(Distribution):
     def __init__ (self,loc,scale,shape):
@@ -203,6 +208,8 @@ class Normal(Distribution):
         x = (x-self.loc)/self.scale
         return self.std_normal.log_prob(x,context= None)
 
-    def sample(self, num_samples,context= None):
-        return (self.std_normal.sample(num_samples,context= None) *self.scale) + self.loc
+    def sample(self, num_samples,context= None,n_points=None):
+        sample_shape = list(self.shape)
+        sample_shape[-2] = n_points
+        return (self.std_normal.sample(num_samples,context= None,shape=sample_shape) *self.scale) + self.loc
         
