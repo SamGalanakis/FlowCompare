@@ -496,12 +496,12 @@ def mean_except_batch(x, num_dims=1):
 
 
 
-def random_oversample(cloud,n_points):
+def random_oversample(cloud,n_points,cat_dim=0):
     n_points_original = cloud.shape[0]
     if n_points_original>= n_points:
         return cloud
     else:
         
-        return torch.cat((cloud,random_subsample(cloud,n_points - n_points_original)),dim=-1)
+        return torch.cat((cloud,random_subsample(cloud,n_points - n_points_original)),cat_dim=-0)
 if __name__ == '__main__':
     circle_cover(10,10,0.5,overlap=0.1,show=True)
