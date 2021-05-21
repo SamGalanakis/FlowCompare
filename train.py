@@ -93,7 +93,7 @@ def initialize_flow(config,device = 'cuda',mode='train'):
     elif config['permuter_type'] == "random_permute":
         permuter = lambda dim: models.Permuter(permutation = torch.randperm(dim, dtype=torch.long).to(device))
     elif config['permuter_type'] == "LinearLU":
-        permuter = lambda dim: models.LinearLU(num_features=dim)
+        permuter = lambda dim: models.LinearLU(num_features=dim,eps = config['linear_lu_eps'])
     elif config['permuter_type'] == 'FullCombiner':
         permuter = lambda dim: models.FullCombiner(dim=dim)
     else:
@@ -200,11 +200,11 @@ def inner_loop(extract_0,extract_1,models_dict,config):
     loss = -log_prob.mean()
     nats =  -log_prob.sum() / (math.log(2) * x.numel())
     return loss,log_prob,nats
-def make_sample(n_samples,extract_0,models_dict,config):
+def make_sample(n_points,extract_0,models_dict,config):
 
     input_embeddings = models_dict["input_embedder"](extract_0[0].unsqueeze(0))
 
-    x = models_dict['flow'].sample(1,context=input_embeddings).squeeze()
+    x = models_dict['flow'].sample(num_samples=1,n_points = n_points, context=input_embeddings).squeeze()
     return x
 
 

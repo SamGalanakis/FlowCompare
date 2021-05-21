@@ -211,5 +211,5 @@ class Normal(Distribution):
     def sample(self, num_samples,context= None,n_points=None):
         sample_shape = list(self.shape)
         sample_shape[-2] = n_points
-        return (self.std_normal.sample(num_samples,context= None,shape=sample_shape) *self.scale) + self.loc
+        return (self.std_normal.sample(num_samples=num_samples,n_points=n_points,context= None) *self.scale) + self.loc
         

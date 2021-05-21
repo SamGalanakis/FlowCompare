@@ -70,8 +70,8 @@ class Flow(Transform):
         return log_prob
 
     
-    def sample(self, num_samples,context=None):
-        z = self.sample_dist.sample(num_samples)
+    def sample(self,num_samples,n_points,context=None):
+        z = self.sample_dist.sample(num_samples,n_points=n_points)
         for transform in reversed(self.transforms):
             z = transform.inverse(z,context=context)
         return z
