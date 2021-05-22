@@ -1,5 +1,5 @@
 import torch
-from train import initialize_flow,load_flow,inner_loop
+from train import initialize_flow,load_flow,inner_loop,make_sample
 from dataloaders import ConditionalDataGrid,ChallengeDataset,AmsGridLoader
 import os
 from utils import view_cloud_plotly, bits_per_dim, config_loader, random_oversample
@@ -11,12 +11,13 @@ from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-device = 'cpu'
+device = 'cuda'
 
-config_path = r"config/config_64latent_low_lr_worldly-cloud-1958.yaml"
-config = config_loader(config_path)
-load_path = r"save/conditional_flow_compare/worldly-cloud-1958_47999_1_model_dict.pt"  # "save/conditional_flow_compare/expert-elevator-1560_12_model_dict.pt"  # r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"            #r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
+# config_path = r"config/100_affine_long_astral-violet-2136.yaml"
+# config = config_loader(config_path)
+load_path = r"save/conditional_flow_compare/astral-violet-2136_e0_b29999_model_dict.pt"  # "save/conditional_flow_compare/expert-elevator-1560_12_model_dict.pt"  # r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"            #r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
 save_dict = torch.load(load_path)
+config = save_dict['config']
 model_dict = initialize_flow(config,device,mode='test')
 model_dict = load_flow(save_dict,model_dict)
 mode = 'train'
@@ -72,7 +73,9 @@ def create_dataset(dataset,model_dict,dataset_out = 'save/processed_dataset/'):
                 skipped +=1
                 continue
             print(extract_0.shape,extract_1.shape)
+            
             log_prob_1_given_0 = calc_change(extract_0, extract_1,model_dict,config,preprocess=False).to('cpu')
+            assert not log_prob_1_given_0.isnan().any()
             log_prob_0_given_0 = calc_change(extract_0, extract_0,model_dict,config,preprocess=False).to('cpu')
             log_prob_0_given_1 = calc_change(extract_1, extract_0,model_dict,config,preprocess=False).to('cpu')
             log_prob_1_given_1 = calc_change(extract_1, extract_1,model_dict,config,preprocess=False).to('cpu')

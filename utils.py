@@ -503,5 +503,35 @@ def random_oversample(cloud,n_points,cat_dim=0):
     else:
         
         return torch.cat((cloud,random_subsample(cloud,n_points - n_points_original)),cat_dim=-0)
+
+class Scheduler:
+    def __init__(self,optimizer,mem_iter,factor,threshold,min_lr,verbose=True):
+        self.mem_iter = mem_iter
+        self.factor = factor
+        self.threshold = threshold
+        self.current_average = 0
+        self.prev_average = Inf
+        self.step_counter = 0
+        self.optimizer = optimizer
+        self.verbose = verbose
+        self.min_lr = min_lr
+    def set_lr(self):
+        for g in self.optimizer.param_groups:
+            g['lr'] =  max(g['lr'] * self.factor,self.min_lr)
+        if self.verbose:
+            print(f"Updating lr!")
+    def step(self,loss):
+        self.step_counter +=1
+        
+        self.current_average = self.current_average * (self.step_counter-1)/self.step_counter + loss /self.step_counter
+
+        if self.step_counter>= self.mem_iter:
+            self.step_counter = 0
+            if (self.prev_average - self.threshold )> self.current_average:
+                self.set_lr()
+            self.prev_average = self.current_average
+  
+            
+
 if __name__ == '__main__':
     circle_cover(10,10,0.5,overlap=0.1,show=True)

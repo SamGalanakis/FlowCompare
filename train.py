@@ -10,6 +10,7 @@ import pandas as pd
 import math
 from time import time,perf_counter
 import models
+from utils import Scheduler
 
 
 
@@ -260,9 +261,11 @@ def main(rank, world_size):
 
     
     if config['lr_scheduler'] == 'ReduceLROnPlateau':
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=config["patience"],threshold=0.0001,min_lr=config["min_lr"])
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=config['lr_factor'],patience=config["patience"],threshold=config['threshold_scheduler'],min_lr=config["min_lr"])
     elif config['lr_scheduler'] == 'OneCycleLR':
         scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr = config['lr'], epochs=config['n_epochs'], steps_per_epoch=len(dataloader),total_steps =len(dataloader))
+    elif config['lr_scheduler'] == 'custom':
+        scheduler = Scheduler(optimizer,config['mem_iter_scheduler'],factor=config['lr_factor'],threshold=config['threshold_scheduler'],min_lr=config["min_lr"])
     else:
         raise Exception('Invalid cheduler')
     
@@ -308,7 +311,8 @@ def main(rank, world_size):
             scaler.scale(loss).backward()
       
 
-
+            if loss.isnan().any():
+                Exception('Nan in loss!')
             torch.nn.utils.clip_grad_norm_(models_dict['parameters'],max_norm=config['grad_clip_val'])
             scaler.step(optimizer)
             scaler.update()
@@ -339,7 +343,7 @@ def main(rank, world_size):
                 wandb.log({'loss':loss_item,'nats':nats.item(),'lr':current_lr,'time_batch':time_batch})
             if (batch_ind+1) % config['batches_per_save'] == 0:
                 print(f'Saving!')
-                save_dict = {"optimizer": optimizer.state_dict(),"scheduler":scheduler.state_dict(),"flow":models_dict['flow'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
+                save_dict = {'config':config._items,"optimizer": optimizer.state_dict(),"flow":models_dict['flow'].state_dict(),"input_embedder":models_dict['input_embedder'].state_dict()}
                 torch.save(save_dict,os.path.join(save_model_path,f"{wandb.run.name}_e{epoch}_b{batch_ind}_model_dict.pt"))
         scheduler.step(loss_running_avg)
         wandb.log({'epoch':epoch,"loss_epoch":loss_running_avg})

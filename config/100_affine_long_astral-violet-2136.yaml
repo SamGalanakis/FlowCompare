@@ -9,7 +9,7 @@ data_loader:
   value: AmsGridLoader #AmsGridLoader
 flow_type:
   desc: What flow blocks to use
-  value:  RationalQuadraticSplineCoupling #RationalQuadraticSplineCoupling #AffineCoupling
+  value:  AffineCoupling #RationalQuadraticSplineCoupling #AffineCoupling
 hidden_dims:
   desc: linear layers for flow coupling
   value: [512,512,512] # was [512,512,512]
@@ -190,19 +190,6 @@ num_bins_spline:
 linear_lu_eps:
   desc: Eps used for linear lu combiner
   value: 1.0E-5
-threshold_scheduler:
-  desc: Threshold to change lr at for scheduler
-  value: 0.1
-lr_factor:
-  desc: Multiplication factor for lr scheduler]
-  value: 0.8
-mem_iter_scheduler:
-  desc: Every how many batches to reset and adjust custom scheduler
-  value: 3000
-lr_scheduler:
-  desc: What scheduler to use
-  value: custom
-
 
 
 
