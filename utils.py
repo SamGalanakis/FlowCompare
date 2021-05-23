@@ -510,7 +510,7 @@ class Scheduler:
         self.factor = factor
         self.threshold = threshold
         self.current_average = 0
-        self.prev_average = Inf
+        self.prev_average = -Inf #Don't go down in lr on first check
         self.step_counter = 0
         self.optimizer = optimizer
         self.verbose = verbose
@@ -520,6 +520,10 @@ class Scheduler:
             g['lr'] =  max(g['lr'] * self.factor,self.min_lr)
         if self.verbose:
             print(f"Updating lr!")
+    def threshold_val(self):
+        if self.prev_average>=0:
+            return self.prev_average - abs(self.prev_average)*(self.threshold)
+    
     def step(self,loss):
         self.step_counter +=1
         
@@ -527,7 +531,7 @@ class Scheduler:
 
         if self.step_counter>= self.mem_iter:
             self.step_counter = 0
-            if (self.prev_average - self.threshold )> self.current_average:
+            if self.threshold_val() < self.current_average: # If within threshold or hgihhigherer loss than b4, change lr
                 self.set_lr()
             self.prev_average = self.current_average
   

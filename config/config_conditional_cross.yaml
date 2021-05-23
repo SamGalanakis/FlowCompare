@@ -69,13 +69,13 @@ coupling_block_nonlinearity:
   value: GELU
 min_lr:
   desc: Minimum schedules learning rate
-  value: 1.0E-4
+  value: 1.0E-8
 normalization:
   desc: How pairs are normalized
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: false
+  value: save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt
 preselected_points:
   desc: Use preselected points
   value: true
@@ -106,12 +106,6 @@ attn_dropout:
 amp:
   desc: Automatic mixed precision
   value: false
-lr_scheduler:
-  desc: Type of lr scheduling
-  value: ReduceLROnPlateau
-lr_scheduler_multiplier:
-  desc: multiplier for scheduler
-  value: 1.0 
 input_embedder: 
   desc: input_embedder type
   value: DGCNNembedder
@@ -192,13 +186,13 @@ linear_lu_eps:
   value: 1.0E-5
 threshold_scheduler:
   desc: Threshold to change lr at for scheduler
-  value: 0.1
+  value: 0.01 #Percentage
 lr_factor:
   desc: Multiplication factor for lr scheduler]
   value: 0.8
 mem_iter_scheduler:
   desc: Every how many batches to reset and adjust custom scheduler
-  value: 3000
+  value: 100
 lr_scheduler:
   desc: What scheduler to use
   value: custom
