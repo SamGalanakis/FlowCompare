@@ -48,7 +48,7 @@ batch_size:
   value: 16  #14
 lr:
   desc: Initial learning rate for optimizer
-  value: 5.0E-5 # was  1.0E-4
+  value: 1.0E-5 # was  1.0E-4
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -75,7 +75,7 @@ normalization:
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt
+  value: save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt #save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt
 preselected_points:
   desc: Use preselected points
   value: true
@@ -195,7 +195,7 @@ mem_iter_scheduler:
   value: 100
 lr_scheduler:
   desc: What scheduler to use
-  value: custom
+  value: custom #ReduceLROnPlateau #custom
 
 
 

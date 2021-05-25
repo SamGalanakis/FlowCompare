@@ -524,6 +524,7 @@ class Scheduler:
         return self.prev_average - abs(self.prev_average)*(self.threshold)
     
     def step(self,loss):
+        loss = loss.item()
         self.step_counter +=1
         
         self.current_average = self.current_average * (self.step_counter-1)/self.step_counter + loss /self.step_counter
