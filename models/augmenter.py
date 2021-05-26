@@ -33,7 +33,7 @@ class Augment(Transform):
             context=torch.cat((x,context),axis=self.split_dim)
         else:
             context=x
-        if self.cond: z2, logqz2 = self.noise_dist.sample_with_log_prob(context=context,n_points = x.shape[-2])
+        if self.cond: z2, logqz2 = self.noise_dist.sample_with_log_prob(context=context)
         else:         z2, logqz2 = self.noise_dist.sample_with_log_prob(num_samples=x.shape[0],n_points = x.shape[-2])
 
 

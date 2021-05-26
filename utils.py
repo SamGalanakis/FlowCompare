@@ -443,9 +443,7 @@ def config_loader(path):
     with open(path) as f:
         raw_dict = load_yaml(f)
     return  {key:raw_dict[key]['value'] for key in raw_dict.keys()}
-def rotation_z(rad):
-    rot = torch.Tensor([[torch.cos(rad),-torch.sin(rad),0],[torch.sin(rad),torch.cos(rad),0],[0,0,1]])
-    return rot
+
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -537,7 +535,18 @@ class Scheduler:
                     print(f"Updating lr as prev: {self.prev_average} new: {self.current_average} ")
             self.prev_average = self.current_average
   
-            
+def rotate_xy(rad):
+    matrix = torch.tensor([[math.cos(rad),-math.sin(rad)],[math.sin(rad),math.cos(rad)]])  
+    return matrix     
 
 if __name__ == '__main__':
-    circle_cover(10,10,0.5,overlap=0.1,show=True)
+    #circle_cover(10,10,0.5,overlap=0.1,show=True)
+
+
+    test_points = torch.randn((100,2))
+    test_points[:,0] = 0.
+    plt.scatter(test_points.numpy()[:,0],test_points.numpy()[:,1])
+    test_points = torch.matmul(test_points,rotate_xy(math.pi/2))
+    plt.scatter(test_points.numpy()[:,0],test_points.numpy()[:,1])
+    plt.savefig('test')
+
