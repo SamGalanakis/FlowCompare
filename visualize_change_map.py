@@ -38,8 +38,10 @@ def visualize_change(fig_getter,index_range):
         html.Div([
             dcc.Graph(id='graph_0', figure={}),
             dcc.Graph(id='graph_1', figure={}),
-            dcc.Graph(id='graph_1_given_0', figure={}),
             dcc.Graph(id='graph_0_given_1', figure={}),
+            dcc.Graph(id='graph_1_given_0', figure={}),
+            dcc.Graph(id='gen_given_1', figure={}),
+            dcc.Graph(id='gen_given_0', figure={}),
 
 
         ],style={ "columnCount": 2,'rowCount': 2})
@@ -65,8 +67,11 @@ def visualize_change(fig_getter,index_range):
     @app.callback(
     Output(component_id='graph_0', component_property='figure'),
     Output(component_id='graph_1', component_property='figure'),
-    Output(component_id='graph_1_given_0', component_property='figure'),
     Output(component_id='graph_0_given_1', component_property='figure'),
+    Output(component_id='graph_1_given_0', component_property='figure'),
+    Output(component_id='gen_given_1', component_property='figure'),
+    Output(component_id='gen_given_0', component_property='figure'),
+    
     Input(component_id='index_selector', component_property='value'),
     prevent_initial_call=False)
 

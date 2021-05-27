@@ -9,7 +9,7 @@ data_loader:
   value: AmsGridLoader #AmsGridLoader
 flow_type:
   desc: What flow blocks to use
-  value:  RationalQuadraticSplineCoupling #RationalQuadraticSplineCoupling #AffineCoupling
+  value:  AffineCoupling #RationalQuadraticSplineCoupling #AffineCoupling
 hidden_dims:
   desc: linear layers for flow coupling
   value: [512,512,512] # was [512,512,512]
@@ -87,7 +87,7 @@ attn_dim:
   value: 512
 latent_dim:
   desc: Latent dim for main flow - output of first augment
-  value: 64
+  value: 300
 attn_input_dim:
   desc: dim of input to attn
   value: 128
@@ -153,7 +153,7 @@ net_cif_dist_hidden_dims:
   value: [64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 80
+  value: 300
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
   value: torch # Was original
