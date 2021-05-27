@@ -372,7 +372,8 @@ def exp_from_paper(x,eps):
     return s
 
 
-
+def rotate_xy(rad):
+    matrix = torch.tensor([[math.cos(rad),-math.sin(rad)],[math.sin(rad),math.cos(rad)]])
 
 def expm(x,eps,algo='torch'):
     if algo=='torch':

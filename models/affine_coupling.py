@@ -7,7 +7,7 @@ import einops
 
 
 class AffineCoupling(Transform):
-    def __init__(self,input_dim,hidden_dims,nonlinearity,context_dim=0,event_dim=-1,scale_fn= lambda x: torch.exp(x)):
+    def __init__(self,input_dim,hidden_dims,nonlinearity,context_dim=0,event_dim=-1,scale_fn_type = 'exp',eps=1E-8):
         super().__init__()
         self.event_dim = event_dim
         self.input_dim = input_dim
@@ -15,7 +15,14 @@ class AffineCoupling(Transform):
         self.context_dim = context_dim
         out_dim = (self.input_dim - self.split_dim)*2
         self.nn = MLP(self.split_dim +context_dim,hidden_dims,out_dim,nonlinearity,residual=True)
-        self.scale_fn = scale_fn
+        self.scale_fn_type = scale_fn_type
+        if self.scale_fn_type == 'exp':
+            self.scale_fn = lambda x: torch.exp(x)
+        elif self.scale_fn_type== 'sigmoid':
+            self.scale_fn = lambda x: (2*torch.sigmoid(x) - 1) * (1 - eps) + 1
+        else:
+            raise Exception('Invalid scale_fn_type')
+            
 
     def forward(self,x,context=None):
         x2_size = self.input_dim - self.split_dim

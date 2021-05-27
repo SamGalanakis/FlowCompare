@@ -66,7 +66,7 @@ def initialize_flow(config,device = 'cuda',mode='train'):
     
 
     if config['flow_type'] == 'AffineCoupling':
-        flow_for_cif = lambda input_dim,context_dim: models.AffineCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'])
+        flow_for_cif = lambda input_dim,context_dim: models.AffineCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'],scale_fn_type=config['affine_scale_fn'])
     elif config['flow_type'] == 'ExponentialCoupling':
         flow_for_cif = lambda input_dim,context_dim: models.ExponentialCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'],
         eps_expm = config['eps_expm'],algo=config['coupling_expm_algo']) 

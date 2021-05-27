@@ -104,29 +104,20 @@ class DGCNNembedder(nn.Module):
         return x
     
 class DGCNN_cls(nn.Module):
-    def __init__(self, input_dim,dropout = 0.0, emb_dim = 1024,k = 20, output_channels=40,batchnorm=True):
+    def __init__(self, input_dim,dropout = 0.0, emb_dim = 1024,k = 20, out_dim=40):
         super().__init__()
-        self.emb_dim  = emb_dim 
+        
         self.k = k
         self.dropout = dropout
         self.input_dim = input_dim
-        self.batchnorm = batchnorm
         
-        if  self.batchnorm:
-            self.bn1 = nn.BatchNorm2d(64)
-            self.bn2 = nn.BatchNorm2d(64)
-            self.bn3 = nn.BatchNorm2d(128)
-            self.bn4 = nn.BatchNorm2d(256)
-            self.bn5 = nn.BatchNorm1d(self.emb_dim)
-        else:
-            self.bn1 = nn.Identity()
-            self.bn2 = nn.Identity()
-            self.bn3 = nn.Identity()
-            self.bn4 = nn.Identity()
-            self.bn5 = nn.Identity()
-
-
-
+        
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.bn3 = nn.BatchNorm2d(128)
+        self.bn4 = nn.BatchNorm2d(256)
+        self.bn5 = nn.BatchNorm1d(1024)
+        
         self.conv1 = nn.Sequential(nn.Conv2d(self.input_dim*2, 64, kernel_size=1, bias=False),
                                    self.bn1,
                                    nn.LeakyReLU(negative_slope=0.2))
@@ -139,23 +130,14 @@ class DGCNN_cls(nn.Module):
         self.conv4 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),
                                    self.bn4,
                                    nn.LeakyReLU(negative_slope=0.2))
-        self.conv5 = nn.Sequential(nn.Conv1d(512, self.emb_dim, kernel_size=1, bias=False),
+        self.conv5 = nn.Sequential(nn.Conv1d(512, 1024, kernel_size=1, bias=False),
                                    self.bn5,
                                    nn.LeakyReLU(negative_slope=0.2))
-        self.linear1 = nn.Linear(self.emb_dim*2, 512, bias=False)
-      
-        self.dp1 = nn.Dropout(p=self.dropout)
-        self.linear2 = nn.Linear(512, 256)
-   
-        self.dp2 = nn.Dropout(p=self.dropout)
-        self.linear3 = nn.Linear(256, output_channels)
-    
-        if  self.batchnorm:
-            self.bn6 = nn.BatchNorm1d(512)
-            self.bn7 = nn.BatchNorm1d(256)
-        else:
-            self.bn6 = nn.Identity()
-            self.bn7 = nn.Identity()
+       
+
+        self.out_mlp = nn.Sequential(nn.Linear(1024*2,512),
+                                   nn.LeakyReLU(negative_slope=0.2),nn.Linear(512,512),nn.LeakyReLU(negative_slope=0.2),
+                                   nn.Linear(512,out_dim))
 
     def forward(self, x):
         batch_size = x.size(0)
@@ -183,11 +165,7 @@ class DGCNN_cls(nn.Module):
         x2 = F.adaptive_avg_pool1d(x, 1).view(batch_size, -1)           # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
         x = torch.cat((x1, x2), 1)              # (batch_size, emb_dims*2)
 
-        x = F.leaky_relu(self.bn6(self.linear1(x)), negative_slope=0.2) # (batch_size, emb_dims*2) -> (batch_size, 512)
-        x = self.dp1(x)
-        x = F.leaky_relu(self.bn7(self.linear2(x)), negative_slope=0.2) # (batch_size, 512) -> (batch_size, 256)
-        x = self.dp2(x)
-        x = self.linear3(x)                                             # (batch_size, 256) -> (batch_size, output_channels)
+        x = self.out_mlp(x)                                            # (batch_size, 256) -> (batch_size, output_channels)
         
         return x
     
@@ -327,6 +305,7 @@ class DGCNNembedderCombo(nn.Module):
 if __name__ == '__main__':
     points = torch.randn((10,2000,6))
     
-    model = DGCNNembedderCombo(40,25)
+    model = DGCNN_cls(6,0,128)
+    
     output = model(points)
     pass

@@ -196,6 +196,9 @@ mem_iter_scheduler:
 lr_scheduler:
   desc: What scheduler to use
   value: custom
+affine_scale_fn:
+  desc: Scaling function to use for affine coupling
+  value: sigmoid
 
 
 
