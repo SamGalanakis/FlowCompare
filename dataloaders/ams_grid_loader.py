@@ -1,21 +1,30 @@
 import torch
 import matplotlib.pyplot as plt
 import os
+import math
 import numpy as np
-from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split,co_standardize,sep_standardize,co_unit_sphere,extract_area
+from utils import (load_las, 
+random_subsample,
+view_cloud_plotly,
+grid_split,co_min_max,
+circle_split,co_standardize,
+sep_standardize,
+co_unit_sphere,
+extract_area,
+rotate_xy)
 from itertools import permutations 
 from torch_geometric.nn import fps
 from tqdm import tqdm
 from torch.utils.data import Dataset
 import json
 from datetime import datetime
-
+import random
 eps = 1e-8
 
 
 
 
-def is_only_ground(cloud,perc=0.95):
+def is_only_ground(cloud,perc=0.99):
     clouz_z = cloud[:,2]
     cloud_min = clouz_z.min()
     n_close_ground = (clouz_z<(cloud_min + 0.3)).sum()
@@ -51,7 +60,8 @@ class Scan:
         self.datetime = datetime(int(self.recording_properties['RecordingTimeGps'].split('-')[0]),int(self.recording_properties['RecordingTimeGps'].split('-')[1]),int(self.recording_properties['RecordingTimeGps'].split('-')[-1].split('T')[0]))
 
 class AmsGridLoader(Dataset):
-    def __init__(self, directory_path,out_path,sample_size=2000,grid_square_size = 4,clearance = 10,preload=False,min_points=500,subsample='random',height_min_dif=0.5,normalization='min_max',grid_type='circle',max_height = 15.0, device="cuda"):
+    def __init__(self, directory_path,out_path,sample_size=2000,grid_square_size = 4,clearance = 10,preload=False,min_points=500,subsample='random',
+    height_min_dif=0.5,normalization='min_max',grid_type='circle',max_height = 15.0, device="cuda",rotation_augment=True,ground_perc=0.90,ground_keep_perc=1/40):
         self.sample_size  = sample_size
         self.directory_path = directory_path
         self.grid_square_size = grid_square_size
@@ -64,9 +74,12 @@ class AmsGridLoader(Dataset):
         self.minimum_difs = torch.Tensor([self.grid_square_size*0.95,self.grid_square_size*0.95,self.height_min_dif]).to(device)
         self.grid_type = grid_type
         self.save_name = f"ams_extract_id_dict_{grid_type}_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}_{self.height_min_dif}.pt"
+        self.filtered_path = f'filtered_{ground_perc}_{ground_keep_perc}_'+self.save_name
         self.normalization = normalization
         self.years = [2019,2020]
-        
+        self.rotation_augment = rotation_augment
+        self.ground_perc = ground_perc
+        self.ground_keep_perc = ground_keep_perc
         
         
 
@@ -144,19 +157,29 @@ class AmsGridLoader(Dataset):
             save_path  = os.path.join(self.out_path,self.save_name)
             print(f"Saving to {save_path}!")
             torch.save(self.extract_id_dict,save_path)
+            exists_filtered = False
         else:
-            self.extract_id_dict = torch.load(os.path.join(self.out_path,self.save_name))
+            filtered_save_path  = os.path.join(self.out_path,self.filtered_path)
+            exists_filtered = os.path.isfile(filtered_save_path)
+            if not exists_filtered:
+                self.extract_id_dict = torch.load(os.path.join(self.out_path,self.save_name))
+            else:
+                self.extract_id_dict = torch.load(os.path.join(self.out_path,self.filtered_path))
+
+        if not exists_filtered:  
         
-        keep_extracts = {}
-        keep_index = 0
-        print('Filtering!')
-        for extract_dict in tqdm(self.extract_id_dict.values()):
-            ground_bools = [is_only_ground(x) for x in extract_dict]
-            if not any(ground_bools):
-                keep_extracts[keep_index] = extract_dict
-                keep_index+=1
-        print(f"Removed {len(self.extract_id_dict)-len(keep_extracts)} of {len(self.extract_id_dict)}!")
-        self.extract_id_dict = keep_extracts
+            keep_extracts = {}
+            keep_index = 0
+            print('Filtering!')
+            for extract_dict in tqdm(self.extract_id_dict.values()):
+                ground_bools = [is_only_ground(x,perc=self.ground_perc) for x in extract_dict]
+                if not any(ground_bools) or random.random()<= self.ground_keep_perc:
+                    keep_extracts[keep_index] = extract_dict
+                    keep_index+=1
+            print(f"Removed {len(self.extract_id_dict)-len(keep_extracts)} of {len(self.extract_id_dict)}!")
+            self.extract_id_dict = keep_extracts
+            filtered_save_path  = os.path.join(self.out_path,self.filtered_path)
+            torch.save(self.extract_id_dict,filtered_save_path)
         self.combinations_list=[]
         for id,path_list in self.extract_id_dict.items():
             index_permutations = list(permutations(range(len(path_list)),2))
@@ -219,8 +242,12 @@ class AmsGridLoader(Dataset):
         tensor_0 = tensor_0[:self.min_points,:]
         tensor_1 = tensor_1[:self.min_points,:]
         tensor_0,tensor_1 = self.last_processing(tensor_0,tensor_1,self.normalization)
+        rads  = torch.rand((1))*math.pi*2
 
-        
+        if self.rotation_augment:
+            rot_mat = rotate_xy(rads)
+            tensor_0[:,:2] = torch.matmul(tensor_0[:,:2],rot_mat)
+            tensor_1[:,:2] = torch.matmul(tensor_1[:,:2],rot_mat)
         
         return tensor_0,tensor_1
 

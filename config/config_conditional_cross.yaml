@@ -9,7 +9,7 @@ data_loader:
   value: AmsGridLoader #AmsGridLoader
 flow_type:
   desc: What flow blocks to use
-  value:  RationalQuadraticSplineCoupling #RationalQuadraticSplineCoupling #AffineCoupling
+  value:  AffineCoupling #RationalQuadraticSplineCoupling #AffineCoupling
 hidden_dims:
   desc: linear layers for flow coupling
   value: [512,512,512] # was [512,512,512]
@@ -45,10 +45,10 @@ n_epochs:
   value: 2000
 batch_size:
   desc: Batch size
-  value: 16  #14
+  value: 14  #16
 lr:
   desc: Initial learning rate for optimizer
-  value: 5.0E-5 # was  1.0E-4
+  value: 1.0E-4 # was  1.0E-4
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -75,7 +75,7 @@ normalization:
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt
+  value: false #save/conditional_flow_compare/clean-disco-2173_e0_b9999_model_dict.pt #save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt
 preselected_points:
   desc: Use preselected points
   value: true
@@ -87,7 +87,7 @@ attn_dim:
   value: 512
 latent_dim:
   desc: Latent dim for main flow - output of first augment
-  value: 64
+  value: 300
 attn_input_dim:
   desc: dim of input to attn
   value: 128
@@ -153,7 +153,7 @@ net_cif_dist_hidden_dims:
   value: [64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 64
+  value: 300
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
   value: torch # Was original
@@ -192,7 +192,7 @@ lr_factor:
   value: 0.8
 mem_iter_scheduler:
   desc: Every how many batches to reset and adjust custom scheduler
-  value: 100
+  value: 1000
 lr_scheduler:
   desc: What scheduler to use
   value: custom

@@ -444,9 +444,7 @@ def config_loader(path):
     with open(path) as f:
         raw_dict = load_yaml(f)
     return  {key:raw_dict[key]['value'] for key in raw_dict.keys()}
-def rotation_z(rad):
-    rot = torch.Tensor([[torch.cos(rad),-torch.sin(rad),0],[torch.sin(rad),torch.cos(rad),0],[0,0,1]])
-    return rot
+
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -511,7 +509,7 @@ class Scheduler:
         self.factor = factor
         self.threshold = threshold
         self.current_average = 0
-        self.prev_average = -Inf #Don't go down in lr on first check
+        self.prev_average = Inf #Don't go down in lr on first check
         self.step_counter = 0
         self.optimizer = optimizer
         self.verbose = verbose
@@ -519,24 +517,37 @@ class Scheduler:
     def set_lr(self):
         for g in self.optimizer.param_groups:
             g['lr'] =  max(g['lr'] * self.factor,self.min_lr)
-        if self.verbose:
-            print(f"Updating lr!")
+        
+
     def threshold_val(self):
-        if self.prev_average>=0:
-            return self.prev_average - abs(self.prev_average)*(self.threshold)
+        return self.prev_average - abs(self.prev_average)*(self.threshold)
     
     def step(self,loss):
+        loss = loss.item()
         self.step_counter +=1
         
         self.current_average = self.current_average * (self.step_counter-1)/self.step_counter + loss /self.step_counter
 
         if self.step_counter>= self.mem_iter:
             self.step_counter = 0
-            if self.threshold_val() < self.current_average: # If within threshold or hgihhigherer loss than b4, change lr
+            if self.threshold_val() <= self.current_average: # If within threshold or higher loss than b4, change lr
                 self.set_lr()
+                if self.verbose:
+                    print(f"Updating lr as prev: {self.prev_average} new: {self.current_average} ")
             self.prev_average = self.current_average
   
-            
+def rotate_xy(rad):
+    matrix = torch.tensor([[math.cos(rad),-math.sin(rad)],[math.sin(rad),math.cos(rad)]])  
+    return matrix     
 
 if __name__ == '__main__':
-    circle_cover(10,10,0.5,overlap=0.1,show=True)
+    #circle_cover(10,10,0.5,overlap=0.1,show=True)
+
+
+    test_points = torch.randn((100,2))
+    test_points[:,0] = 0.
+    plt.scatter(test_points.numpy()[:,0],test_points.numpy()[:,1])
+    test_points = torch.matmul(test_points,rotate_xy(math.pi/2))
+    plt.scatter(test_points.numpy()[:,0],test_points.numpy()[:,1])
+    plt.savefig('test')
+

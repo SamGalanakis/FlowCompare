@@ -11,12 +11,12 @@ from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
+device = 'cpu'
 
 # config_path = r"config/100_affine_long_astral-violet-2136.yaml"
 # config = config_loader(config_path)
-load_path = r"save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt"  # "save/conditional_flow_compare/expert-elevator-1560_12_model_dict.pt"  # r"save/conditional_flow_compare/super-pyramid-1528_372_model_dict.pt"            #r"save/conditional_flow_compare/likely-eon-1555_139_model_dict.pt"
-save_dict = torch.load(load_path)
+load_path = r"save/conditional_flow_compare/clean-disco-2173_e0_b9999_model_dict.pt"#r"save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt"    # r"save/conditional_flow_compare/clean-disco-2173_e0_b9999_model_dict.pt"
+save_dict = torch.load(load_path,map_location=device)
 config = save_dict['config']
 model_dict = initialize_flow(config,device,mode='test')
 model_dict = load_flow(save_dict,model_dict)
@@ -102,14 +102,18 @@ def dataset_view(dataset,index,multiple =3.,show=False,n_points=2000):
     log_prob_1_given_1 = calc_change(extract_1, extract_1,model_dict,config,preprocess=False)
     fig_0 = view_cloud_plotly(extract_0[:,:3],extract_0[:,3:],show=show,title='fig_0')
     fig_1 = view_cloud_plotly(extract_1[:,:3],extract_1[:,3:],show=show,title='fig_1')
-
+    gen_given_0 = make_sample(2000,extract_0.unsqueeze(0),model_dict,config)
+    gen_given_1 = make_sample(2000,extract_1.unsqueeze(0),model_dict,config)
+    fig_gen_given_0 = view_cloud_plotly(gen_given_0[:,:3],gen_given_0[:,3:],show=show,title='Gen_given_0')
+    fig_gen_given_1 = view_cloud_plotly(gen_given_1[:,:3],gen_given_1[:,3:],show=show,title='Gen_given_1')
+    
     print('loadings probs')
     change_1_given_0 = log_prob_to_color(log_prob_1_given_0,log_prob_0_given_0,multiple = multiple)
     change_0_given_1 = log_prob_to_color(log_prob_0_given_1,log_prob_1_given_1,multiple = multiple)
 
     fig_0_given_1 = view_cloud_plotly(extract_0[:,:3],change_0_given_1,colorscale='Bluered',show_scale=True,show=show,title='fig_0_given_1')
     fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=show,title='fig_1_given_0')
-    return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1
+    return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1,fig_gen_given_1,fig_gen_given_0
 if __name__ == '__main__':
     #name = load_path.split('/')[-1].split('_')[0]
     #dataset_out = f"save/processed_dataset/{name}_{mode}_probs_dataset.pt"
