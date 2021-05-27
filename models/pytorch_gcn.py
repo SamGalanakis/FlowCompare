@@ -104,7 +104,7 @@ class DGCNNembedder(nn.Module):
         return x
     
 class DGCNN_cls(nn.Module):
-    def __init__(self, input_dim,dropout = 0.0, emb_dim = 1024,k = 20, out_dim=40):
+    def __init__(self, input_dim,dropout = 0.0,k = 20, out_dim=40):
         super().__init__()
         
         self.k = k

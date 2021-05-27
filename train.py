@@ -74,7 +74,7 @@ def initialize_flow(config,device = 'cuda',mode='train'):
         flow_for_cif = lambda input_dim,context_dim: models.RationalQuadraticSplineCoupling(input_dim,context_dim = context_dim,nonlinearity = coupling_block_nonlinearity,hidden_dims= config['hidden_dims'],
         num_bins = config['num_bins_spline']
         )
-         
+    
     else:
         raise Exception('Invalid flow type')
     
@@ -118,10 +118,10 @@ def initialize_flow(config,device = 'cuda',mode='train'):
     else: 
         raise Exception('Invalid cif_dist')
 
-    
+    context_dim = config['attn_dim'] if config['input_embedder']!= 'DGCNNembedderGlobal' else config['input_embeeding_dim']
     cif_block = lambda : models.cif_helper(input_dim = config['latent_dim'],augment_dim = config['cif_latent_dim'],distribution_aug = cif_dist_aug,distribution_slice = cif_dist_slice
-    ,context_dim = config['attn_dim'],flow = flow_for_cif,attn= attn,
-    pre_attention_mlp = pre_attention_mlp,event_dim=-1,conditional_aug=config['conditional_aug_cif'],conditional_slice=config['conditional_slice_cif'])
+    ,context_dim = context_dim,flow = flow_for_cif,attn= attn,
+    pre_attention_mlp = pre_attention_mlp,event_dim=-1,conditional_aug=config['conditional_aug_cif'],conditional_slice=config['conditional_slice_cif'],input_embedder_type=config['input_embedder'])
    
 
     
@@ -154,8 +154,8 @@ def initialize_flow(config,device = 'cuda',mode='train'):
         input_embedder = models.NeighborhoodEmbedder(config['input_dim'],out_dim = config['input_embedding_dim'])
     elif config['input_embedder'] == 'DGCNNembedder':
         input_embedder = models.DGCNNembedder(emb_dim= config['input_embedding_dim'],n_neighbors=config['n_neighbors'])
-    elif config['input_embedder'] == 'DGCNNembedderCombo':
-        input_embedder = models.DGCNNembedderCombo(config['input_embedding_dim'],config['global_input_embedding_dim'],n_neighbors=config['n_neighbors'])
+    elif config['input_embedder'] == 'DGCNNembedderGlobal':
+        input_embedder = models.DGCNN_cls(input_dim = config['input_dim'],out_dim = config['input_embedding_dim'],k=config['n_neighbors'])
 
     elif config['input_embedder'] == 'idenity':
         input_embedder = nn.Identity()

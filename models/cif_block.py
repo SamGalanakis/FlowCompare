@@ -6,6 +6,12 @@ import torch.nn as nn
 
 
 
+class CouplingPreconditionerNoAttn(nn.Module):
+    def __init__(self,event_dim=-1):
+        super().__init__()
+    def forward(self,x,context):
+
+        return context
 
 
 
@@ -23,13 +29,20 @@ class CouplingPreconditionerAttn(nn.Module):
         attn_emb = torch.utils.checkpoint.checkpoint(self.attn,mlp_out,context,preserve_rng_state =False)
         return attn_emb
 
-def cif_helper(input_dim,augment_dim,distribution_aug,distribution_slice,context_dim,flow,attn,pre_attention_mlp,event_dim,conditional_aug,conditional_slice):
+def cif_helper(input_dim,augment_dim,distribution_aug,distribution_slice,context_dim,flow,attn,pre_attention_mlp,event_dim,conditional_aug,conditional_slice,input_embedder_type):
     #CIF if aug>base latent dim else normal flow
     if  input_dim < augment_dim:
+
+        if input_embedder_type!= 'DGCNNembedderGlobal':
+            raise Exception('CIF + global embedding not implemented')
+
         return CIFblock(input_dim,augment_dim,distribution_aug,distribution_slice,context_dim,flow,attn,pre_attention_mlp,event_dim=event_dim,conditional_aug=conditional_aug,conditional_slice=conditional_slice)
     elif input_dim == augment_dim:
-        
-        return PreConditionApplier(flow(input_dim,context_dim),CouplingPreconditionerAttn(attn(),pre_attention_mlp(input_dim//2),input_dim//2,event_dim=event_dim))
+        if input_embedder_type!= 'DGCNNembedderGlobal':
+            return PreConditionApplier(flow(input_dim,context_dim),CouplingPreconditionerAttn(attn(),pre_attention_mlp(input_dim//2),input_dim//2,event_dim=event_dim))
+        else: 
+            return flow(input_dim,context_dim)
+
     else:
         raise Exception('Augment dim smaller than main latent!')
 

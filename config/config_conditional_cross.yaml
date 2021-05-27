@@ -124,9 +124,6 @@ batches_per_sample:
 batches_per_save:
   desc: Every how many batches to create a sample
   value: 1000 
-global_input_embedding_dim:
-  desc: Size of global context vector from combo
-  value: 256
 n_neighbors:
   desc: N neighbors for gcn knn aggregation steps
   value: 40
