@@ -91,7 +91,7 @@ def remove_outliers(array,n_neighbors=10,std_ratio=2.0):
     pcd.remove_statistical_outlier(nb_neighbors=n_neighbors,std_ratio=std_ratio)
     array[:,:3] = np.asarray(pcd.points)
     return torch.from_numpy(array)
-def view_cloud_plotly(points,rgb=None,fig=None,point_size=8,show=True,axes=False,show_scale=False,colorscale=None,title=None):
+def view_cloud_plotly(points,rgb=None,fig=None,point_size=5,show=True,axes=False,show_scale=False,colorscale=None,title=None):
     if  isinstance(points,torch.Tensor):
         points = points.cpu()
         points = points.detach().numpy()

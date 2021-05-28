@@ -7,6 +7,7 @@ import numpy as np
 from utils import (
 view_cloud_plotly
 )
+from plotly.subplots import make_subplots
 
 
 def visualize_change(fig_getter,index_range):
@@ -27,24 +28,35 @@ def visualize_change(fig_getter,index_range):
         value = '0',
         style ={'width':'20%'}),
          html.Div([
+        html.Div(id='slider-output-container'),
         dcc.Slider(
             id='multiple_slider',
             min=0.,
             max=10.,
             step=0.1,
-            value=3.),
-            html.Div(id='slider-output-container')] ,style ={'width':'10%'}),
-        html.Div(id="hidden_div", style={'display':"none"}),
+            value=3.)
+            ] ,style ={'width':'20%'}),
+          html.Div([
+            html.Div(id='gen-std-output-container'),
+        dcc.Slider(
+            id='gen_std',
+            min=0.,
+            max=1.,
+            step=0.05,
+            value=0.6),
+            ] ,style ={'width':'20%'}),
+         
         html.Div([
             dcc.Graph(id='graph_0', figure={}),
             dcc.Graph(id='graph_1', figure={}),
-            dcc.Graph(id='graph_0_given_1', figure={}),
             dcc.Graph(id='graph_1_given_0', figure={}),
-            dcc.Graph(id='gen_given_1', figure={}),
+            dcc.Graph(id='graph_0_given_1', figure={}),
             dcc.Graph(id='gen_given_0', figure={}),
+            dcc.Graph(id='gen_given_1', figure={}),
+     
 
 
-        ],style={ "columnCount": 2,'rowCount': 2})
+        ],style={ "columnCount": 3,'rowCount': 2})
         
 
 
@@ -52,46 +64,32 @@ def visualize_change(fig_getter,index_range):
 
     
 
-    # @app.callback(
-    # Output('slider-output-container', 'children'),
-    # Output(component_id='graph_0', component_property='figure'),
-    # Output(component_id='graph_1', component_property='figure'),
-    # Output(component_id='graph_0_given_1', component_property='figure'),
-    # Output(component_id='graph_1_given_0', component_property='figure'),
-    # Output(component_id='gen_given_1', component_property='figure'),
-    # Output(component_id='gen_given_0', component_property='figure'),
-    # Input(component_id='multiple_slider', component_property='value'),
-    # prevent_initial_call=False)
-
-    # def set_slider(value):
-    #     global multiple
-    #     multiple = float(value)
-    #     return f"std multiple: {multiple}", fig_getter(index,multiple)
-
-    
 
     @app.callback(
-    Output('slider-output-container', 'children'),
+    [Output('slider-output-container', 'children'),
+    Output('gen-std-output-container', 'children'),
     Output(component_id='graph_0', component_property='figure'),
     Output(component_id='graph_1', component_property='figure'),
     Output(component_id='graph_0_given_1', component_property='figure'),
     Output(component_id='graph_1_given_0', component_property='figure'),
     Output(component_id='gen_given_1', component_property='figure'),
-    Output(component_id='gen_given_0', component_property='figure'),
-    Input(component_id='multiple_slider', component_property='value'),
-    prevent_initial_call=False),
-    
-    Input(component_id='index_selector', component_property='value'),
-    prevent_initial_call=False)
+    Output(component_id='gen_given_0', component_property='figure')],
+    [Input(component_id='multiple_slider', component_property='value'),
+    Input(component_id='gen_std', component_property='value'),
+    Input(component_id='index_selector', component_property='value')])
+   
 
-    def index_chooser(value):
-        global index
-        index = int(value)
+    def index_chooser(multiple,gen_std,index):
+        
+        index = int(index)
         
         
         print(f'Loading index {index}!')
         print(multiple)
-        return fig_getter(index,multiple)
+        graph_0,graph_1,graph_0_given_1,graph_1_given_0,gen_given_1,gen_given_0 = fig_getter(index,float(multiple),float(gen_std))
+       
+
+        return f"Std multiple: {multiple}",f"Gen std: {gen_std}",graph_0,graph_1,graph_0_given_1,graph_1_given_0,gen_given_1,gen_given_0
 
     
        

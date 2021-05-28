@@ -238,6 +238,8 @@ class AmsGridLoader(Dataset):
         else:
             tensor_0 = relevant_tensors[combination_entry[1]]
             tensor_1 = relevant_tensors[combination_entry[2]].clone()
+            if self.augment_same:
+                tensor_0[:,:3] += torch.rand_like(tensor_0[:,:3])*0.01 #Add rgb noise 0-1 cm when same cloud
         #Remove pesky extra points due to fps ratio
         tensor_0 = tensor_0[:self.min_points,:]
         tensor_1 = tensor_1[:self.min_points,:]

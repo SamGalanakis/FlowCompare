@@ -8,6 +8,7 @@ from visualize_change_map import visualize_change
 import matplotlib.pyplot as plt
 import  numpy as np
 from tqdm import tqdm
+import models
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -87,7 +88,7 @@ def create_dataset(dataset,model_dict,dataset_out = 'save/processed_dataset/'):
     print(f"Skipped {skipped}")
 
 
-def dataset_view(dataset,index,multiple =3.,show=False,n_points=2000):
+def dataset_view(dataset,index,multiple =3.,gen_std=0.6,show=False,n_points=2000):
     
     
     extract_0, extract_1, *other = dataset[index]
@@ -100,19 +101,21 @@ def dataset_view(dataset,index,multiple =3.,show=False,n_points=2000):
     log_prob_0_given_0 = calc_change(extract_0, extract_0,model_dict,config,preprocess=False)
     log_prob_0_given_1 = calc_change(extract_1, extract_0,model_dict,config,preprocess=False)
     log_prob_1_given_1 = calc_change(extract_1, extract_1,model_dict,config,preprocess=False)
-    fig_0 = view_cloud_plotly(extract_0[:,:3],extract_0[:,3:],show=show,title='fig_0')
-    fig_1 = view_cloud_plotly(extract_1[:,:3],extract_1[:,3:],show=show,title='fig_1')
-    gen_given_0 = make_sample(2000,extract_0.unsqueeze(0),model_dict,config)
-    gen_given_1 = make_sample(2000,extract_1.unsqueeze(0),model_dict,config)
-    fig_gen_given_0 = view_cloud_plotly(gen_given_0[:,:3],gen_given_0[:,3:],show=show,title='Gen_given_0')
-    fig_gen_given_1 = view_cloud_plotly(gen_given_1[:,:3],gen_given_1[:,3:],show=show,title='Gen_given_1')
+    fig_0 = view_cloud_plotly(extract_0[:,:3],extract_0[:,3:],show=show,title='Extract 0',point_size=5)
+    fig_1 = view_cloud_plotly(extract_1[:,:3],extract_1[:,3:],show=show,title='Extract 1',point_size=5)
+
+    sample_distrib = models.Normal(torch.zeros(1),torch.ones(1)*gen_std,shape = (config['min_points'],config['latent_dim'])).to(device)
+    gen_given_0 = make_sample(2000,extract_0.unsqueeze(0),model_dict,config,sample_distrib=sample_distrib)
+    gen_given_1 = make_sample(2000,extract_1.unsqueeze(0),model_dict,config,sample_distrib=sample_distrib)
+    fig_gen_given_0 = view_cloud_plotly(gen_given_0[:,:3],gen_given_0[:,3:],show=show,title='Gen given 0')
+    fig_gen_given_1 = view_cloud_plotly(gen_given_1[:,:3],gen_given_1[:,3:],show=show,title='Gen given 1')
     
     print('loadings probs')
     change_1_given_0 = log_prob_to_color(log_prob_1_given_0,log_prob_0_given_0,multiple = multiple)
     change_0_given_1 = log_prob_to_color(log_prob_0_given_1,log_prob_1_given_1,multiple = multiple)
 
-    fig_0_given_1 = view_cloud_plotly(extract_0[:,:3],change_0_given_1,colorscale='Bluered',show_scale=True,show=show,title='fig_0_given_1')
-    fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=show,title='fig_1_given_0')
+    fig_0_given_1 = view_cloud_plotly(extract_0[:,:3],change_0_given_1,colorscale='Bluered',show_scale=True,show=show,title='Extract 0 given 1')
+    fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=show,title='Extract 1 given 0')
     return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1,fig_gen_given_1,fig_gen_given_0
 if __name__ == '__main__':
     #name = load_path.split('/')[-1].split('_')[0]
@@ -122,7 +125,7 @@ if __name__ == '__main__':
 
     #dataset_view(dataset,0,multiple = 3.,show=True)
     pass
-    visualize_change(lambda index,multiple: dataset_view(dataset,index,multiple = multiple,n_points = 2000),range(len(dataset)))
+    visualize_change(lambda index,multiple,gen_std: dataset_view(dataset,index,multiple = multiple,gen_std=gen_std,n_points = 2000),range(len(dataset)))
     
 
 

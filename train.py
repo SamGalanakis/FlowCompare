@@ -201,11 +201,11 @@ def inner_loop(extract_0,extract_1,models_dict,config):
     loss = -log_prob.mean()
     nats =  -log_prob.sum() / (math.log(2) * x.numel())
     return loss,log_prob,nats
-def make_sample(n_points,extract_0,models_dict,config):
+def make_sample(n_points,extract_0,models_dict,config,sample_distrib=None):
 
     input_embeddings = models_dict["input_embedder"](extract_0[0].unsqueeze(0))
 
-    x = models_dict['flow'].sample(num_samples=1,n_points = n_points, context=input_embeddings).squeeze()
+    x = models_dict['flow'].sample(num_samples=1,n_points = n_points, context=input_embeddings,sample_distrib=sample_distrib).squeeze()
     return x
 
 
