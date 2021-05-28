@@ -303,9 +303,9 @@ class DGCNNembedderCombo(nn.Module):
 
         return local_embeddings, global_embeddings
 if __name__ == '__main__':
-    points = torch.randn((10,2000,6))
+    points = torch.randn((100,2000,6))
     
-    model = DGCNN_cls(6,0,128)
+    model = DGCNNembedder(256,0,20)
     
     output = model(points)
     pass
