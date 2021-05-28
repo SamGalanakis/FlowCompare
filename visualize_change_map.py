@@ -52,25 +52,34 @@ def visualize_change(fig_getter,index_range):
 
     
 
-    @app.callback(
-    Output('slider-output-container', 'children'),
-    Input(component_id='multiple_slider', component_property='value'),
-    prevent_initial_call=False)
+    # @app.callback(
+    # Output('slider-output-container', 'children'),
+    # Output(component_id='graph_0', component_property='figure'),
+    # Output(component_id='graph_1', component_property='figure'),
+    # Output(component_id='graph_0_given_1', component_property='figure'),
+    # Output(component_id='graph_1_given_0', component_property='figure'),
+    # Output(component_id='gen_given_1', component_property='figure'),
+    # Output(component_id='gen_given_0', component_property='figure'),
+    # Input(component_id='multiple_slider', component_property='value'),
+    # prevent_initial_call=False)
 
-    def set_slider(value):
-        global multiple
-        multiple = float(value)
-        return f"std multiple: {multiple}"
+    # def set_slider(value):
+    #     global multiple
+    #     multiple = float(value)
+    #     return f"std multiple: {multiple}", fig_getter(index,multiple)
 
     
 
     @app.callback(
+    Output('slider-output-container', 'children'),
     Output(component_id='graph_0', component_property='figure'),
     Output(component_id='graph_1', component_property='figure'),
     Output(component_id='graph_0_given_1', component_property='figure'),
     Output(component_id='graph_1_given_0', component_property='figure'),
     Output(component_id='gen_given_1', component_property='figure'),
     Output(component_id='gen_given_0', component_property='figure'),
+    Input(component_id='multiple_slider', component_property='value'),
+    prevent_initial_call=False),
     
     Input(component_id='index_selector', component_property='value'),
     prevent_initial_call=False)
@@ -84,7 +93,7 @@ def visualize_change(fig_getter,index_range):
         print(multiple)
         return fig_getter(index,multiple)
 
-
+    
        
     app.run_server(debug=True)
 

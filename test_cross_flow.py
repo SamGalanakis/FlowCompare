@@ -11,11 +11,11 @@ from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-device = 'cpu'
+# device = 'cpu'
 
 # config_path = r"config/100_affine_long_astral-violet-2136.yaml"
 # config = config_loader(config_path)
-load_path = r"save/conditional_flow_compare/clean-disco-2173_e0_b9999_model_dict.pt"#r"save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt"    # r"save/conditional_flow_compare/clean-disco-2173_e0_b9999_model_dict.pt"
+load_path = r"save/conditional_flow_compare/lyric-dragon-2194_e0_b29999_model_dict.pt"#r"save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt"    # r"save/conditional_flow_compare/clean-disco-2173_e0_b9999_model_dict.pt"
 save_dict = torch.load(load_path,map_location=device)
 config = save_dict['config']
 model_dict = initialize_flow(config,device,mode='test')

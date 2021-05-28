@@ -305,7 +305,7 @@ def main(rank, world_size):
                 batch = [x.to(device) for x in batch]
                 extract_0,extract_1 = batch
     
-
+                assert not loss.isnan().any(), "Nan in loss!"
                 loss, _ , nats = inner_loop(extract_0,extract_1,models_dict,config)
     
             
