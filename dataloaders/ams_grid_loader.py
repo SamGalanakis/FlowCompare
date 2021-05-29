@@ -61,7 +61,7 @@ class Scan:
 
 class AmsGridLoader(Dataset):
     def __init__(self, directory_path,out_path,sample_size=2000,grid_square_size = 4,clearance = 10,preload=False,min_points=500,subsample='random',
-    height_min_dif=0.5,normalization='min_max',grid_type='circle',max_height = 15.0, device="cuda",rotation_augment=True,ground_perc=0.90,ground_keep_perc=1/40):
+    height_min_dif=0.5,normalization='min_max',grid_type='circle',max_height = 15.0, device="cuda",rotation_augment=True,ground_perc=0.90,ground_keep_perc=1/40,augment_same=True):
         self.sample_size  = sample_size
         self.directory_path = directory_path
         self.grid_square_size = grid_square_size
@@ -80,6 +80,7 @@ class AmsGridLoader(Dataset):
         self.rotation_augment = rotation_augment
         self.ground_perc = ground_perc
         self.ground_keep_perc = ground_keep_perc
+        self.augment_same = augment_same
         
         
 

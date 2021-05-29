@@ -305,15 +305,15 @@ def main(rank, world_size):
                 batch = [x.to(device) for x in batch]
                 extract_0,extract_1 = batch
     
-                assert not loss.isnan().any(), "Nan in loss!"
+                
                 loss, _ , nats = inner_loop(extract_0,extract_1,models_dict,config)
+                assert not loss.isnan().any(), "Nan in loss!"
     
             
             scaler.scale(loss).backward()
       
 
-            if loss.isnan().any():
-                Exception('Nan in loss!')
+            
             torch.nn.utils.clip_grad_norm_(models_dict['parameters'],max_norm=config['grad_clip_val'])
             scaler.step(optimizer)
             scaler.update()
