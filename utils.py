@@ -5,54 +5,17 @@ import time
 from laspy.file import File
 import pandas as pd
 import plotly.graph_objects as go
-from matplotlib import widgets
-from mpl_toolkits import mplot3d
-import matplotlib as mpl
-import matplotlib.colors as colors
-import matplotlib.patches as patches
-import matplotlib.mathtext as mathtext
 import matplotlib.pyplot as plt
-import matplotlib.artist as artist
-import matplotlib.image as image
-from scipy.spatial.transform import Rotation 
-from sklearn.neighbors import NearestNeighbors
 import os
 import math
 import laspy
-from torch_geometric.data import Data
 import torch
 import torch.nn.functional as F
-from torch_geometric.data import Data,Batch
-import open3d
 from yaml import load as load_yaml
 #Losses from original repo
 
 eps = 1e-8
 
-
-def loss_fun(z, z_ldetJ, prior_z, e, e_ldetJ, prior_e):
-    ll_z = prior_z.log_prob(z.cpu()).to(z.device) + z_ldetJ
-    ll_e = prior_e.log_prob(e.cpu()).to(e.device) + e_ldetJ
-    return -torch.mean(ll_z), -torch.mean(ll_e)
-
-
-def loss_fun_ret(z, z_ldetJ, prior_z):
-    ll_z = prior_z.log_prob(z.cpu()).to(z.device) + z_ldetJ
-    return -torch.mean(ll_z)
-
-def knn_relator(points,points_subsampled,feature,n_neighbors=1):
-    if points.shape[0] == points_subsampled.shape[0]:
-        return feature
-    nbrs = NearestNeighbors(n_neighbors=n_neighbors, algorithm='ball_tree').fit(points_subsampled)
-    indices = nbrs.kneighbors(points,return_distance=False)
-    feature_original = feature[indices].mean(axis=1)
-
-        
-
-    
-    return feature_original
-
-    
 
 def load_las(path,extra_dim_list=None,scale_colors = True):
     #Will work with laz if laszip on path 
@@ -83,14 +46,6 @@ def bits_per_dim(log_likelihood,dims_prod):
     multiplier = torch.log(torch.Tensor([2])).to(log_likelihood.device)
     bpd = -log_likelihood * multiplier / dims_prod
     return bpd
-
-def remove_outliers(array,n_neighbors=10,std_ratio=2.0):
-    array=array.numpy()
-    pcd = open3d.geometry.PointCloud()
-    pcd.points = open3d.utility.Vector3dVector(array[:,:3])
-    pcd.remove_statistical_outlier(nb_neighbors=n_neighbors,std_ratio=std_ratio)
-    array[:,:3] = np.asarray(pcd.points)
-    return torch.from_numpy(array)
 def view_cloud_plotly(points,rgb=None,fig=None,point_size=5,show=True,axes=False,show_scale=False,colorscale=None,title=None):
     if  isinstance(points,torch.Tensor):
         points = points.cpu()
@@ -539,7 +494,8 @@ class Scheduler:
 def rotate_xy(rad):
     matrix = torch.tensor([[math.cos(rad),-math.sin(rad)],[math.sin(rad),math.cos(rad)]])  
     return matrix     
-
+def is_valid(tensor):
+    assert not torch.logical_or(tensor.isnan(),tensor.isinf()).any(), 'Invalid values!'
 if __name__ == '__main__':
     #circle_cover(10,10,0.5,overlap=0.1,show=True)
 

@@ -25,6 +25,15 @@ import torch
 from matplotlib import pyplot as plt
 
 from pykeops.torch import LazyTensor
+import pykeops
+
+pykeops.clean_pykeops()          # just in case old build files are still present
+pykeops.test_torch_bindings()
+
+
+
+
+
 
 use_cuda = True
 dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor

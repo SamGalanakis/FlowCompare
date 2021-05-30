@@ -10,7 +10,7 @@ import pandas as pd
 import math
 from time import time,perf_counter
 import models
-from utils import Scheduler,config_loader
+from utils import Scheduler,config_loader,is_valid
 
 
 
@@ -258,6 +258,8 @@ def main(rank, world_size):
         optimizer = torch.optim.Adamax(models_dict['parameters'], lr=config["lr"],weight_decay=config["weight_decay"],polyak =  0.999)
     elif config["optimizer_type"] == 'AdamW':
         optimizer = torch.optim.AdamW(models_dict['parameters'], lr=config["lr"],weight_decay=config["weight_decay"])
+    elif config['optimizer_type'] == 'SGD':
+         optimizer =  torch.optim.SGD(models_dict['parameters'], lr=config["lr"], momentum=0, dampening=0, weight_decay=config["weight_decay"], nesterov=False)
     else:
         raise Exception('Invalid optimizer type!')
 
@@ -307,7 +309,7 @@ def main(rank, world_size):
     
                 
                 loss, _ , nats = inner_loop(extract_0,extract_1,models_dict,config)
-                assert not loss.isnan().any(), "Nan in loss!"
+                is_valid(loss)
     
             
             scaler.scale(loss).backward()
