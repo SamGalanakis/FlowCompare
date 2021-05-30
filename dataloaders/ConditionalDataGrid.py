@@ -2,7 +2,6 @@ import torch
 import matplotlib.pyplot as plt
 import os
 import numpy as np
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from utils import load_las, random_subsample,view_cloud_plotly,grid_split,co_min_max, circle_split,co_standardize,sep_standardize,unit_sphere,co_unit_sphere,extract_area
 from itertools import permutations 
 from torch_geometric.nn import fps

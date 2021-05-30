@@ -2,7 +2,7 @@ from numpy.lib.function_base import extract
 import torch
 import os
 import numpy as np
-from utils import load_las, random_subsample,view_cloud_plotly,co_min_max,co_standardize,sep_standardize,extract_area,rgb_to_hsv,ground_remover,remove_outliers,co_unit_sphere
+from utils import load_las, random_subsample,view_cloud_plotly,co_min_max,co_standardize,sep_standardize,extract_area,co_unit_sphere
 from torch.utils.data import Dataset, DataLoader
 from itertools import permutations 
 from torch_geometric.nn import fps
