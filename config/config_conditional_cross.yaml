@@ -3,7 +3,7 @@ sample_size:
   value: 2048 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 300 # was 46 for 64 latent
+  value: 115 # was 46 for 64 latent
 data_loader:
   desc: What loader to use
   value: AmsGridLoader #AmsGridLoader
@@ -13,6 +13,9 @@ flow_type:
 hidden_dims:
   desc: linear layers for flow coupling
   value: [512,512,512] # was [512,512,512]
+hidden_dims_embedder_out:
+  desc: Hidden dims on embedder output mlp
+  value: [512,512,512,512,512,512] # was [512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
   value: LinearLU #ExponentialCombiner #FullCombiner # ExponentialCombiner # random_permute, LinearLU 
@@ -75,7 +78,7 @@ normalization:
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: false #save/conditional_flow_compare/astral-river-2208_e0_b4999_model_dict.pt #save/conditional_flow_compare/clean-disco-2173_e0_b9999_model_dict.pt #save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt
+  value: false
 preselected_points:
   desc: Use preselected points
   value: true
@@ -84,13 +87,13 @@ dirs_challenge_csv:
   value: save/2016-2020-train/
 attn_dim:
   desc: Dimension of cross attention embedding fed to coupling block MLP (dim of latent output of attention block)
-  value: 64
+  value: 512
 latent_dim:
   desc: Latent dim for main flow - output of first augment
-  value: 128
+  value: 300
 attn_input_dim:
   desc: dim of input to attn
-  value: 64
+  value: 256
 input_embedding_dim:
   desc: Dimension of input embeddings, part of input for attention (feature dim for each point in cloud t0)
   value: 64
@@ -99,7 +102,7 @@ cross_heads:
   value: 1
 cross_dim_head:
   desc: Dimension of cross dim head
-  value: 64 #64
+  value: 256 #64
 attn_dropout:
   desc: Dropout rate in attn module
   value: 0.0
@@ -132,7 +135,7 @@ net_augmenter_dist_hidden_dims:
   value: [128,128,128] #Not being used 
 pre_attention_mlp_hidden_dims:
   desc: Hidden dims for pre attention mlp
-  value: [64,64,64] # was # 64 64 64 64
+  value: [256,256,256] # was # 64 64 64 64
 n_flows_cif:
   desc: Number of flows in each cif block between augment and slice
   value : 1 
@@ -144,7 +147,7 @@ net_cif_dist_hidden_dims:
   value: [64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 128
+  value: 300
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
   value: torch # Was original
@@ -183,7 +186,7 @@ lr_factor:
   value: 0.8
 mem_iter_scheduler:
   desc: Every how many batches to reset and adjust custom scheduler
-  value: 500
+  value: 800
 lr_scheduler:
   desc: What scheduler to use
   value: custom

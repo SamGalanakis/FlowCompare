@@ -150,10 +150,9 @@ def initialize_flow(config,device = 'cuda',mode='train'):
    
 
 
-    if config['input_embedder'] == 'NeighborhoodEmbedder':
-        input_embedder = models.NeighborhoodEmbedder(config['input_dim'],out_dim = config['input_embedding_dim'])
-    elif config['input_embedder'] == 'DGCNNembedder':
-        input_embedder = models.DGCNNembedder(emb_dim= config['input_embedding_dim'],n_neighbors=config['n_neighbors'])
+  
+    if config['input_embedder'] == 'DGCNNembedder':
+        input_embedder = models.DGCNNembedder(emb_dim= config['input_embedding_dim'],n_neighbors=config['n_neighbors'],out_mlp_dims=config['hidden_dims_embedder_out'])
     elif config['input_embedder'] == 'DGCNNembedderGlobal':
         input_embedder = models.DGCNN_cls(input_dim = config['input_dim'],out_dim = config['input_embedding_dim'],k=config['n_neighbors'])
 

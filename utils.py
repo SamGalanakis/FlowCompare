@@ -138,14 +138,14 @@ def grid_split(points,grid_size,center = False,clearance = 20):
     center_x = center[0]
     center_y= center[1]
     
-    x = np.arange(center_x-clearance, center_x+clearance, grid_size)
-    y = np.arange(center_y-clearance, center_y+clearance, grid_size)
+    x = torch.arange(center_x-clearance, center_x+clearance, grid_size,device = points.device)
+    y = torch.arange(center_y-clearance, center_y+clearance, grid_size,device = points.device)
     grid_list = []
     for x_val in x:
-        mask_x = np.logical_and(points[:,0]>x_val,points[:,0]<x_val+grid_size)
+        mask_x = torch.logical_and(points[:,0]>x_val,points[:,0]<x_val+grid_size)
         x_strip = points[mask_x]
         for y_val in y:
-            mask_y = np.logical_and(x_strip[:,1]>y_val,x_strip[:,1]<y_val+grid_size)
+            mask_y = torch.logical_and(x_strip[:,1]>y_val,x_strip[:,1]<y_val+grid_size)
             tile = x_strip[mask_y]
             grid_list.append(tile)
     return grid_list

@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from models.nets import MLP
 #Original code from : https://github.com/WangYueFt/dgcnn/blob/master/pytorch/model.py
 
 def knn(x, k):
@@ -45,7 +45,7 @@ def get_graph_feature(x, k=20, idx=None):
 
         
 class DGCNNembedder(nn.Module):
-    def __init__(self,emb_dim=22,dropout = 0,n_neighbors=20):
+    def __init__(self,out_mlp_dims,emb_dim=22,dropout = 0,n_neighbors=20):
         super().__init__()
         
         self.n_neighbors = n_neighbors
@@ -74,9 +74,8 @@ class DGCNNembedder(nn.Module):
                                    self.bn5,
                                    nn.LeakyReLU(negative_slope=0.2))
         
-        self.out_mlp = nn.Sequential(nn.Linear(512,512),
-                                   nn.LeakyReLU(negative_slope=0.2),nn.Linear(512,512),nn.LeakyReLU(negative_slope=0.2),
-                                   nn.Linear(512,emb_dim))
+        
+        self.out_mlp = MLP(512,out_mlp_dims,emb_dim,torch.nn.GELU())
     def forward(self, x):
         batch_size = x.size(0)
         x = x.permute((0,2,1))
@@ -303,7 +302,7 @@ class DGCNNembedderCombo(nn.Module):
 
         return local_embeddings, global_embeddings
 if __name__ == '__main__':
-    points = torch.randn((100,2000,6))
+    points = torch.randn((100,2000,6)).cuda()
     
     model = DGCNNembedder(256,0,20)
     
