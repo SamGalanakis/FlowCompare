@@ -70,28 +70,24 @@ class Scan:
         self.datetime = datetime(int(self.recording_properties['RecordingTimeGps'].split('-')[0]),int(self.recording_properties['RecordingTimeGps'].split('-')[1]),int(self.recording_properties['RecordingTimeGps'].split('-')[-1].split('T')[0]))
 
 class AmsGridLoaderPointwise(Dataset):
-    def __init__(self, directory_path,out_path,sample_size=2000,grid_square_size = 4,clearance = 10,preload=False,min_points=500,subsample='random',
-    height_min_dif=0.5,normalization='min_max',grid_type='circle',max_height = 15.0, device="cuda",rotation_augment=True,ground_perc=0.90,ground_keep_perc=1/40,augment_same=True):
-        self.sample_size  = sample_size
+    def __init__(self, directory_path,out_path,grid_square_size = 2,clearance = 10,preload=False,min_points=500,
+    height_min_dif=0.5,max_height = 15.0, device="cuda",ground_perc=0.90,ground_keep_perc=1/40,voxel_size=0.07):
         self.directory_path = directory_path
         self.grid_square_size = grid_square_size
         self.clearance = clearance
         self.filtered_scan_path = os.path.join(out_path,'filtered_scan_path.pt')
         self.min_points = min_points
         self.out_path = out_path
-        self.subsample = subsample
         self.height_min_dif = height_min_dif
         self.max_height = max_height
         self.minimum_difs = torch.Tensor([self.grid_square_size*0.9,self.grid_square_size*0.9,self.height_min_dif]).to(device)
-        self.grid_type = grid_type
-        self.save_name = f"pointwise_ams_extract_id_dict_{grid_type}_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}_{self.height_min_dif}.pt"
+        self.save_name = f"pointwise_ams_extract_id_dict_{clearance}_{self.min_points}_{self.grid_square_size}_{voxel_size}_{self.height_min_dif}.pt"
         self.filtered_path = f'pointwise_filtered_{ground_perc}_{ground_keep_perc}_'+self.save_name
-        self.normalization = normalization
         self.years = [2019,2020]
-        self.rotation_augment = rotation_augment
         self.ground_perc = ground_perc
         self.ground_keep_perc = ground_keep_perc
-        self.augment_same = augment_same
+        self.voxel_size = voxel_size
+
         
         
         save_path  = os.path.join(self.out_path,self.save_name)
@@ -128,23 +124,26 @@ class AmsGridLoaderPointwise(Dataset):
                 
                 
                 clouds_per_time = [torch.from_numpy(np.concatenate([load_las(x.path) for x in val])).float().to(device) for key,val in time_partitions.items()]
-                clouds_per_time = [voxel_downsample(x,0.07) for x in clouds_per_time]
-     
+
                 ground_cutoff = scan.ground_height - 0.05 # Cut off slightly under ground height
                 height_cutoff = ground_cutoff+max_height
                 clouds_per_time = [x[torch.logical_and(x[:,2]>ground_cutoff,x[:,2]<height_cutoff),...] for x in clouds_per_time]
-                
-                grids = [grid_split(cloud,self.grid_square_size,center=scan.center,clearance = self.clearance,device='cpu') for cloud in clouds_per_time]
+
+                clouds_per_time = [voxel_downsample(x,self.voxel_size) for x in clouds_per_time]
+     
+                grids = [grid_split(cloud,self.grid_square_size,center=scan.center,clearance = self.clearance) for cloud in clouds_per_time]
                 
                 grid_masks = [[self.valid_tile(tile) for tile in grid_list] for grid_list in grids]
                 
+
                 
                 valid_grid_masks =[]
                 valid_grids = []
 
                 for grid_mask,grid in zip(grid_masks,grids):
-                    if sum(grid_mask)>50:
+                    if sum(grid_mask)>20:
                         valid_grid_masks.append(grid_mask)
+                        grid = [x.cpu() for x in grid] #Put on gpu before next
                         valid_grids.append(grid)
                 
                 if len(valid_grids)<2:

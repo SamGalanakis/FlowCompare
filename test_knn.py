@@ -41,7 +41,7 @@ dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
 context = torch.randn((100*2000,3)).type(dtype).contiguous()
 
-x = torch.randn((12*2000,3)).type(dtype).contiguous()
+x = torch.randn((2000,3)).type(dtype).contiguous()
 
 
 ######################################################################
@@ -59,7 +59,7 @@ X_j = LazyTensor(context[None, :, :])  # (1, 60000, 784) train set
 D_ij = ((X_i - X_j) ** 2).sum(
     -1
 )
-ind_knn = D_ij.argKmin(100, dim=1)
+ind_knn = D_ij.argKmin(1000, dim=1)
 if use_cuda:
     torch.cuda.synchronize()
 end = time.time()

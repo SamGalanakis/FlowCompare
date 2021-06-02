@@ -17,6 +17,8 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
 import open3d as o3d
+from pykeops.torch import LazyTensor
+import pykeops
 
 
 #Losses from original repo
@@ -142,11 +144,10 @@ def extract_area(full_cloud,center,clearance,shape= 'circle'):
         raise Exception("Invalid shape")
     return mask
 
-def grid_split(points,grid_size,center = False,clearance = 20,device=None):
+def grid_split(points,grid_size,center = False,clearance = 20):
     if isinstance(center,bool):
         center = points[:,:2].mean(axis=0)
-    
-    device = points.device if device==None else device
+
     center_x = center[0]
     center_y= center[1]
     
@@ -159,7 +160,7 @@ def grid_split(points,grid_size,center = False,clearance = 20,device=None):
         for y_val in y:
             mask_y = torch.logical_and(x_strip[:,1]>y_val,x_strip[:,1]<y_val+grid_size)
             tile = x_strip[mask_y]
-            grid_list.append(tile.to(device))
+            grid_list.append(tile)
 
     return grid_list
 def circle_split(points,circle_radius,center = False,clearance = 20):
@@ -516,8 +517,21 @@ class Scheduler:
 def rotate_xy(rad):
     matrix = torch.tensor([[math.cos(rad),-math.sin(rad)],[math.sin(rad),math.cos(rad)]])  
     return matrix     
+
 def is_valid(tensor):
     assert not torch.logical_or(tensor.isnan(),tensor.isinf()).any(), 'Invalid values!'
+
+def cloud_knn(cloud_0,cloud_1,k):
+    cloud_0 = cloud_0.contiguous()
+    cloud_1 = cloud_1.contiguous
+    X_i = LazyTensor(cloud_0[:, None, :]) 
+    X_j = LazyTensor(cloud_1[None, :, :]) 
+    D_ij = ((X_i - X_j) ** 2).sum(-1)
+    ind_knn = D_ij.argKmin(k, dim=1)
+    return ind_knn
+
+
+
 if __name__ == '__main__':
     #circle_cover(10,10,0.5,overlap=0.1,show=True)
 
