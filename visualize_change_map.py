@@ -3,6 +3,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
 import plotly
+import time
 import numpy as np
 from utils import (
 view_cloud_plotly
@@ -78,9 +79,9 @@ def visualize_change(fig_getter,index_range):
     Input(component_id='gen_std', component_property='value'),
     Input(component_id='index_selector', component_property='value')])
    
-
+    
     def index_chooser(multiple,gen_std,index):
-        
+   
         index = int(index)
         
         

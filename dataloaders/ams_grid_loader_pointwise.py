@@ -21,6 +21,8 @@ from torch.utils.data import Dataset
 import json
 from datetime import datetime
 import random
+import cupoch as cph
+
 eps = 1e-8
 
 
@@ -34,7 +36,13 @@ def is_only_ground(cloud,perc=0.99):
     return n_close_ground/cloud.shape[0] >=perc
 
 
-
+def voxel_downsample(cloud,voxel_size):
+    pcd = cph.geometry.PointCloud()
+    pcd.points = cph.utility.Vector3fVector(cloud.cpu().numpy()[:,:3])
+    pcd.colors = cph.utility.Vector3fVector(cloud.cpu().numpy()[:,3:])
+    pcd = pcd.voxel_down_sample(voxel_size)
+    cloud_ = np.concatenate((np.asarray(pcd.points.cpu()),np.asarray(pcd.colors.cpu())),axis=-1)
+    return torch.from_numpy(cloud_).to(cloud.device)
 
 
 
@@ -76,8 +84,8 @@ class AmsGridLoaderPointwise(Dataset):
         self.max_height = max_height
         self.minimum_difs = torch.Tensor([self.grid_square_size*0.9,self.grid_square_size*0.9,self.height_min_dif]).to(device)
         self.grid_type = grid_type
-        self.save_name = f"ams_extract_id_dict_{grid_type}_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}_{self.height_min_dif}.pt"
-        self.filtered_path = f'filtered_{ground_perc}_{ground_keep_perc}_'+self.save_name
+        self.save_name = f"pointwise_ams_extract_id_dict_{grid_type}_{clearance}_{subsample}_{self.sample_size}_{self.min_points}_{self.grid_square_size}_{self.height_min_dif}.pt"
+        self.filtered_path = f'pointwise_filtered_{ground_perc}_{ground_keep_perc}_'+self.save_name
         self.normalization = normalization
         self.years = [2019,2020]
         self.rotation_augment = rotation_augment
@@ -86,7 +94,7 @@ class AmsGridLoaderPointwise(Dataset):
         self.augment_same = augment_same
         
         
-
+        save_path  = os.path.join(self.out_path,self.save_name)
         if not preload:
 
             with open(os.path.join(directory_path,'args.json')) as f:
@@ -105,12 +113,13 @@ class AmsGridLoaderPointwise(Dataset):
                 self.filtered_scans = filter_scans(self.scans,3)
                 with open(self.filtered_scan_path, "wb") as fp:  
                     pickle.dump(self.filtered_scans, fp)
-            self.extract_id_dict = {}
+            
 
             
             
-
-            extract_id = -1
+            self.save_dict={}
+            save_id = -1
+            
             for scene_number, scan in enumerate(tqdm(self.filtered_scans)):
                 relevant_scans = [x for x in self.scans if np.linalg.norm(x.center-scan.center)<7]
                 relevant_times = set([x.datetime for x in relevant_scans])
@@ -119,89 +128,54 @@ class AmsGridLoaderPointwise(Dataset):
                 
                 
                 clouds_per_time = [torch.from_numpy(np.concatenate([load_las(x.path) for x in val])).float().to(device) for key,val in time_partitions.items()]
+                clouds_per_time = [voxel_downsample(x,0.07) for x in clouds_per_time]
+     
                 ground_cutoff = scan.ground_height - 0.05 # Cut off slightly under ground height
                 height_cutoff = ground_cutoff+max_height
                 clouds_per_time = [x[torch.logical_and(x[:,2]>ground_cutoff,x[:,2]<height_cutoff),...] for x in clouds_per_time]
-             
-                grids = [grid_split(cloud,self.grid_square_size,center=scan.center,clearance = self.clearance) for cloud in clouds_per_time]
-
-                grid_masks = [[self.valid_tile(tile) for tile in grid_list] for grid_list in grids]
-
                 
+                grids = [grid_split(cloud,self.grid_square_size,center=scan.center,clearance = self.clearance,device='cpu') for cloud in clouds_per_time]
+                
+                grid_masks = [[self.valid_tile(tile) for tile in grid_list] for grid_list in grids]
+                
+                
+                valid_grid_masks =[]
+                valid_grids = []
 
-                    
-                for square_index,extract_list in enumerate(list(zip(*grids))):
-                    
-                    extract_list = [x for x in extract_list if x.shape[0]>=self.min_points]
-                    #Check mins
-                    extract_list = [x for x in extract_list if ((x.max(dim=0)[0][:3]-x.min(dim=0)[0][:3] )>self.minimum_difs).all().item()]
-                    
-                    if len(extract_list)<2:
-                        continue
-                    
-                    if self.subsample=='random':
-                        extract_list = [ random_subsample(x,sample_size) for x in extract_list]
-                    elif self.subsample=='fps':
-                        extract_list = [ random_subsample(x,sample_size*5) for x in extract_list]
-                        extract_list = [ x[fps(x,ratio = self.sample_size/x.shape[0])] if 0<self.sample_size/x.shape[0]<1 else x for x in extract_list]
-                        
-                    else:
-                        raise Exception("Invalid subsampling type")
-                    #Check mins again
-                    extract_list = [x for x in extract_list if ((x.max(dim=0)[0][:3]-x.min(dim=0)[0][:3] )>self.minimum_difs).all().item()]
+                for grid_mask,grid in zip(grid_masks,grids):
+                    if sum(grid_mask)>50:
+                        valid_grid_masks.append(grid_mask)
+                        valid_grids.append(grid)
+                
+                if len(valid_grids)<2:
+                    print(f"Skipping scene")
+                    continue
+                
+                save_id+=1
+                save_entry = {'grids':valid_grids,'grid_masks':valid_grid_masks,'ground_height':scan.ground_height}
 
-                    if len(extract_list)<2:
-                        continue
-                    extract_id +=1 # Iterate after continue to not skip ints
+                self.save_dict[save_id] = save_entry
+            
 
-                    #Put on cpu before saving:
-                    extract_list = [x.cpu() for x in extract_list]
-                    for scan_index,extract in enumerate(extract_list):
+
                         
-                        if not extract_id in self.extract_id_dict:
-                            self.extract_id_dict[extract_id]=[]
-                        self.extract_id_dict[extract_id].append(extract)
-                        
-            save_path  = os.path.join(self.out_path,self.save_name)
+            
             print(f"Saving to {save_path}!")
-            torch.save(self.extract_id_dict,save_path)
-            exists_filtered = False
+            torch.save(self.save_dict,save_path)
         else:
-            filtered_save_path  = os.path.join(self.out_path,self.filtered_path)
-            exists_filtered = os.path.isfile(filtered_save_path)
-            if not exists_filtered:
-                self.extract_id_dict = torch.load(os.path.join(self.out_path,self.save_name))
-            else:
-                self.extract_id_dict = torch.load(os.path.join(self.out_path,self.filtered_path))
+            self.save_dict = torch.load(save_path)
 
-        if not exists_filtered:  
-        
-            keep_extracts = {}
-            keep_index = 0
-            print('Filtering!')
-            for extract_dict in tqdm(self.extract_id_dict.values()):
-                ground_bools = [is_only_ground(x,perc=self.ground_perc) for x in extract_dict]
-                if not any(ground_bools) or random.random()<= self.ground_keep_perc:
-                    keep_extracts[keep_index] = extract_dict
-                    keep_index+=1
-            print(f"Removed {len(self.extract_id_dict)-len(keep_extracts)} of {len(self.extract_id_dict)}!")
-            self.extract_id_dict = keep_extracts
-            filtered_save_path  = os.path.join(self.out_path,self.filtered_path)
-            torch.save(self.extract_id_dict,filtered_save_path)
-        self.combinations_list=[]
-        for id,path_list in self.extract_id_dict.items():
-            index_permutations = list(permutations(range(len(path_list)),2))
-            #Insert all unique permutations
+
+        #Combinations of form # (scene_index,grid_index,grid_index)
+        self.combinations_list = []
+        for entry_index,entry in enumerate(self.save_dict.items()):
+            index_permutations = list(permutations(range(len(entry['grids'])),2))
             for perm in index_permutations:
                 unique_combination = list(perm)
-                unique_combination.insert(0,id)
+                unique_combination.insert(0,entry_index)
                 self.combinations_list.append(unique_combination)
-            #Also include pairs with themselves
-            for x in range(len(path_list)):
-                self.combinations_list.append([id,x,x])
-
-
-            
+            for x in range(len(entry['grids'])):
+                self.combinations_list.append([entry_index,x,x])
         print('Loaded dataset!')
 
     def valid_tile(self,tile):
@@ -213,17 +187,6 @@ class AmsGridLoaderPointwise(Dataset):
 
     def __len__(self):
         return len(self.combinations_list)
-
-    def view(self,index,point_size=5):
-        cloud_1,cloud_2 = self.__getitem__(index)
-        view_cloud_plotly(cloud_1[:,:3],cloud_1[:,3:],point_size=point_size)
-        view_cloud_plotly(cloud_2[:,:3],cloud_2[:,3:],point_size=point_size)
-
-    def test_nans(self):
-        for i in range(self.__len__()):
-            tensor_0, tensor_1 = self.__getitem__(i)
-            if (tensor_0.isnan().any() or tensor_1.isnan().any()).item():
-                raise Exception(f"Found nan at index {i}!")
 
 
     def last_processing(self,tensor_0,tensor_1,normalization):

@@ -12,6 +12,13 @@ import laspy
 import torch
 import torch.nn.functional as F
 from yaml import load as load_yaml
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+from dash.dependencies import Input, Output
+import open3d as o3d
+
+
 #Losses from original repo
 
 eps = 1e-8
@@ -46,6 +53,10 @@ def bits_per_dim(log_likelihood,dims_prod):
     multiplier = torch.log(torch.Tensor([2])).to(log_likelihood.device)
     bpd = -log_likelihood * multiplier / dims_prod
     return bpd
+def figure_dash(fig):
+    app = dash.Dash(name='plot_fig',suppress_callback_exceptions = False)
+    app.layout = html.Div([dcc.Graph(id='fig', figure=fig,style ={'width':'100vw','height':'100vh'})],style ={'width':'100vw','height':'100vh'})
+    app.run_server(debug=True)
 def view_cloud_plotly(points,rgb=None,fig=None,point_size=5,show=True,axes=False,show_scale=False,colorscale=None,title=None):
     if  isinstance(points,torch.Tensor):
         points = points.cpu()
@@ -94,7 +105,8 @@ def view_cloud_plotly(points,rgb=None,fig=None,point_size=5,show=True,axes=False
         fig.update_layout(title_text=title)
 
     if show:
-        fig.show()
+        figure_dash(fig)
+        # fig.show()
     return fig
     
   
@@ -130,11 +142,11 @@ def extract_area(full_cloud,center,clearance,shape= 'circle'):
         raise Exception("Invalid shape")
     return mask
 
-def grid_split(points,grid_size,center = False,clearance = 20):
+def grid_split(points,grid_size,center = False,clearance = 20,device=None):
     if isinstance(center,bool):
         center = points[:,:2].mean(axis=0)
     
-    
+    device = points.device if device==None else device
     center_x = center[0]
     center_y= center[1]
     
@@ -147,7 +159,8 @@ def grid_split(points,grid_size,center = False,clearance = 20):
         for y_val in y:
             mask_y = torch.logical_and(x_strip[:,1]>y_val,x_strip[:,1]<y_val+grid_size)
             tile = x_strip[mask_y]
-            grid_list.append(tile)
+            grid_list.append(tile.to(device))
+
     return grid_list
 def circle_split(points,circle_radius,center = False,clearance = 20):
     if isinstance(center,bool):
@@ -264,6 +277,8 @@ def save_las(pos,path,rgb=None,extra_feature=None,feature_name='Change'):
 
     if not isinstance( rgb,type(None)):
         print('Adding color')
+        if rgb.max()<= 1.0:
+            rgb*= 255
         if rgb.shape[-1]==3:
             outfile.red = rgb[:,0]
             outfile.green = rgb[:,1]
@@ -306,6 +321,13 @@ def co_standardize(tensor_0,tensor_1):
 def sep_standardize(tensor_0,tensor_1):
     return (tensor_0-tensor_0.mean(axis=0))/tensor_0.std(axis=0),(tensor_1-tensor_1.mean(axis=0))/tensor_1.std(axis=0)
 
+def view_cloud_o3d(xyz,rgb,show=True):
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(xyz)
+    pcd.colors = o3d.utility.Vector3dVector(rgb)
+    if show:
+        o3d.visualization.draw_geometries([pcd])
+    return pcd
 
 
 def exp_from_paper(x,eps):
