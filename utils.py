@@ -291,18 +291,20 @@ def save_las(pos,path,rgb=None,extra_feature=None,feature_name='Change'):
 
     outfile.close()
 
-def co_min_max(tensor_0,tensor_1):
-    overall_max = torch.max(tensor_0[:,:3].max(axis=0)[0],tensor_1[:,:3].max(axis=0)[0])
-    overall_min = torch.min(tensor_0[:,:3].min(axis=0)[0],tensor_1[:,:3].min(axis=0)[0])
+def co_min_max(tensor_list):
+    is_numpy = isinstance(tensor_list[0],np.ndarray)
+    if is_numpy:
+        tensor_list = [torch.from_numpy(x) for x in tensor_list]
+    overall_max = torch.max(torch.stack([x[:,:3].max(axis=0)[0] for x in tensor_list]),dim=0)[0]
+    overall_min = torch.min(torch.stack([x[:,:3].min(axis=0)[0] for x in tensor_list]),dim=0)[0]
     denominator = overall_max-overall_min  + eps
-    tensor_0[:,:3] = (tensor_0[:,:3] - overall_min)/denominator
-    tensor_1[:,:3] = (tensor_1[:,:3] - overall_min)/denominator
+    for x in tensor_list:
+        x[:,:3] = (x[:,:3] - overall_min)/denominator
+        is_valid(x)
 
-    if (tensor_0.isnan().any() or tensor_1.isnan().any()).item():
-            raise Exception("Nan in __item__!")
-
-
-    return tensor_0,tensor_1
+    if is_numpy:
+        tensor_list = [x.numpy() for x in tensor_list]
+    return tensor_list
 def unit_sphere(points):
     points[:,:3] -= points[:,:3].mean(axis=0)
     furthest_distance = torch.max(torch.sqrt(torch.sum(torch.abs(points[:,:3])**2,axis=-1)))
@@ -520,16 +522,6 @@ def rotate_xy(rad):
 
 def is_valid(tensor):
     assert not torch.logical_or(tensor.isnan(),tensor.isinf()).any(), 'Invalid values!'
-
-def cloud_knn(cloud_0,cloud_1,k):
-    cloud_0 = cloud_0.contiguous()
-    cloud_1 = cloud_1.contiguous
-    X_i = LazyTensor(cloud_0[:, None, :]) 
-    X_j = LazyTensor(cloud_1[None, :, :]) 
-    D_ij = ((X_i - X_j) ** 2).sum(-1)
-    ind_knn = D_ij.argKmin(k, dim=1)
-    return ind_knn
-
 
 
 if __name__ == '__main__':

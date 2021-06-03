@@ -117,6 +117,7 @@ def dataset_view(dataset,index,multiple =3.,gen_std=0.6,show=False,n_points=2000
     fig_0_given_1 = view_cloud_plotly(extract_0[:,:3],change_0_given_1,colorscale='Bluered',show_scale=True,show=show,title='Extract 0 given 1')
     fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=show,title='Extract 1 given 0')
     return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1,fig_gen_given_1,fig_gen_given_0
+    
 if __name__ == '__main__':
     #name = load_path.split('/')[-1].split('_')[0]
     #dataset_out = f"save/processed_dataset/{name}_{mode}_probs_dataset.pt"

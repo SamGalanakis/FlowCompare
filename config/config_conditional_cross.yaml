@@ -96,7 +96,7 @@ attn_input_dim:
   value: 256
 input_embedding_dim:
   desc: Dimension of input embeddings, part of input for attention (feature dim for each point in cloud t0)
-  value: 64
+  value: 64 #was 512 
 cross_heads:
   desc: Number of attn heads
   value: 1

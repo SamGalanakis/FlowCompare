@@ -39,9 +39,13 @@ def is_only_ground(cloud,perc=0.99):
 def voxel_downsample(cloud,voxel_size):
     pcd = cph.geometry.PointCloud()
     pcd.points = cph.utility.Vector3fVector(cloud.cpu().numpy()[:,:3])
-    pcd.colors = cph.utility.Vector3fVector(cloud.cpu().numpy()[:,3:])
+    if cloud.shape[-1] == 6:
+        pcd.colors = cph.utility.Vector3fVector(cloud.cpu().numpy()[:,3:])
     pcd = pcd.voxel_down_sample(voxel_size)
-    cloud_ = np.concatenate((np.asarray(pcd.points.cpu()),np.asarray(pcd.colors.cpu())),axis=-1)
+    if cloud.shape[-1] == 6:
+        cloud_ = np.concatenate((np.asarray(pcd.points.cpu()),np.asarray(pcd.colors.cpu())),axis=-1)
+    else:
+        cloud_ = np.asarray(pcd.points.cpu())
     return torch.from_numpy(cloud_).to(cloud.device)
 
 
