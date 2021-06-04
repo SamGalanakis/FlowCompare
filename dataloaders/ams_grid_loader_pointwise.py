@@ -22,7 +22,8 @@ import json
 from datetime import datetime
 import random
 import cupoch as cph
-
+from knn import KNN_KeOps,KNN_torch
+import open3d as o3d
 eps = 1e-8
 
 
@@ -35,21 +36,31 @@ def is_only_ground(cloud,perc=0.99):
     
     return n_close_ground/cloud.shape[0] >=perc
 
+def icp_reg_precomputed_target(source_cloud,target,voxel_size=0.05,max_it=2000):
+    source_cloud = source_cloud.cpu().numpy()
+    threshold = voxel_size * 0.4
+    trans_init = np.eye(4).astype(np.float32)
+    source = o3d.geometry.PointCloud()
+    source.points = o3d.utility.Vector3dVector(source_cloud[:,:3])
+    source.colors = o3d.utility.Vector3dVector(source_cloud[:,3:])
+    source = source.voxel_down_sample(voxel_size)
+    source.estimate_normals()
+    result = o3d.pipelines.registration.registration_icp(
+        source, target, threshold, trans_init,
+        o3d.pipelines.registration.TransformationEstimationPointToPlane(),o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=max_it))
 
-def voxel_downsample(cloud,voxel_size):
-    pcd = cph.geometry.PointCloud()
-    pcd.points = cph.utility.Vector3fVector(cloud.cpu().numpy()[:,:3])
-    if cloud.shape[-1] == 6:
-        pcd.colors = cph.utility.Vector3fVector(cloud.cpu().numpy()[:,3:])
-    pcd = pcd.voxel_down_sample(voxel_size)
-    if cloud.shape[-1] == 6:
-        cloud_ = np.concatenate((np.asarray(pcd.points.cpu()),np.asarray(pcd.colors.cpu())),axis=-1)
-    else:
-        cloud_ = np.asarray(pcd.points.cpu())
-    return torch.from_numpy(cloud_).to(cloud.device)
+    return result
 
-
-
+def downsample_transform(cloud,voxel_size,transform):
+    device = cloud.device
+    source = o3d.geometry.PointCloud()
+    cloud = cloud.cpu().numpy()
+    source.points = o3d.utility.Vector3dVector(cloud[:,:3])
+    source.colors = o3d.utility.Vector3dVector(cloud[:,3:])
+    source = source.voxel_down_sample(voxel_size)
+    source.transform(transform)
+    cloud = torch.from_numpy(np.concatenate((np.asarray(source.points),np.asarray(source.colors)),axis=-1))
+    return cloud.to(device)
 def filter_scans(scans_list,dist):
     print(f"Filtering scans")
     ignore_list = []
@@ -121,22 +132,51 @@ class AmsGridLoaderPointwise(Dataset):
             save_id = -1
             
             for scene_number, scan in enumerate(tqdm(self.filtered_scans)):
+                #Gather scans within certain distance of scan center
                 relevant_scans = [x for x in self.scans if np.linalg.norm(x.center-scan.center)<7]
-                relevant_times = set([x.datetime for x in relevant_scans])
                 
+                relevant_times = set([x.datetime for x in relevant_scans])
+
+                #Group by dates
                 time_partitions = {time:[x for x in relevant_scans if x.datetime ==time] for time in relevant_times}
                 
+                #Load and combine clouds from same date
+                clouds_per_time = [torch.from_numpy(np.concatenate([load_las(x.path) for x in val])).double().to(device) for key,val in time_partitions.items()]
                 
-                clouds_per_time = [torch.from_numpy(np.concatenate([load_las(x.path) for x in val])).float().to(device) for key,val in time_partitions.items()]
 
+                #Make xy 0 at center to avoid large values
+                center_trans = torch.cat((torch.from_numpy(scan.center),torch.tensor([0,0,0,0]))).double().to(device)
+                
+                clouds_per_time = [x-center_trans for x in clouds_per_time]
+                # Extract square at center since only those will be used for grid
+                clouds_per_time = [x[extract_area(x,center = np.array([0,0]),clearance = self.clearance+1.,shape='square'),:] for x in clouds_per_time]
+                #Apply registration between each cloud and first in list, store transforms
+                registration_transforms = [np.eye(4,dtype=np.float32)] #First cloud does not need to be transformed
+
+
+                voxel_size_icp = 0.05
+                target_cloud = clouds_per_time[0].cpu().numpy()
+                target = o3d.geometry.PointCloud()
+                target.points = o3d.utility.Vector3dVector(target_cloud[:,:3])
+                target.colors = o3d.utility.Vector3dVector(target_cloud[:,3:])
+                target = target.voxel_down_sample(voxel_size_icp)
+                target.estimate_normals()
+                for source_cloud in clouds_per_time[1:]:
+                    result=icp_reg_precomputed_target(source_cloud,target,voxel_size=voxel_size_icp)
+                    registration_transforms.append(result.transformation)
+                
+                
+
+                #Remove below ground and above cutoff 
                 ground_cutoff = scan.ground_height - 0.05 # Cut off slightly under ground height
                 height_cutoff = ground_cutoff+max_height
                 clouds_per_time = [x[torch.logical_and(x[:,2]>ground_cutoff,x[:,2]<height_cutoff),...] for x in clouds_per_time]
+                #Downsample and apply registration
+                clouds_per_time = [downsample_transform(x,self.voxel_size,transform) for x,transform in zip(clouds_per_time,registration_transforms)]
 
-                clouds_per_time = [voxel_downsample(x,self.voxel_size) for x in clouds_per_time]
-     
-                grids = [grid_split(cloud,self.grid_square_size,center=scan.center,clearance = self.clearance) for cloud in clouds_per_time]
-                
+                #Create grid list for each cloud, centered at center
+                grids = [grid_split(cloud,self.grid_square_size,center=np.array([0,0]),clearance = self.clearance) for cloud in clouds_per_time]
+                #Creat bool mask based on validity of tile
                 grid_masks = [[self.valid_tile(tile) for tile in grid_list] for grid_list in grids]
                 
 
@@ -147,7 +187,7 @@ class AmsGridLoaderPointwise(Dataset):
                 for grid_mask,grid in zip(grid_masks,grids):
                     if sum(grid_mask)>20:
                         valid_grid_masks.append(grid_mask)
-                        grid = [x.cpu() for x in grid] #Put on gpu before next
+                        grid = [x.cpu().float() for x in grid] #Put on cpu and float32 for save
                         valid_grids.append(grid)
                 
                 if len(valid_grids)<2:
@@ -158,6 +198,9 @@ class AmsGridLoaderPointwise(Dataset):
                 save_entry = {'grids':valid_grids,'grid_masks':valid_grid_masks,'ground_height':scan.ground_height}
 
                 self.save_dict[save_id] = save_entry
+                if scene_number % 100 == 0 and scene_number!= 0 :
+                    print(f"Progressbackup: {scene_number}!")
+                    torch.save(self.save_dict,save_path)
             
 
 
@@ -185,7 +228,7 @@ class AmsGridLoaderPointwise(Dataset):
         min_points_bool = tile.shape[0]>=self.min_points
         if not min_points_bool:
             return False
-        coverage_bool = ((tile.max(dim=0)[0][:3]-tile.min(dim=0)[0][:3] )>self.minimum_difs).all().item()
+        coverage_bool = ((tile.max(dim=0)[0][:2]-tile.min(dim=0)[0][:2] )>self.minimum_difs[:2]).all().item()
         return min_points_bool and coverage_bool
 
     def __len__(self):
