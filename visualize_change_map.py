@@ -48,12 +48,12 @@ def visualize_change(fig_getter,index_range):
             ] ,style ={'width':'20%'}),
          
         html.Div([
-            dcc.Graph(id='graph_0', figure={}),
-            dcc.Graph(id='graph_1', figure={}),
-            dcc.Graph(id='graph_1_given_0', figure={}),
-            dcc.Graph(id='graph_0_given_1', figure={}),
-            dcc.Graph(id='gen_given_0', figure={}),
-            dcc.Graph(id='gen_given_1', figure={}),
+            dcc.Graph(id='graph_0', figure={},style ={'height':'45vh'}),
+            dcc.Graph(id='graph_1', figure={},style ={'height':'45vh'}),
+            dcc.Graph(id='graph_1_given_0', figure={},style ={'height':'45vh'}),
+            dcc.Graph(id='graph_0_given_1', figure={},style ={'height':'45vh'}),
+            dcc.Graph(id='gen_given_0', figure={},style ={'height':'45vh'}),
+            dcc.Graph(id='gen_given_1', figure={},style ={'height':'45vh'}),
      
 
 

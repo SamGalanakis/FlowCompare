@@ -3,7 +3,7 @@ import os
 import numpy as np
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from dataloaders import ConditionalDataGrid, ShapeNetLoader,AmsGridLoader
+from dataloaders import ConditionalDataGrid,AmsGridLoader
 import wandb
 from torch import nn
 import pandas as pd
@@ -239,8 +239,6 @@ def main(rank, world_size):
         dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config["subsample"],sample_size=config["sample_size"],min_points=config["min_points"],grid_type='square',normalization=config['normalization'],grid_square_size=config['grid_square_size'],preselected_points=preselected_points_dict)
     elif config['data_loader'] == 'ConditionalDataGridCircle':
         dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'],preselected_points=preselected_points_dict)
-    elif config['data_loader']=='ShapeNet':
-        dataset = ShapeNetLoader(r'D:\data\ShapeNetCore.v2.PC15k\02691156\train',out_path=out_path,preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'])
     elif config['data_loader'] == 'AmsGridLoader':
         dataset=AmsGridLoader('save/processed_dataset',out_path='save/processed_dataset',preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
 

@@ -86,7 +86,7 @@ class Scan:
 
 class AmsGridLoaderPointwise(Dataset):
     def __init__(self, directory_path,out_path,grid_square_size = 2,clearance = 10,preload=False,min_points=500,
-    height_min_dif=0.5,max_height = 15.0, device="cuda",ground_perc=0.90,ground_keep_perc=1/40,voxel_size=0.07):
+    height_min_dif=0.5,max_height = 15.0, device="cuda",ground_perc=0.90,ground_keep_perc=1/40,voxel_size=0.07,n_samples=2048):
         self.directory_path = directory_path
         self.grid_square_size = grid_square_size
         self.clearance = clearance
@@ -99,9 +99,11 @@ class AmsGridLoaderPointwise(Dataset):
         self.save_name = f"pointwise_ams_extract_id_dict_{clearance}_{self.min_points}_{self.grid_square_size}_{voxel_size}_{self.height_min_dif}.pt"
         self.filtered_path = f'pointwise_filtered_{ground_perc}_{ground_keep_perc}_'+self.save_name
         self.years = [2019,2020]
-        self.ground_perc = ground_perc
         self.ground_keep_perc = ground_keep_perc
+        self.over_ground_cutoff = 0.1 
         self.voxel_size = voxel_size
+        self.n_samples = n_samples
+        
 
         
         
@@ -183,19 +185,19 @@ class AmsGridLoaderPointwise(Dataset):
                 
                 valid_grid_masks =[]
                 valid_grids = []
-
-                for grid_mask,grid in zip(grid_masks,grids):
-                    if sum(grid_mask)>20:
-                        valid_grid_masks.append(grid_mask)
-                        grid = [x.cpu().float() for x in grid] #Put on cpu and float32 for save
-                        valid_grids.append(grid)
+                # TODO DO THIS AFTER
+                # for grid_mask,grid in zip(grid_masks,grids):
+                #     if sum(grid_mask)>20:
+                #         valid_grid_masks.append(grid_mask)
+                #         grid = [x.cpu().float() for x in grid] #Put on cpu and float32 for save
+                #         valid_grids.append(grid)
                 
-                if len(valid_grids)<2:
-                    print(f"Skipping scene")
-                    continue
+                # if len(valid_grids)<2:
+                #     print(f"Skipping scene")
+                #     continue
                 
                 save_id+=1
-                save_entry = {'grids':valid_grids,'grid_masks':valid_grid_masks,'ground_height':scan.ground_height}
+                save_entry = {'grids':grids,'grid_masks':grid_masks,'ground_height':scan.ground_height}
 
                 self.save_dict[save_id] = save_entry
                 if scene_number % 100 == 0 and scene_number!= 0 :
@@ -234,47 +236,37 @@ class AmsGridLoaderPointwise(Dataset):
     def __len__(self):
         return len(self.combinations_list)
 
+    def sample_cloud_0(self,cloud_0,ground_height):
+        n_ground = int(self.ground_keep_perc*self.n_samples)
+        n_not_ground = self.n_samples - n_ground
+        ground_mask = cloud_0[:,2]< (ground_height + self.over_ground_cutoff)
+        ground = cloud_0[ground_mask,:]
+        not_ground = ground = cloud_0[~ground_mask,:]
+        return torch.cat((random_subsample(ground,n_ground),random_subsample(not_ground,n_not_ground)),dim=0)
+    
+    def get_knn(self,samples,context_cloud):
+        pass
+
 
     def last_processing(self,tensor_0,tensor_1,normalization):
-        
-        
-        if normalization == 'min_max':
-            tensor_0[:,:3], tensor_1[:,:3] = co_min_max(tensor_0[:,:3],tensor_1[:,:3])
-        elif normalization == 'co_unit_sphere':
-            tensor_0,tensor_1 = co_unit_sphere(tensor_0,tensor_1)
-        elif normalization == 'standardize':
-            tensor_0,tensor_1 = co_standardize(tensor_0,tensor_1)
-        elif normalization == 'sep_standardize':
-            tensor_0,tensor_1 = sep_standardize(tensor_0,tensor_1)
-        else:
-            raise Exception('Invalid normalization type')
-        return tensor_0,tensor_1
+        pass
+   
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        combination_entry = self.combinations_list[idx]
-        relevant_tensors = self.extract_id_dict[combination_entry[0]]
-        #CLONE THE TENSOR IF SAME, OTHERWISE POINT TO SAME MEMORY, PROBLEMS IN NORMALIZATION
-        if combination_entry[1]!=combination_entry[2]:
-            tensor_0 = relevant_tensors[combination_entry[1]]
-            tensor_1 = relevant_tensors[combination_entry[2]]
-        else:
-            tensor_0 = relevant_tensors[combination_entry[1]]
-            tensor_1 = relevant_tensors[combination_entry[2]].clone()
-            if self.augment_same:
-                tensor_0[:,:3] += torch.rand_like(tensor_0[:,:3])*0.01 #Add rgb noise 0-1 cm when same cloud
-        #Remove pesky extra points due to fps ratio
-        tensor_0 = tensor_0[:self.min_points,:]
-        tensor_1 = tensor_1[:self.min_points,:]
-        tensor_0,tensor_1 = self.last_processing(tensor_0,tensor_1,self.normalization)
-        rads  = torch.rand((1))*math.pi*2
+        scene_number,n_grid_0,n_grid_1 = self.combinations_list[idx]
+        save_entry = self.save_dict[scene_number]
+        grid_0,grid_1 = save_entry['grids'][n_grid_0],save_entry['grids'][n_grid_1]
+        grid_mask_0,grid_mask_1 = save_entry['grid_masks'][n_grid_0],save_entry['grid_masks'][n_grid_1]
+        ground_height = save_entry['ground_height']
+        #Take only points from tiles in 0 with valid counterparts in 1
+        points_to_sample_from = torch.cat([x  for x,valid in zip(grid_0,grid_mask_1) if valid],dim=0)
+        context_cloud = torch.cat(grid_1,dim=0)
+        samples = self.sample_cloud_0(points_to_sample_from,ground_height)
+        context = self.get_knn(samples,context_cloud)
 
-        if self.rotation_augment:
-            rot_mat = rotate_xy(rads)
-            tensor_0[:,:2] = torch.matmul(tensor_0[:,:2],rot_mat)
-            tensor_1[:,:2] = torch.matmul(tensor_1[:,:2],rot_mat)
         
-        return tensor_0,tensor_1
+        return samples,context
 
 
 
