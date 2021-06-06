@@ -4,11 +4,7 @@ import torch.nn as nn
 import einops
 
 
-
-
-
-
-#Code adapted from : https://github.com/didriknielsen/survae_flows/
+# Code adapted from : https://github.com/didriknielsen/survae_flows/
 
 class _ActNormBijection(Transform):
     '''
@@ -24,7 +20,8 @@ class _ActNormBijection(Transform):
         self.data_dep_init = data_dep_init
         self.eps = eps
 
-        self.register_buffer('initialized', torch.zeros(1) if data_dep_init else torch.ones(1))
+        self.register_buffer('initialized', torch.zeros(
+            1) if data_dep_init else torch.ones(1))
         self.register_params()
 
     def data_init(self, x):
@@ -37,13 +34,15 @@ class _ActNormBijection(Transform):
 
             self.log_scale = nn.Parameter(torch.log(x_std + self.eps))
 
-    def forward(self, x,context=None):
-        if self.training and not self.initialized: self.data_init(x)
+    def forward(self, x, context=None):
+        if self.training and not self.initialized:
+            self.data_init(x)
         z = (x - self.shift) * torch.exp(-self.log_scale)
-        ldj = torch.sum(-self.log_scale).expand(x.shape[:-1]) * self.ldj_multiplier(x)
+        ldj = torch.sum(-self.log_scale).expand(
+            x.shape[:-1]) * self.ldj_multiplier(x)
         return z, ldj
 
-    def inverse(self, z,context=None):
+    def inverse(self, z, context=None):
         return self.shift + z * torch.exp(self.log_scale)
 
     def register_params(self):
@@ -72,14 +71,16 @@ class ActNormBijectionCloud(_ActNormBijection):
 
     def register_params(self):
         '''Register parameters shift and log_scale'''
-        self.register_parameter('shift', nn.Parameter(torch.zeros(1, self.num_features)))
-        self.register_parameter('log_scale', nn.Parameter(torch.zeros(1, self.num_features)))
+        self.register_parameter('shift', nn.Parameter(
+            torch.zeros(1, self.num_features)))
+        self.register_parameter('log_scale', nn.Parameter(
+            torch.zeros(1, self.num_features)))
 
     def compute_stats(self, x):
         '''Compute x_mean and x_std'''
-        
-        x_mean = einops.reduce(x,'b n d -> () d','mean')
-        x_std = einops.rearrange(x,'b n d ->  () (b n) d').std(axis=1)
+
+        x_mean = einops.reduce(x, 'b n d -> () d', 'mean')
+        x_std = einops.rearrange(x, 'b n d ->  () (b n) d').std(axis=1)
         return x_mean, x_std
 
     def ldj_multiplier(self, x):

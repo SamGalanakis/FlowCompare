@@ -1,16 +1,15 @@
 import torch
 import torch.nn as nn
 import math
-from utils import sum_except_batch,mean_except_batch
+from utils import sum_except_batch, mean_except_batch
 
-#Code adapted from : https://github.com/didriknielsen/survae_flows/
-
+# Code adapted from : https://github.com/didriknielsen/survae_flows/
 
 
 class Distribution(nn.Module):
     """Distribution base class."""
 
-    def log_prob(self, x,context=None):
+    def log_prob(self, x, context=None):
         """Calculate log probability under the distribution.
         Args:
             x: Tensor, shape (batch_size, ...)
@@ -19,7 +18,7 @@ class Distribution(nn.Module):
         """
         raise NotImplementedError()
 
-    def sample(self, num_samples,context=None):
+    def sample(self, num_samples, context=None):
         """Generates samples from the distribution.
         Args:
             num_samples: int, number of samples to generate.
@@ -28,7 +27,7 @@ class Distribution(nn.Module):
         """
         raise NotImplementedError()
 
-    def sample_with_log_prob(self, num_samples,context=None,n_points=None):
+    def sample_with_log_prob(self, num_samples, context=None, n_points=None):
         """Generates samples from the distribution together with their log probability.
         Args:
             num_samples: int, number of samples to generate.
@@ -36,8 +35,8 @@ class Distribution(nn.Module):
             samples: Tensor, shape (num_samples, ...)
             log_prob: Tensor, shape (num_samples,)
         """
-        samples = self.sample(num_samples,context=context,n_points=n_points)
-        log_prob = self.log_prob(samples,context=context)
+        samples = self.sample(num_samples, context=context, n_points=n_points)
+        log_prob = self.log_prob(samples, context=context)
         return samples, log_prob
 
     def forward(self, *args, mode, **kwargs):
@@ -52,7 +51,8 @@ class Distribution(nn.Module):
             return self.log_prob(*args, **kwargs)
         else:
             raise RuntimeError("Mode {} not supported.".format(mode))
-    
+
+
 class ConditionalDistribution(Distribution):
     """ConditionalDistribution base class"""
 
@@ -85,6 +85,7 @@ class ConditionalDistribution(Distribution):
         """
         raise NotImplementedError()
 
+
 class ConditionalMeanStdNormal(ConditionalDistribution):
     """A multivariate Normal with conditional mean and learned std."""
 
@@ -99,7 +100,7 @@ class ConditionalMeanStdNormal(ConditionalDistribution):
 
     def log_prob(self, x, context):
         dist = self.cond_dist(context)
-        return sum_except_batch(dist.log_prob(x),num_dims=2)
+        return sum_except_batch(dist.log_prob(x), num_dims=2)
 
     def sample(self, context):
         dist = self.cond_dist(context)
@@ -109,37 +110,36 @@ class ConditionalMeanStdNormal(ConditionalDistribution):
         dist = self.cond_dist(context)
         z = dist.rsample()
         log_prob = dist.log_prob(z)
-        log_prob = sum_except_batch(log_prob,num_dims=2)
+        log_prob = sum_except_batch(log_prob, num_dims=2)
         return z, log_prob
 
     def mean(self, context):
         return self.cond_dist(context).mean
 
 
-
 class ConditionalNormal(ConditionalDistribution):
     """A multivariate Normal with conditional mean and log_std."""
 
-    def __init__(self, net, split_dim=-1,clamp=False):
+    def __init__(self, net, split_dim=-1, clamp=False):
         super().__init__()
         self.net = net
-        self.clamp=clamp
-        
+        self.clamp = clamp
 
     def cond_dist(self, context):
-        
-        params = torch.utils.checkpoint.checkpoint(self.net,context,preserve_rng_state=False)
+
+        params = torch.utils.checkpoint.checkpoint(
+            self.net, context, preserve_rng_state=False)
         #params = self.net(context)
         mean, log_std = torch.chunk(params, chunks=2, dim=-1)
         scale = log_std.exp()
         if self.clamp:
             scale = scale.clamp_max(self.clamp)
-        
+
         return torch.distributions.Normal(loc=mean, scale=scale)
 
     def log_prob(self, x, context):
         dist = self.cond_dist(context)
-        return sum_except_batch(dist.log_prob(x),num_dims=2)
+        return sum_except_batch(dist.log_prob(x), num_dims=2)
 
     def sample(self, context):
         dist = self.cond_dist(context)
@@ -149,7 +149,7 @@ class ConditionalNormal(ConditionalDistribution):
         dist = self.cond_dist(context)
         z = dist.rsample()
         log_prob = dist.log_prob(z)
-        log_prob = sum_except_batch(log_prob,num_dims=2)
+        log_prob = sum_except_batch(log_prob, num_dims=2)
         return z, log_prob
 
     def mean(self, context):
@@ -158,6 +158,7 @@ class ConditionalNormal(ConditionalDistribution):
     def mean_stddev(self, context):
         dist = self.cond_dist(context)
         return dist.mean, dist.stddev
+
 
 class StandardUniform(Distribution):
     """A multivariate Uniform with boundaries (0,1)."""
@@ -168,12 +169,13 @@ class StandardUniform(Distribution):
         self.register_buffer('zero', torch.zeros(1))
         self.register_buffer('one', torch.ones(1))
 
-    def log_prob(self, x,context=None):
-        lb = mean_except_batch(x.ge(self.zero).type(self.zero.dtype),num_dims=2)
-        ub = mean_except_batch(x.le(self.one).type(self.one.dtype),num_dims=2)
+    def log_prob(self, x, context=None):
+        lb = mean_except_batch(
+            x.ge(self.zero).type(self.zero.dtype), num_dims=2)
+        ub = mean_except_batch(x.le(self.one).type(self.one.dtype), num_dims=2)
         return torch.log(lb*ub)
 
-    def sample(self, num_samples,context=None,n_points = None):
+    def sample(self, num_samples, context=None, n_points=None):
         sample_shape = list(self.shape)
         sample_shape[-2] = n_points
         return torch.rand((num_samples,) + sample_shape, device=self.zero.device, dtype=self.zero.dtype)
@@ -187,29 +189,30 @@ class StandardNormal(Distribution):
         self.shape = torch.Size(shape)
         self.register_buffer('buffer', torch.zeros(1))
 
-    def log_prob(self, x,context= None):
-        log_base =  - 0.5 * math.log(2 * math.pi)
+    def log_prob(self, x, context=None):
+        log_base = - 0.5 * math.log(2 * math.pi)
         log_inner = - 0.5 * x**2
-        return sum_except_batch(log_base+log_inner,num_dims=2)
+        return sum_except_batch(log_base+log_inner, num_dims=2)
 
-    def sample(self, num_samples,context= None,n_points=None):
+    def sample(self, num_samples, context=None, n_points=None):
         sample_shape = list(self.shape)
         sample_shape[-2] = n_points
         return torch.randn(num_samples, *sample_shape, device=self.buffer.device, dtype=self.buffer.dtype)
 
+
 class Normal(Distribution):
-    def __init__ (self,loc,scale,shape):
+    def __init__(self, loc, scale, shape):
         super().__init__()
         self.std_normal = StandardNormal(shape)
         self.shape = torch.Size(shape)
         self.register_buffer('loc', loc)
         self.register_buffer('scale', scale)
-    def log_prob(self, x,context= None):
-        x = (x-self.loc)/self.scale
-        return self.std_normal.log_prob(x,context= None)
 
-    def sample(self, num_samples,context= None,n_points=None):
+    def log_prob(self, x, context=None):
+        x = (x-self.loc)/self.scale
+        return self.std_normal.log_prob(x, context=None)
+
+    def sample(self, num_samples, context=None, n_points=None):
         sample_shape = list(self.shape)
         sample_shape[-2] = n_points
-        return (self.std_normal.sample(num_samples=num_samples,n_points=n_points,context= None) *self.scale) + self.loc
-        
+        return (self.std_normal.sample(num_samples=num_samples, n_points=n_points, context=None) * self.scale) + self.loc

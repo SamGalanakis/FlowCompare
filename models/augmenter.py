@@ -2,8 +2,7 @@ import torch
 from models import Transform
 from .distributions import ConditionalDistribution
 
-#Code adapted from : https://github.com/didriknielsen/survae_flows/
-
+# Code adapted from : https://github.com/didriknielsen/survae_flows/
 
 
 class Augment(Transform):
@@ -25,22 +24,25 @@ class Augment(Transform):
         self.cond = isinstance(self.noise_dist, ConditionalDistribution)
 
     def split_z(self, z):
-        split_proportions = (self.x_size, z.shape[self.split_dim] - self.x_size)
+        split_proportions = (
+            self.x_size, z.shape[self.split_dim] - self.x_size)
         return torch.split(z, split_proportions, dim=self.split_dim)
 
-    def forward(self, x,context=None):
+    def forward(self, x, context=None):
         if context is not None and self.cond:
-            context=torch.cat((x,context),axis=self.split_dim)
+            context = torch.cat((x, context), axis=self.split_dim)
         else:
-            context=x
-        if self.cond: z2, logqz2 = self.noise_dist.sample_with_log_prob(context=context)
-        else:         z2, logqz2 = self.noise_dist.sample_with_log_prob(num_samples=x.shape[0],n_points = x.shape[-2])
-
+            context = x
+        if self.cond:
+            z2, logqz2 = self.noise_dist.sample_with_log_prob(context=context)
+        else:
+            z2, logqz2 = self.noise_dist.sample_with_log_prob(
+                num_samples=x.shape[0], n_points=x.shape[-2])
 
         z = torch.cat([x, z2], dim=self.split_dim)
         ldj = -logqz2
         return z, ldj
 
-    def inverse(self, z,context=None):
+    def inverse(self, z, context=None):
         x, z2 = self.split_z(z)
         return x

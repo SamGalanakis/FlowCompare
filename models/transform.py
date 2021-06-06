@@ -40,6 +40,7 @@ class PreConditionApplier(Transform):
     def __init__(self,transform,pre_conditioner):
         super().__init__()
         self.pre_conditioner = pre_conditioner
+        
         self.transform = transform
 
     def forward(self,x,context=None):

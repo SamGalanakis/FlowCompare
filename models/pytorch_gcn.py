@@ -7,14 +7,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.nets import MLP
-#Original code from : https://github.com/WangYueFt/dgcnn/blob/master/pytorch/model.py
+# Original code from : https://github.com/WangYueFt/dgcnn/blob/master/pytorch/model.py
+
 
 def knn(x, k):
     inner = -2*torch.matmul(x.transpose(2, 1), x)
     xx = torch.sum(x**2, dim=1, keepdim=True)
     pairwise_distance = -xx - inner - xx.transpose(2, 1)
- 
-    idx = pairwise_distance.topk(k=k, dim=-1)[1]   # (batch_size, num_points, k)
+
+    # (batch_size, num_points, k)
+    idx = pairwise_distance.topk(k=k, dim=-1)[1]
     return idx
 
 
@@ -25,38 +27,37 @@ def get_graph_feature(x, k=20, idx=None):
     if idx is None:
         idx = knn(x, k=k)   # (batch_size, num_points, k)
 
-    idx_base = torch.arange(0, batch_size, device=x.device).view(-1, 1, 1)*num_points
+    idx_base = torch.arange(
+        0, batch_size, device=x.device).view(-1, 1, 1)*num_points
 
     idx = idx + idx_base
 
     idx = idx.view(-1)
- 
+
     _, num_dims, _ = x.size()
 
-    x = x.transpose(2, 1).contiguous()   # (batch_size, num_points, num_dims)  -> (batch_size*num_points, num_dims) #   batch_size * num_points * k + range(0, batch_size*num_points)
+    # (batch_size, num_points, num_dims)  -> (batch_size*num_points, num_dims) #   batch_size * num_points * k + range(0, batch_size*num_points)
+    x = x.transpose(2, 1).contiguous()
     feature = x.view(batch_size*num_points, -1)[idx, :]
-    feature = feature.view(batch_size, num_points, k, num_dims) 
+    feature = feature.view(batch_size, num_points, k, num_dims)
     x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)
-    
+
     feature = torch.cat((feature-x, x), dim=3).permute(0, 3, 1, 2).contiguous()
-  
+
     return feature
 
 
-        
 class DGCNNembedder(nn.Module):
-    def __init__(self,out_mlp_dims,emb_dim=22,dropout = 0,n_neighbors=20):
+    def __init__(self, out_mlp_dims, emb_dim=22, dropout=0, n_neighbors=20):
         super().__init__()
-        
+
         self.n_neighbors = n_neighbors
-        
-        
+
         self.bn1 = nn.BatchNorm2d(64)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(128)
         self.bn4 = nn.BatchNorm2d(256)
         self.bn5 = nn.BatchNorm1d(512)
-  
 
         self.conv1 = nn.Sequential(nn.Conv2d(12, 64, kernel_size=1, bias=False),
                                    self.bn1,
@@ -73,12 +74,12 @@ class DGCNNembedder(nn.Module):
         self.conv5 = nn.Sequential(nn.Conv1d(512, 512, kernel_size=1, bias=False),
                                    self.bn5,
                                    nn.LeakyReLU(negative_slope=0.2))
-        
-        
-        self.out_mlp = MLP(512,out_mlp_dims,emb_dim,torch.nn.GELU())
+
+        self.out_mlp = MLP(512, out_mlp_dims, emb_dim, torch.nn.GELU())
+
     def forward(self, x):
         batch_size = x.size(0)
-        x = x.permute((0,2,1))
+        x = x.permute((0, 2, 1))
         x = get_graph_feature(x, k=self.n_neighbors)
         x = self.conv1(x)
         x1 = x.max(dim=-1, keepdim=False)[0]
@@ -97,26 +98,26 @@ class DGCNNembedder(nn.Module):
 
         x = torch.cat((x1, x2, x3, x4), dim=1)
 
-        x = self.conv5(x).permute((0,2,1))
-        
+        x = self.conv5(x).permute((0, 2, 1))
+
         x = self.out_mlp(x)
         return x
-    
+
+
 class DGCNN_cls(nn.Module):
-    def __init__(self, input_dim,dropout = 0.0,k = 20, out_dim=40):
+    def __init__(self, input_dim, dropout=0.0, k=20, out_dim=40):
         super().__init__()
-        
+
         self.k = k
         self.dropout = dropout
         self.input_dim = input_dim
-        
-        
+
         self.bn1 = nn.BatchNorm2d(64)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(128)
         self.bn4 = nn.BatchNorm2d(256)
         self.bn5 = nn.BatchNorm1d(1024)
-        
+
         self.conv1 = nn.Sequential(nn.Conv2d(self.input_dim*2, 64, kernel_size=1, bias=False),
                                    self.bn1,
                                    nn.LeakyReLU(negative_slope=0.2))
@@ -132,49 +133,66 @@ class DGCNN_cls(nn.Module):
         self.conv5 = nn.Sequential(nn.Conv1d(512, 1024, kernel_size=1, bias=False),
                                    self.bn5,
                                    nn.LeakyReLU(negative_slope=0.2))
-       
 
-        self.out_mlp = nn.Sequential(nn.Linear(1024*2,512),
-                                   nn.LeakyReLU(negative_slope=0.2),nn.Linear(512,512),nn.LeakyReLU(negative_slope=0.2),
-                                   nn.Linear(512,out_dim))
+        self.out_mlp = nn.Sequential(nn.Linear(1024*2, 512),
+                                     nn.LeakyReLU(negative_slope=0.2), nn.Linear(
+                                         512, 512), nn.LeakyReLU(negative_slope=0.2),
+                                     nn.Linear(512, out_dim))
 
     def forward(self, x):
         batch_size = x.size(0)
-        x = x.permute((0,2,1))
-        x = get_graph_feature(x, k=self.k)      # (batch_size, 3, num_points) -> (batch_size, 3*2, num_points, k)
-        x = self.conv1(x)                       # (batch_size, 3*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x1 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
+        x = x.permute((0, 2, 1))
+        # (batch_size, 3, num_points) -> (batch_size, 3*2, num_points, k)
+        x = get_graph_feature(x, k=self.k)
+        # (batch_size, 3*2, num_points, k) -> (batch_size, 64, num_points, k)
+        x = self.conv1(x)
+        # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
+        x1 = x.max(dim=-1, keepdim=False)[0]
 
-        x = get_graph_feature(x1, k=self.k)     # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv2(x)                       # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x2 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
+        # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
+        x = get_graph_feature(x1, k=self.k)
+        # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
+        x = self.conv2(x)
+        # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
+        x2 = x.max(dim=-1, keepdim=False)[0]
 
-        x = get_graph_feature(x2, k=self.k)     # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv3(x)                       # (batch_size, 64*2, num_points, k) -> (batch_size, 128, num_points, k)
-        x3 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 128, num_points, k) -> (batch_size, 128, num_points)
+        # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
+        x = get_graph_feature(x2, k=self.k)
+        # (batch_size, 64*2, num_points, k) -> (batch_size, 128, num_points, k)
+        x = self.conv3(x)
+        # (batch_size, 128, num_points, k) -> (batch_size, 128, num_points)
+        x3 = x.max(dim=-1, keepdim=False)[0]
 
-        x = get_graph_feature(x3, k=self.k)     # (batch_size, 128, num_points) -> (batch_size, 128*2, num_points, k)
-        x = self.conv4(x)                       # (batch_size, 128*2, num_points, k) -> (batch_size, 256, num_points, k)
-        x4 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 256, num_points, k) -> (batch_size, 256, num_points)
+        # (batch_size, 128, num_points) -> (batch_size, 128*2, num_points, k)
+        x = get_graph_feature(x3, k=self.k)
+        # (batch_size, 128*2, num_points, k) -> (batch_size, 256, num_points, k)
+        x = self.conv4(x)
+        # (batch_size, 256, num_points, k) -> (batch_size, 256, num_points)
+        x4 = x.max(dim=-1, keepdim=False)[0]
 
-        x = torch.cat((x1, x2, x3, x4), dim=1)  # (batch_size, 64+64+128+256, num_points)
+        # (batch_size, 64+64+128+256, num_points)
+        x = torch.cat((x1, x2, x3, x4), dim=1)
 
-        x = self.conv5(x)                       # (batch_size, 64+64+128+256, num_points) -> (batch_size, emb_dims, num_points)
-        x1 = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)           # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
-        x2 = F.adaptive_avg_pool1d(x, 1).view(batch_size, -1)           # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
+        # (batch_size, 64+64+128+256, num_points) -> (batch_size, emb_dims, num_points)
+        x = self.conv5(x)
+        # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
+        x1 = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
+        # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
+        x2 = F.adaptive_avg_pool1d(x, 1).view(batch_size, -1)
         x = torch.cat((x1, x2), 1)              # (batch_size, emb_dims*2)
 
-        x = self.out_mlp(x)                                            # (batch_size, 256) -> (batch_size, output_channels)
-        
+        # (batch_size, 256) -> (batch_size, output_channels)
+        x = self.out_mlp(x)
+
         return x
-    
+
+
 class DGCNN(nn.Module):
-    def __init__(self, output_channels=40,emb_dim=22,dropout = 0,n_neighbors=20):
+    def __init__(self, output_channels=40, emb_dim=22, dropout=0, n_neighbors=20):
         super(DGCNN, self).__init__()
-        
+
         self.n_neighbors = n_neighbors
-        
-        
+
         self.bn1 = nn.BatchNorm2d(64)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(128)
@@ -236,20 +254,20 @@ class DGCNN(nn.Module):
         x = self.linear3(x)
         return x
 
+
 class DGCNNembedderCombo(nn.Module):
-    def __init__(self,local_dim=22,global_dim=30,dropout = 0,n_neighbors=20):
+    def __init__(self, local_dim=22, global_dim=30, dropout=0, n_neighbors=20):
         super().__init__()
-        
+
         self.n_neighbors = n_neighbors
         self.local_dim = local_dim
         self.global_dim = global_dim
-        
+
         self.bn1 = nn.BatchNorm2d(64)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(128)
         self.bn4 = nn.BatchNorm2d(256)
         self.bn5 = nn.BatchNorm1d(512)
-  
 
         self.conv1 = nn.Sequential(nn.Conv2d(12, 64, kernel_size=1, bias=False),
                                    self.bn1,
@@ -266,17 +284,21 @@ class DGCNNembedderCombo(nn.Module):
         self.conv5 = nn.Sequential(nn.Conv1d(512, 512, kernel_size=1, bias=False),
                                    self.bn5,
                                    nn.LeakyReLU(negative_slope=0.2))
-        
-        self.out_mlp_local = nn.Sequential(nn.Linear(512,512),
-                                   nn.LeakyReLU(negative_slope=0.2),nn.Linear(512,512),nn.LeakyReLU(negative_slope=0.2),
-                                   nn.Linear(512,self.local_dim))
-        self.out_mlp_global = nn.Sequential(nn.Linear(512,512),nn.LeakyReLU(negative_slope=0.2),
-                                   nn.Linear(512,256),nn.LeakyReLU(negative_slope=0.2),
-                                   nn.Linear(256,124),nn.LeakyReLU(negative_slope=0.2),
-                                   nn.Linear(124,self.global_dim))
+
+        self.out_mlp_local = nn.Sequential(nn.Linear(512, 512),
+                                           nn.LeakyReLU(negative_slope=0.2), nn.Linear(
+                                               512, 512), nn.LeakyReLU(negative_slope=0.2),
+                                           nn.Linear(512, self.local_dim))
+        self.out_mlp_global = nn.Sequential(nn.Linear(512, 512), nn.LeakyReLU(negative_slope=0.2),
+                                            nn.Linear(512, 256), nn.LeakyReLU(
+                                                negative_slope=0.2),
+                                            nn.Linear(256, 124), nn.LeakyReLU(
+                                                negative_slope=0.2),
+                                            nn.Linear(124, self.global_dim))
+
     def forward(self, x):
         batch_size = x.size(0)
-        x = x.permute((0,2,1))
+        x = x.permute((0, 2, 1))
         x = get_graph_feature(x, k=self.n_neighbors)
         x = self.conv1(x)
         x1 = x.max(dim=-1, keepdim=False)[0]
@@ -286,7 +308,7 @@ class DGCNNembedderCombo(nn.Module):
         x2 = x.max(dim=-1, keepdim=False)[0]
 
         x = get_graph_feature(x2, k=self.n_neighbors)
-        x = self.conv3(x) 
+        x = self.conv3(x)
         x3 = x.max(dim=-1, keepdim=False)[0]
 
         x = get_graph_feature(x3, k=self.n_neighbors)
@@ -295,16 +317,19 @@ class DGCNNembedderCombo(nn.Module):
 
         x = torch.cat((x1, x2, x3, x4), dim=1)
 
-        x = self.conv5(x).permute((0,2,1))
-        global_feats = F.adaptive_max_pool1d(x.permute((0,2,1)), 1).view(batch_size, -1)
+        x = self.conv5(x).permute((0, 2, 1))
+        global_feats = F.adaptive_max_pool1d(
+            x.permute((0, 2, 1)), 1).view(batch_size, -1)
         global_embeddings = self.out_mlp_global(global_feats)
         local_embeddings = self.out_mlp_local(x)
 
         return local_embeddings, global_embeddings
+
+
 if __name__ == '__main__':
-    points = torch.randn((100,2000,6)).cuda()
-    
-    model = DGCNNembedder(256,0,20)
-    
+    points = torch.randn((100, 2000, 6)).cuda()
+
+    model = DGCNNembedder(256, 0, 20)
+
     output = model(points)
     pass

@@ -1,7 +1,8 @@
 import torch
 from models import Transform, ConditionalDistribution
 
-#Code adapted from : https://github.com/didriknielsen/survae_flows/
+# Code adapted from : https://github.com/didriknielsen/survae_flows/
+
 
 class Slice(Transform):
     '''
@@ -23,33 +24,35 @@ class Slice(Transform):
         self.cond = isinstance(self.noise_dist, ConditionalDistribution)
 
     def split_input(self, input):
-        split_proportions = (self.num_keep, input.shape[self.dim] - self.num_keep)
+        split_proportions = (
+            self.num_keep, input.shape[self.dim] - self.num_keep)
         return torch.split(input, split_proportions, dim=self.dim)
 
-    def forward(self, x,context=None):
-
-        
+    def forward(self, x, context=None):
 
         z, x2 = self.split_input(x)
 
-
         if context is not None:
-            context=torch.cat((z,context),axis=self.dim)
+            context = torch.cat((z, context), axis=self.dim)
         else:
-            context=z
+            context = z
 
-        if self.cond: ldj = self.noise_dist.log_prob(x2, context=context)
-        else:         ldj = self.noise_dist.log_prob(x2)
+        if self.cond:
+            ldj = self.noise_dist.log_prob(x2, context=context)
+        else:
+            ldj = self.noise_dist.log_prob(x2)
         return z, ldj
 
-    def inverse(self, z,context=None):
+    def inverse(self, z, context=None):
 
         if context is not None:
-            context=torch.cat((z,context),axis=self.dim)
+            context = torch.cat((z, context), axis=self.dim)
         else:
-            context=z
+            context = z
 
-        if self.cond: x2 = self.noise_dist.sample(context=context)
-        else:         x2 = self.noise_dist.sample(num_samples=z.shape[0])
+        if self.cond:
+            x2 = self.noise_dist.sample(context=context)
+        else:
+            x2 = self.noise_dist.sample(num_samples=z.shape[0])
         x = torch.cat([z, x2], dim=self.dim)
         return x
