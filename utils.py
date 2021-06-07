@@ -17,8 +17,8 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
 import open3d as o3d
-from pykeops.torch import LazyTensor
-import pykeops
+
+
 
 
 # Losses from original repo

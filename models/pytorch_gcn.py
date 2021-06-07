@@ -80,6 +80,8 @@ class DGCNNembedder(nn.Module):
     def forward(self, x):
         batch_size = x.size(0)
         x = x.permute((0, 2, 1))
+        
+    
         x = get_graph_feature(x, k=self.n_neighbors)
         x = self.conv1(x)
         x1 = x.max(dim=-1, keepdim=False)[0]
@@ -96,7 +98,7 @@ class DGCNNembedder(nn.Module):
         x = self.conv4(x)
         x4 = x.max(dim=-1, keepdim=False)[0]
 
-        x = torch.cat((x1, x2, x3, x4), dim=1)
+        x = torch.cat((x1, x2, x3, x4),dim=1) 
 
         x = self.conv5(x).permute((0, 2, 1))
 
@@ -327,9 +329,9 @@ class DGCNNembedderCombo(nn.Module):
 
 
 if __name__ == '__main__':
-    points = torch.randn((100, 2000, 6)).cuda()
+    points = torch.randn((10,1000, 6)).cuda()
 
-    model = DGCNNembedder(256, 0, 20)
+    model = DGCNN(256, 0, 20).cuda()
 
     output = model(points)
     pass

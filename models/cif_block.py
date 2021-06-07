@@ -1,8 +1,9 @@
-from models import transform
-from models.transform import Transform
-from models import Augment, Slice, PreConditionApplier, IdentityTransform, ActNormBijectionCloud, Reverse
 import torch
 import torch.nn as nn
+
+from models import (ActNormBijectionCloud, Augment, IdentityTransform,
+                    PreConditionApplier, Reverse, Slice, transform)
+from models.transform import Transform
 
 
 class CouplingPreconditionerNoAttn(nn.Module):

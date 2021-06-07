@@ -1,0 +1,1 @@
+from .model.pointnet2 import pointnet2_paconv_seg

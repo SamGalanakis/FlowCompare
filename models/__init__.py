@@ -12,3 +12,4 @@ from .act_norm import ActNormBijectionCloud
 from .cif_block import CIFblock,cif_helper
 from .affine_coupling import AffineCoupling
 from .spline_coupling import RationalQuadraticSplineCoupling
+from .scene_seg_PAConv import pointnet2_paconv_seg
