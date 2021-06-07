@@ -19,10 +19,10 @@ It can thus be used to implement a **large-scale**
 # Standard imports:
 
 import time
-from models import DGCNNembedder,DGCNN,pointnet2_paconv_seg
+from models import DGCNNembedder,DGCNN,PointNet2SSGSeg
 import numpy as np
 import torch
-
+from utils import count_parameters
 
 
 use_cuda = True
@@ -30,8 +30,9 @@ dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
 points = torch.randn((10,1000, 6)).cuda()
 
-model = pointnet2_paconv_seg().cuda()
-
+model = PointNet2SSGSeg().cuda()
+model_2 = DGCNNembedder([512,512,512],13,0,20)
+print(count_parameters(model_2) / count_parameters(model))
 out = model(points)
 pass
 

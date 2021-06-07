@@ -22,7 +22,7 @@ class PointNet2SSGSeg(nn.Module):
             Whether or not to use the xyz position of a point as a feature
     """
 
-    def __init__(self, c=3, k=13, use_xyz=True, args=None):
+    def __init__(self, c=3, k=13, use_xyz=True, args={}):
         super().__init__()
         self.nsamples = args.get('nsamples', [32, 32, 32, 32])
         self.npoints = args.get('npoints', [None, None, None, None])
@@ -77,7 +77,7 @@ class PointNet2SSGSeg(nn.Module):
         for i in range(-1, -(len(self.FP_modules) + 1), -1):
             l_features[i - 1] = self.FP_modules[i](l_xyz[i - 1], l_xyz[i], l_features[i - 1], l_features[i])
         # return self.FC_layer(l_features[0])
-        return self.FC_layer(l_features[0].unsqueeze(-1)).squeeze(-1)
+        return self.FC_layer(l_features[0].unsqueeze(-1)).squeeze(-1).permute((0,2,1))
 
 
 

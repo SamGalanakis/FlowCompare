@@ -1,1 +1,1 @@
-from .model.pointnet2 import pointnet2_paconv_seg
+from .model.pointnet2.pointnet2_paconv_seg import PointNet2SSGSeg

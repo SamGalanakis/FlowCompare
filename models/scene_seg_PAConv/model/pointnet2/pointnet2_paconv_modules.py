@@ -1,4 +1,4 @@
-from typing import List
+from typing import List,Tuple
 
 import torch
 from torch._C import TupleType
@@ -17,7 +17,7 @@ class _PointNet2SAModuleBase(nn.Module):
         self.groupers = None
         self.mlps = None
 
-    def forward(self, xyz: torch.Tensor, features: torch.Tensor = None) -> TupleType[torch.Tensor, torch.Tensor]:
+    def forward(self, xyz: torch.Tensor, features: torch.Tensor = None) -> Tuple[torch.Tensor, torch.Tensor]:
         r"""
         Parameters
         ----------
@@ -139,7 +139,7 @@ class PointNet2SAModuleCUDA(PointNet2SAModuleMSG):
     def __init__(self, *, mlp: List[int], npoint: int = None, radius: float = None, nsample: int = None, bn: bool = True, use_xyz: bool = True, use_paconv: bool = False, args=None):
         super().__init__(mlps=[mlp], npoint=npoint, radii=[radius], nsamples=[nsample], bn=bn, use_xyz=use_xyz, use_paconv=use_paconv, args=args)
 
-    def forward(self, xyz: torch.Tensor, features: torch.Tensor = None) -> (torch.Tensor, torch.Tensor):
+    def forward(self, xyz: torch.Tensor, features: torch.Tensor = None) -> Tuple[torch.Tensor, torch.Tensor]:
         r"""
         Parameters
         ----------
