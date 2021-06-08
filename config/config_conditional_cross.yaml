@@ -111,7 +111,7 @@ amp:
   value: false
 input_embedder: 
   desc: input_embedder type
-  value: DGCNNembedder
+  value: PAConv # 
 grad_clip_val:
   desc: What value to clip grad norms to
   value: 1.0 # was 1.0

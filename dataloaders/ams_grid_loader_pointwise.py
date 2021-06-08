@@ -1,3 +1,4 @@
+from o3d_reg import draw_registration_result
 import torch
 import matplotlib.pyplot as plt
 import os
@@ -13,7 +14,8 @@ circle_split,co_standardize,
 sep_standardize,
 co_unit_sphere,
 extract_area,
-rotate_xy)
+rotate_xy,
+view_cloud_o3d)
 from itertools import permutations 
 from torch_geometric.nn import fps
 from tqdm import tqdm
@@ -86,9 +88,10 @@ class Scan:
 
 class AmsGridLoaderPointwise(Dataset):
     def __init__(self, directory_path,out_path,grid_square_size = 2,clearance = 10,preload=False,min_points=500,
-    height_min_dif=0.5,max_height = 15.0, device="cuda",ground_perc=0.90,ground_keep_perc=1/40,voxel_size=0.07,n_samples=2048):
+    height_min_dif=0.5,max_height = 15.0, device="cuda",ground_perc=0.90,ground_keep_perc=1/40,voxel_size=0.07,n_samples=2048,n_neighbors=1000):
         self.directory_path = directory_path
         self.grid_square_size = grid_square_size
+        self.n_neighbors = n_neighbors
         self.clearance = clearance
         self.filtered_scan_path = os.path.join(out_path,'filtered_scan_path.pt')
         self.min_points = min_points
@@ -181,7 +184,7 @@ class AmsGridLoaderPointwise(Dataset):
                 #Creat bool mask based on validity of tile
                 grid_masks = [[self.valid_tile(tile) for tile in grid_list] for grid_list in grids]
                 
-
+                grids = [[x.float() for x in grid] for grid in grids]
                 
                 valid_grid_masks =[]
                 valid_grids = []
@@ -216,7 +219,7 @@ class AmsGridLoaderPointwise(Dataset):
 
         #Combinations of form # (scene_index,grid_index,grid_index)
         self.combinations_list = []
-        for entry_index,entry in enumerate(self.save_dict.items()):
+        for entry_index,entry in self.save_dict.items():
             index_permutations = list(permutations(range(len(entry['grids'])),2))
             for perm in index_permutations:
                 unique_combination = list(perm)
@@ -235,6 +238,15 @@ class AmsGridLoaderPointwise(Dataset):
 
     def __len__(self):
         return len(self.combinations_list)
+    def view(self,index,grid_ind_0=0,grid_ind_1=1):
+        grids = self.save_dict[index]['grids']
+        grid_0,grid_1 = grids[grid_ind_0],grids[grid_ind_1]
+        a,b = torch.cat(grid_0).numpy(),torch.cat(grid_1).numpy()
+        a_,b_ = o3d.geometry.PointCloud(),o3d.geometry.PointCloud()
+        a_.points = o3d.utility.Vector3dVector(a[:,:3])
+        b_.points = o3d.utility.Vector3dVector(b[:,:3])
+        draw_registration_result(a_,b_,np.eye(4))
+
 
     def sample_cloud_0(self,cloud_0,ground_height):
         n_ground = int(self.ground_keep_perc*self.n_samples)
@@ -245,12 +257,24 @@ class AmsGridLoaderPointwise(Dataset):
         return torch.cat((random_subsample(ground,n_ground),random_subsample(not_ground,n_not_ground)),dim=0)
     
     def get_knn(self,samples,context_cloud):
-        pass
+        knn =  KNN_torch(self.n_neighbors)
+        knn,_ = knn(context_cloud)
+        index,_  = knn(samples)
+        
+        return index
 
 
-    def last_processing(self,tensor_0,tensor_1,normalization):
-        pass
-   
+    def last_processing(self,samples,context):
+        # context_means = context.mean(dim=-2)[:,:3]
+        # context[...,:3] -= context_means.unsqueeze(1)
+        # samples[:,:3] -= context_means
+        # furthest_distances = torch.sqrt(torch.sum(context[... ,:3]**2, axis=-1).max(dim=-1)[0])
+        # samples[:,:3] = samples[:,:3] / furthest_distances.unsqueeze(-1)
+        # context[..., :3] = context[..., :3] / furthest_distances.unsqueeze(-1).unsqueeze(-1)
+
+
+        samples,context = co_unit_sphere(samples,context)
+        return samples,context
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
@@ -263,8 +287,9 @@ class AmsGridLoaderPointwise(Dataset):
         points_to_sample_from = torch.cat([x  for x,valid in zip(grid_0,grid_mask_1) if valid],dim=0)
         context_cloud = torch.cat(grid_1,dim=0)
         samples = self.sample_cloud_0(points_to_sample_from,ground_height)
-        context = self.get_knn(samples,context_cloud)
-
+        #index = self.get_knn(samples,context_cloud)
+        #context = context_cloud[index.view(-1),:].reshape((2048,-1,samples.shape[-1]))
+        samples,context = self.last_processing(samples,context_cloud)
         
         return samples,context
 

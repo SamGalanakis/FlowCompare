@@ -28,11 +28,10 @@ from utils import count_parameters
 use_cuda = True
 dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
-points = torch.randn((10,1000, 6)).cuda()
+points = torch.randn((1000,1000, 6)).cuda()
 
-model = PointNet2SSGSeg().cuda()
-model_2 = DGCNNembedder([512,512,512],13,0,20)
-print(count_parameters(model_2) / count_parameters(model))
+model = PointNet2SSGSeg(out_mlp_dims=[5,5,5]).cuda()
+
 out = model(points)
 pass
 

@@ -5,7 +5,7 @@ import torch.nn as nn
 
 from .pointnet2_paconv_modules import PointNet2FPModule
 from models.scene_seg_PAConv.util import block
-
+from models import MLP
 
 class PointNet2SSGSeg(nn.Module):
     r"""
@@ -22,14 +22,16 @@ class PointNet2SSGSeg(nn.Module):
             Whether or not to use the xyz position of a point as a feature
     """
 
-    def __init__(self, c=3, k=13, use_xyz=True, args={}):
+    def __init__(self, c=3, k=13, use_xyz=True, out_mlp_dims=[512,512,512], args={}):
         super().__init__()
+        self.out_mlp_dims = out_mlp_dims
         self.nsamples = args.get('nsamples', [32, 32, 32, 32])
         self.npoints = args.get('npoints', [None, None, None, None])
         self.sa_mlps = args.get('sa_mlps', [[c, 32, 32, 64], [64, 64, 64, 128], [128, 128, 128, 256], [256, 256, 256, 512]])
         self.fp_mlps = args.get('fp_mlps', [[128 + c, 128, 128, 128], [256 + 64, 256, 128], [256 + 128, 256, 256], [512 + 256, 256, 256]])
         self.paconv = args.get('pointnet2_paconv', [True, True, True, True, False, False, False, False])
-        self.fc = args.get('fc', 128)
+        #self.fc = args.get('fc', 128)
+        
 
         if args.get('cuda', False):
             from .pointnet2_paconv_modules import PointNet2SAModuleCUDA as PointNet2SAModule
@@ -50,8 +52,8 @@ class PointNet2SSGSeg(nn.Module):
         self.FP_modules.append(PointNet2FPModule(mlp=self.fp_mlps[1], use_paconv=self.paconv[5], args=args))
         self.FP_modules.append(PointNet2FPModule(mlp=self.fp_mlps[2], use_paconv=self.paconv[6], args=args))
         self.FP_modules.append(PointNet2FPModule(mlp=self.fp_mlps[3], use_paconv=self.paconv[7], args=args))
-        self.FC_layer = nn.Sequential(block.Conv2d(self.fc, self.fc, bn=True), nn.Dropout(), block.Conv2d(self.fc, k, activation=None))
-
+        #self.FC_layer = nn.Sequential(block.Conv2d(self.fc, self.fc, bn=True), nn.Dropout(), block.Conv2d(self.fc, k, activation=None))
+        self.out_mlp = MLP(128, out_mlp_dims, k, torch.nn.GELU())
     def _break_up_pc(self, pc):
         xyz = pc[..., 0:3].contiguous()
         features = (pc[..., 3:].transpose(1, 2).contiguous() if pc.size(-1) > 3 else None)
@@ -76,8 +78,8 @@ class PointNet2SSGSeg(nn.Module):
             l_features.append(li_features)
         for i in range(-1, -(len(self.FP_modules) + 1), -1):
             l_features[i - 1] = self.FP_modules[i](l_xyz[i - 1], l_xyz[i], l_features[i - 1], l_features[i])
-        # return self.FC_layer(l_features[0])
-        return self.FC_layer(l_features[0].unsqueeze(-1)).squeeze(-1).permute((0,2,1))
+        return self.out_mlp(l_features[0].permute((0,2,1)))
+        #return self.FC_layer(l_features[0].unsqueeze(-1)).squeeze(-1).permute((0,2,1))
 
 
 

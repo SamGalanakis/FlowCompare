@@ -61,7 +61,7 @@ def KNN_torch_fun(x_train, x_train_norm, x_test, K):
 def KNN_torch(K):
     def fit(x_train):
         # Setup the K-NN estimator:
-        x_train = torch.tensor(x_train)
+        
         start = time.time()
         # The "training" time here should be negligible:
         x_train_norm = (x_train ** 2).sum(-1)

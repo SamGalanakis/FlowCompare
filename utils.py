@@ -325,7 +325,7 @@ def co_min_max(tensor_list):
 def unit_sphere(points):
     points[:, :3] -= points[:, :3].mean(axis=0)
     furthest_distance = torch.max(torch.sqrt(
-        torch.sum(torch.abs(points[:, :3])**2, axis=-1)))
+        torch.sum(points[:, :3])**2, axis=-1))
     points[:, :3] = points[:, :3] / furthest_distance
     return points
 
