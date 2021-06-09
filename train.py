@@ -8,10 +8,10 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
+from knn import get_knn
 import models
 import wandb
-from dataloaders import AmsGridLoader, ConditionalDataGrid
+from dataloaders import AmsGridLoader, ConditionalDataGrid, AmsGridLoaderPointwise
 from utils import Scheduler, config_loader, is_valid
 
 
@@ -193,7 +193,19 @@ def initialize_flow(config, device='cuda', mode='train'):
         f'Number of trainable parameters: {sum([x.numel() for x in parameters])}')
     return models_dict
 
+def inner_loop_pointwise(extract_0, extract_1,index, models_dict, config):
+    n_points = index.shape[0]
+    n_context_points = index.shape[1]
+    input_embeddings = models_dict["input_embedder"](extract_0.unsqueeze(0)).squeeze()
+    input_embeddings = input_embeddings[index.view(-1),:].reshape((n_points,n_context_points,config['input_embedding_dim']))
 
+    x = extract_1
+    log_prob = models_dict['flow'].log_prob(x, context=input_embeddings)
+
+    loss = -log_prob.mean()
+    nats = -log_prob.sum() / (math.log(2) * x.numel())
+
+    return loss, log_prob, nats
 def inner_loop(extract_0, extract_1, models_dict, config):
 
     input_embeddings = models_dict["input_embedder"](extract_0)
@@ -242,21 +254,23 @@ def main(rank, world_size):
 
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path, r"save/processed_dataset")
-    if config['data_loader'] == 'ConditionalDataGridSquare':
-        dataset = ConditionalDataGrid(dirs, out_path=out_path, preload=config['preload'], subsample=config["subsample"], sample_size=config["sample_size"], min_points=config[
-                                      "min_points"], grid_type='square', normalization=config['normalization'], grid_square_size=config['grid_square_size'], preselected_points=preselected_points_dict)
-    elif config['data_loader'] == 'ConditionalDataGridCircle':
-        dataset = ConditionalDataGrid(dirs, out_path=out_path, preload=config['preload'], subsample=config['subsample'], sample_size=config['sample_size'], min_points=config[
-                                      'min_points'], grid_type='circle', normalization=config['normalization'], grid_square_size=config['grid_square_size'], preselected_points=preselected_points_dict)
-    elif config['data_loader'] == 'AmsGridLoader':
+    collate_fn = None
+    if config['data_loader'] == 'AmsGridLoader':
         dataset = AmsGridLoader('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'], subsample=config['subsample'], sample_size=config[
                                 'sample_size'], min_points=config['min_points'], grid_type='circle', normalization=config['normalization'], grid_square_size=config['grid_square_size'])
-
+    elif config['data_loader'] == 'AmsGridLoaderPointwise':
+        dataset = AmsGridLoaderPointwise('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'], 
+        min_points=800, grid_square_size=config['grid_square_size'],device=device)
+        
+        collate_fn = lambda x: x[0]
+                                #TODO : FIX hypers
     else:
         raise Exception('Invalid dataloader type!')
 
-    dataloader = DataLoader(dataset, shuffle=True, batch_size=config['batch_size'], num_workers=config[
-                            "num_workers"], collate_fn=None, pin_memory=True, prefetch_factor=2, drop_last=True)
+
+    batch_size = config['batch_size'] if not config['data_loader'] == 'AmsGridLoaderPointwise' else 1
+    dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=config[
+                            "num_workers"], collate_fn=collate_fn, pin_memory=True, prefetch_factor=2, drop_last=True)
 
     if config["optimizer_type"] == 'Adam':
         optimizer = torch.optim.Adam(
@@ -317,9 +331,16 @@ def main(rank, world_size):
                     t0 = perf_counter()
                 batch = [x.to(device) for x in batch]
                 extract_0, extract_1 = batch
+                if config['data_loader'] == 'AmsGridLoaderPointwise':
+                    index = get_knn(extract_1,extract_0,1000,type='torch')
 
-                loss, _, nats = inner_loop(
-                    extract_0, extract_1, models_dict, config)
+                    loss, _, nats = inner_loop_pointwise(
+                        extract_0, extract_1,index, models_dict, config)
+
+
+                else:
+                    loss, _, nats = inner_loop(
+                        extract_0, extract_1, models_dict, config)
                 is_valid(loss)
 
             scaler.scale(loss).backward()

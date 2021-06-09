@@ -82,7 +82,18 @@ def KNN_torch(K):
 
     return fit
 
-
+def get_knn(samples,context_cloud,n_neighbors,type='torch'):
+        if type == 'torch':
+            knn_func = KNN_torch
+        elif type == 'KeOps':
+            knn_func = KNN_KeOps
+        else:
+            raise Exception('Invalid knn func')
+        knn =  knn_func(n_neighbors)
+        knn,_ = knn(context_cloud)
+        index,_  = knn(samples)
+        
+        return index
 if __name__ == '__main__':
     use_cuda = True
     dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor

@@ -25,7 +25,7 @@ import torch
 from utils import count_parameters
 
 
-use_cuda = True
+use_cuda = True 
 dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
 points = torch.randn((1000,1000, 6)).cuda()

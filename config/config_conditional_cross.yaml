@@ -6,7 +6,7 @@ n_flow_layers:
   value: 115 # was 46 for 64 latent
 data_loader:
   desc: What loader to use
-  value: AmsGridLoader #AmsGridLoader
+  value: AmsGridLoaderPointwise #AmsGridLoader
 flow_type:
   desc: What flow blocks to use
   value:  AffineCoupling #RationalQuadraticSplineCoupling #AffineCoupling
@@ -102,7 +102,7 @@ cross_heads:
   value: 1
 cross_dim_head:
   desc: Dimension of cross dim head
-  value: 256 #64
+  value: 64 #256
 attn_dropout:
   desc: Dropout rate in attn module
   value: 0.0

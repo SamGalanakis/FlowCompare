@@ -17,15 +17,15 @@ extract_area,
 rotate_xy,
 view_cloud_o3d)
 from itertools import permutations 
-from torch_geometric.nn import fps
+from torch_cluster import fps
 from tqdm import tqdm
 from torch.utils.data import Dataset
 import json
 from datetime import datetime
 import random
 import cupoch as cph
-from knn import KNN_KeOps,KNN_torch
 import open3d as o3d
+import torch_cluster
 eps = 1e-8
 
 
@@ -88,7 +88,7 @@ class Scan:
 
 class AmsGridLoaderPointwise(Dataset):
     def __init__(self, directory_path,out_path,grid_square_size = 2,clearance = 10,preload=False,min_points=500,
-    height_min_dif=0.5,max_height = 15.0, device="cuda",ground_perc=0.90,ground_keep_perc=1/40,voxel_size=0.07,n_samples=2048,n_neighbors=1000):
+    height_min_dif=0.5,max_height = 15.0, device="cuda",ground_perc=0.90,ground_keep_perc=1/40,voxel_size=0.07,n_samples=2048,n_neighbors=1000,n_voxels=10):
         self.directory_path = directory_path
         self.grid_square_size = grid_square_size
         self.n_neighbors = n_neighbors
@@ -106,8 +106,8 @@ class AmsGridLoaderPointwise(Dataset):
         self.over_ground_cutoff = 0.1 
         self.voxel_size = voxel_size
         self.n_samples = n_samples
-        
-
+        self.final_voxel_size = torch.tensor([3.,3.,4.])
+        self.n_voxels = n_voxels
         
         
         save_path  = os.path.join(self.out_path,self.save_name)
@@ -154,7 +154,7 @@ class AmsGridLoaderPointwise(Dataset):
                 
                 clouds_per_time = [x-center_trans for x in clouds_per_time]
                 # Extract square at center since only those will be used for grid
-                clouds_per_time = [x[extract_area(x,center = np.array([0,0]),clearance = self.clearance+1.,shape='square'),:] for x in clouds_per_time]
+                clouds_per_time = [x[extract_area(x,center = np.array([0,0]),clearance = self.clearance,shape='square'),:] for x in clouds_per_time]
                 #Apply registration between each cloud and first in list, store transforms
                 registration_transforms = [np.eye(4,dtype=np.float32)] #First cloud does not need to be transformed
 
@@ -178,29 +178,12 @@ class AmsGridLoaderPointwise(Dataset):
                 clouds_per_time = [x[torch.logical_and(x[:,2]>ground_cutoff,x[:,2]<height_cutoff),...] for x in clouds_per_time]
                 #Downsample and apply registration
                 clouds_per_time = [downsample_transform(x,self.voxel_size,transform) for x,transform in zip(clouds_per_time,registration_transforms)]
+                clouds_per_time = [x.float().cpu() for x in clouds_per_time]
 
-                #Create grid list for each cloud, centered at center
-                grids = [grid_split(cloud,self.grid_square_size,center=np.array([0,0]),clearance = self.clearance) for cloud in clouds_per_time]
-                #Creat bool mask based on validity of tile
-                grid_masks = [[self.valid_tile(tile) for tile in grid_list] for grid_list in grids]
-                
-                grids = [[x.float() for x in grid] for grid in grids]
-                
-                valid_grid_masks =[]
-                valid_grids = []
-                # TODO DO THIS AFTER
-                # for grid_mask,grid in zip(grid_masks,grids):
-                #     if sum(grid_mask)>20:
-                #         valid_grid_masks.append(grid_mask)
-                #         grid = [x.cpu().float() for x in grid] #Put on cpu and float32 for save
-                #         valid_grids.append(grid)
-                
-                # if len(valid_grids)<2:
-                #     print(f"Skipping scene")
-                #     continue
+              
                 
                 save_id+=1
-                save_entry = {'grids':grids,'grid_masks':grid_masks,'ground_height':scan.ground_height}
+                save_entry = {'clouds':clouds_per_time,'ground_height':scan.ground_height}
 
                 self.save_dict[save_id] = save_entry
                 if scene_number % 100 == 0 and scene_number!= 0 :
@@ -217,16 +200,7 @@ class AmsGridLoaderPointwise(Dataset):
             self.save_dict = torch.load(save_path)
 
 
-        #Combinations of form # (scene_index,grid_index,grid_index)
-        self.combinations_list = []
-        for entry_index,entry in self.save_dict.items():
-            index_permutations = list(permutations(range(len(entry['grids'])),2))
-            for perm in index_permutations:
-                unique_combination = list(perm)
-                unique_combination.insert(0,entry_index)
-                self.combinations_list.append(unique_combination)
-            for x in range(len(entry['grids'])):
-                self.combinations_list.append([entry_index,x,x])
+    
         print('Loaded dataset!')
 
     def valid_tile(self,tile):
@@ -237,61 +211,75 @@ class AmsGridLoaderPointwise(Dataset):
         return min_points_bool and coverage_bool
 
     def __len__(self):
-        return len(self.combinations_list)
+        return len(self.save_dict)
     def view(self,index,grid_ind_0=0,grid_ind_1=1):
-        grids = self.save_dict[index]['grids']
-        grid_0,grid_1 = grids[grid_ind_0],grids[grid_ind_1]
-        a,b = torch.cat(grid_0).numpy(),torch.cat(grid_1).numpy()
+        clouds = self.save_dict[index]['clouds']
+        cloud_0,cloud_1 = clouds[grid_ind_0],clouds[grid_ind_1]
+        
         a_,b_ = o3d.geometry.PointCloud(),o3d.geometry.PointCloud()
-        a_.points = o3d.utility.Vector3dVector(a[:,:3])
-        b_.points = o3d.utility.Vector3dVector(b[:,:3])
+        a_.points = o3d.utility.Vector3dVector(cloud_0[:,:3])
+        b_.points = o3d.utility.Vector3dVector(cloud_1[:,:3])
         draw_registration_result(a_,b_,np.eye(4))
 
-
-    def sample_cloud_0(self,cloud_0,ground_height):
-        n_ground = int(self.ground_keep_perc*self.n_samples)
-        n_not_ground = self.n_samples - n_ground
-        ground_mask = cloud_0[:,2]< (ground_height + self.over_ground_cutoff)
-        ground = cloud_0[ground_mask,:]
-        not_ground = ground = cloud_0[~ground_mask,:]
-        return torch.cat((random_subsample(ground,n_ground),random_subsample(not_ground,n_not_ground)),dim=0)
     
-    def get_knn(self,samples,context_cloud):
-        knn =  KNN_torch(self.n_neighbors)
-        knn,_ = knn(context_cloud)
-        index,_  = knn(samples)
-        
-        return index
-
-
     def last_processing(self,samples,context):
-        # context_means = context.mean(dim=-2)[:,:3]
-        # context[...,:3] -= context_means.unsqueeze(1)
-        # samples[:,:3] -= context_means
-        # furthest_distances = torch.sqrt(torch.sum(context[... ,:3]**2, axis=-1).max(dim=-1)[0])
-        # samples[:,:3] = samples[:,:3] / furthest_distances.unsqueeze(-1)
-        # context[..., :3] = context[..., :3] / furthest_distances.unsqueeze(-1).unsqueeze(-1)
-
 
         samples,context = co_unit_sphere(samples,context)
         return samples,context
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        scene_number,n_grid_0,n_grid_1 = self.combinations_list[idx]
-        save_entry = self.save_dict[scene_number]
-        grid_0,grid_1 = save_entry['grids'][n_grid_0],save_entry['grids'][n_grid_1]
-        grid_mask_0,grid_mask_1 = save_entry['grid_masks'][n_grid_0],save_entry['grid_masks'][n_grid_1]
-        ground_height = save_entry['ground_height']
-        #Take only points from tiles in 0 with valid counterparts in 1
-        points_to_sample_from = torch.cat([x  for x,valid in zip(grid_0,grid_mask_1) if valid],dim=0)
-        context_cloud = torch.cat(grid_1,dim=0)
-        samples = self.sample_cloud_0(points_to_sample_from,ground_height)
-        #index = self.get_knn(samples,context_cloud)
-        #context = context_cloud[index.view(-1),:].reshape((2048,-1,samples.shape[-1]))
-        samples,context = self.last_processing(samples,context_cloud)
         
-        return samples,context
+        
+        clouds = self.save_dict[idx]['clouds']
+        context_cloud_ind = random.randint(0,len(clouds)-1)
+        mins = clouds[0].min(axis=0)[:3]
+        maxs = clouds[0].max(axis=0)[:3]
+        clusters = [torch_cluster.grid_cluster(x[:,:3], self.final_voxel_size) for x in clouds]
+        voxel_indices = []
+        valid_voxels = []
+        for cluster in clusters:
+            cluster_indices,counts = cluster.unique(return_counts=True)
+            valid_indices = cluster_indices[counts>self.min_points]
+            valid_voxels.append(valid_indices)
+        common_voxels = {}
+        for ind,valid_voxel in enumerate(valid_voxels):
+            if ind == context_cloud_ind: continue
+            common_voxels[ind] = np.intersect1d(valid_voxels[context_cloud_ind],valid_voxel).tolist()
+        valid_combs = []
+        for key,val in common_voxels.items():
+            valid_combs.extend([(key,x) for x in val])
+        if len(valid_combs) < self.n_voxels:
+            #If not enough recursively give other index from dataset
+            print(f"Couldn't find combinations for index: {idx}")
+            return self.__getitem__(random.randint(0,self.__len__()-1))
+        draws = random.sample(valid_combs,self.n_voxels)
+
+
+        voxel_points = []
+        context_voxel_indices_list = []
+        for draw in draws:
+            cloud_ind = draw[0]
+            indices  = clusters[cloud_ind]==draw[1]
+            voxel = clouds[cloud_ind][indices,:]
+            voxel = voxel[fps(voxel, torch.zeros(voxel.shape[0]).long(), ratio=self.min_points/voxel.shape[0], random_start=False),:][self.min_points:,:]
+            voxel_points.append(voxel)
+            context_voxel_indices = clusters[context_cloud_ind] ==draw[1]
+            context_voxel = clouds[context_cloud_ind][context_voxel_indices,:]
+            context_voxel_indices = context_voxel_indices[fps(context_voxel, torch.zeros(context_voxel.shape[0]).long(), ratio=self.min_points/context_voxel.shape[0], random_start=False)][:self.min_points]
+            context_voxel_indices_list.append(context_voxel_indices)
+
+
+
+
+
+        #TODO Need to be smart about normalization after gnn
+        #
+        voxel_points = torch.stack(voxel_points)
+        context_voxel_indices = torch.stack(context_voxel_indices_list)
+        context = clouds[context_cloud_ind]
+        
+        return voxel_points,context,context_voxel_indices
 
 
 
