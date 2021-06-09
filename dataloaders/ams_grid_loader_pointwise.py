@@ -222,11 +222,15 @@ class AmsGridLoaderPointwise(Dataset):
         
         
         clouds = self.save_dict[idx]['clouds']
+        
+        clouds = [x for x in clouds if x.shape[0]>5000]
+        if len(clouds)<2:
+            print(f'Not enough clouds {idx}, recursive return ')
+            return self.__getitem__(random.randint(0,self.__len__()-1))
         context_cloud_ind = random.randint(0,len(clouds)-1)
-        mins = clouds[0].min(axis=0)[:3]
-        maxs = clouds[0].max(axis=0)[:3]
+        
         clusters = [torch_cluster.grid_cluster(x[:,:3], self.final_voxel_size) for x in clouds]
-        voxel_indices = []
+        
         valid_voxels = []
         for cluster in clusters:
             cluster_indices,counts = cluster.unique(return_counts=True)
