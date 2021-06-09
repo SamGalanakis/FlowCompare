@@ -36,15 +36,10 @@ class Augment(Transform):
         if self.cond:
             z2, logqz2 = self.noise_dist.sample_with_log_prob(context=context)
         else:
-            #TODO FIX HACK BELOW FOR POINTWISE
-            if len(x.shape) == 2:
-                num_samples=1
-            else:
-                num_samples=x.shape[0]
+            
             z2, logqz2 = self.noise_dist.sample_with_log_prob(
-                num_samples=num_samples, n_points=x.shape[-2])
-        if len(x.shape) == 2:
-            z2, logqz2 = z2.squeeze(),logqz2.squeeze()
+                num_samples=x.shape[0], n_points=x.shape[-2])
+   
         z = torch.cat([x, z2], dim=self.split_dim)
         ldj = -logqz2
         return z, ldj

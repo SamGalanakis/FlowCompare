@@ -87,26 +87,22 @@ class Scan:
         self.datetime = datetime(int(self.recording_properties['RecordingTimeGps'].split('-')[0]),int(self.recording_properties['RecordingTimeGps'].split('-')[1]),int(self.recording_properties['RecordingTimeGps'].split('-')[-1].split('T')[0]))
 
 class AmsGridLoaderPointwise(Dataset):
-    def __init__(self, directory_path,out_path,grid_square_size = 2,clearance = 10,preload=False,min_points=500,
-    height_min_dif=0.5,max_height = 15.0, device="cuda",ground_perc=0.90,ground_keep_perc=1/40,voxel_size=0.07,n_samples=2048,n_neighbors=1000,n_voxels=10):
+    def __init__(self, directory_path,out_path,clearance = 10,preload=False,
+    height_min_dif=0.5,max_height = 15.0, device="cpu",ground_keep_perc=1/40,voxel_size=0.07,n_samples=2048,n_voxels=10,final_voxel_size=[3.,3.,4.]):
         self.directory_path = directory_path
-        self.grid_square_size = grid_square_size
-        self.n_neighbors = n_neighbors
         self.clearance = clearance
         self.filtered_scan_path = os.path.join(out_path,'filtered_scan_path.pt')
-        self.min_points = min_points
         self.out_path = out_path
         self.height_min_dif = height_min_dif
         self.max_height = max_height
-        self.minimum_difs = torch.Tensor([self.grid_square_size*0.9,self.grid_square_size*0.9,self.height_min_dif]).to(device)
-        self.save_name = f"pointwise_ams_extract_id_dict_{clearance}_{self.min_points}_{self.grid_square_size}_{voxel_size}_{self.height_min_dif}.pt"
-        self.filtered_path = f'pointwise_filtered_{ground_perc}_{ground_keep_perc}_'+self.save_name
+        
+        self.save_name = f"pointwise_ams_save_dict_{clearance}.pt"
         self.years = [2019,2020]
         self.ground_keep_perc = ground_keep_perc
         self.over_ground_cutoff = 0.1 
         self.voxel_size = voxel_size
         self.n_samples = n_samples
-        self.final_voxel_size = torch.tensor([3.,3.,4.])
+        self.final_voxel_size = torch.tensor(final_voxel_size)
         self.n_voxels = n_voxels
         
         
@@ -203,12 +199,6 @@ class AmsGridLoaderPointwise(Dataset):
     
         print('Loaded dataset!')
 
-    def valid_tile(self,tile):
-        min_points_bool = tile.shape[0]>=self.min_points
-        if not min_points_bool:
-            return False
-        coverage_bool = ((tile.max(dim=0)[0][:2]-tile.min(dim=0)[0][:2] )>self.minimum_difs[:2]).all().item()
-        return min_points_bool and coverage_bool
 
     def __len__(self):
         return len(self.save_dict)
@@ -240,7 +230,7 @@ class AmsGridLoaderPointwise(Dataset):
         valid_voxels = []
         for cluster in clusters:
             cluster_indices,counts = cluster.unique(return_counts=True)
-            valid_indices = cluster_indices[counts>self.min_points]
+            valid_indices = cluster_indices[counts>self.n_samples]
             valid_voxels.append(valid_indices)
         common_voxels = {}
         for ind,valid_voxel in enumerate(valid_voxels):
@@ -262,12 +252,12 @@ class AmsGridLoaderPointwise(Dataset):
             cloud_ind = draw[0]
             indices  = clusters[cloud_ind]==draw[1]
             voxel = clouds[cloud_ind][indices,:]
-            voxel = voxel[fps(voxel, torch.zeros(voxel.shape[0]).long(), ratio=self.min_points/voxel.shape[0], random_start=False),:][self.min_points:,:]
-            voxel_points.append(voxel)
+            voxel = voxel[fps(voxel, torch.zeros(voxel.shape[0]).long(), ratio=self.n_samples/voxel.shape[0], random_start=False),:]
+            voxel_points.append(voxel[:self.n_samples,:])
             context_voxel_indices = clusters[context_cloud_ind] ==draw[1]
             context_voxel = clouds[context_cloud_ind][context_voxel_indices,:]
-            context_voxel_indices = context_voxel_indices[fps(context_voxel, torch.zeros(context_voxel.shape[0]).long(), ratio=self.min_points/context_voxel.shape[0], random_start=False)][:self.min_points]
-            context_voxel_indices_list.append(context_voxel_indices)
+            context_voxel_indices = context_voxel_indices.nonzero().squeeze()[fps(context_voxel, torch.zeros(context_voxel.shape[0]).long(), ratio=self.n_samples/context_voxel.shape[0], random_start=False)]
+            context_voxel_indices_list.append(context_voxel_indices[:self.n_samples])
 
 
 

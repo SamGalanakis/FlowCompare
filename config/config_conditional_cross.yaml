@@ -1,6 +1,6 @@
 sample_size:
   desc: Max number of points
-  value: 2048 #2048
+  value: 1024 #2048
 n_flow_layers:
   desc: Number of flow layers
   value: 115 # was 46 for 64 latent
@@ -117,7 +117,7 @@ grad_clip_val:
   value: 1.0 # was 1.0
 batches_per_sample:
   desc: Every how many batches to create a sample
-  value: 15
+  value: 1
 batches_per_save:
   desc: Every how many batches to create a sample
   value: 1000 
@@ -193,6 +193,9 @@ lr_scheduler:
 affine_scale_fn:
   desc: Scaling function to use for affine coupling
   value: sigmoid
+final_voxel_size:
+  desc: Voxel size used in pointwise
+  value: [3.,3.,4.]
 
 
 

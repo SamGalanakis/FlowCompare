@@ -193,13 +193,13 @@ def initialize_flow(config, device='cuda', mode='train'):
         f'Number of trainable parameters: {sum([x.numel() for x in parameters])}')
     return models_dict
 
-def inner_loop_pointwise(extract_0, extract_1,index, models_dict, config):
-    n_points = index.shape[0]
-    n_context_points = index.shape[1]
-    input_embeddings = models_dict["input_embedder"](extract_0.unsqueeze(0)).squeeze()
-    input_embeddings = input_embeddings[index.view(-1),:].reshape((n_points,n_context_points,config['input_embedding_dim']))
+def inner_loop_pointwise(voxel_points, context,context_voxel_indices, models_dict, config):
+    n_voxels = voxel_points.shape[0]
+    n_context_points = context_voxel_indices.shape[1]
+    input_embeddings = models_dict["input_embedder"](context.unsqueeze(0)).squeeze()
+    input_embeddings = input_embeddings[context_voxel_indices.view(-1),:].reshape((n_voxels,n_context_points,config['input_embedding_dim']))
 
-    x = extract_1
+    x = voxel_points
     log_prob = models_dict['flow'].log_prob(x, context=input_embeddings)
 
     loss = -log_prob.mean()
@@ -227,6 +227,16 @@ def make_sample(n_points, extract_0, models_dict, config, sample_distrib=None):
                                    context=input_embeddings, sample_distrib=sample_distrib).squeeze()
     return x
 
+def make_sample_pointwise(n_points,context,context_voxel_indices, models_dict, config, sample_distrib=None):
+    
+    n_voxels = context_voxel_indices.shape[0]
+    n_context_points = context_voxel_indices.shape[1]
+    input_embeddings = models_dict["input_embedder"](context.unsqueeze(0)).squeeze()
+    input_embeddings = input_embeddings[context_voxel_indices[0],:].reshape((1,n_context_points,config['input_embedding_dim']))
+
+    x = models_dict['flow'].sample(num_samples=1, n_points=n_points,
+                                   context=input_embeddings, sample_distrib=sample_distrib).squeeze()
+    return x
 
 def main(rank, world_size):
 
@@ -259,8 +269,8 @@ def main(rank, world_size):
         dataset = AmsGridLoader('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'], subsample=config['subsample'], sample_size=config[
                                 'sample_size'], min_points=config['min_points'], grid_type='circle', normalization=config['normalization'], grid_square_size=config['grid_square_size'])
     elif config['data_loader'] == 'AmsGridLoaderPointwise':
-        dataset = AmsGridLoaderPointwise('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'], 
-        min_points=800, grid_square_size=config['grid_square_size'],device=device)
+        dataset = AmsGridLoaderPointwise('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'],
+        n_samples = config['sample_size'],n_voxels=config['batch_size'],final_voxel_size = config['final_voxel_size'],device=device)
         
         collate_fn = lambda x: x[0]
                                 #TODO : FIX hypers
@@ -330,15 +340,16 @@ def main(rank, world_size):
                     torch.cuda.synchronize()
                     t0 = perf_counter()
                 batch = [x.to(device) for x in batch]
-                extract_0, extract_1 = batch
                 if config['data_loader'] == 'AmsGridLoaderPointwise':
-                    index = get_knn(extract_1,extract_0,1000,type='torch')
+                    voxel_points,context,context_voxel_indices = batch
 
                     loss, _, nats = inner_loop_pointwise(
-                        extract_0, extract_1,index, models_dict, config)
+                        voxel_points, context,context_voxel_indices, models_dict, config)
 
 
                 else:
+                    
+                    extract_0, extract_1 = batch
                     loss, _, nats = inner_loop(
                         extract_0, extract_1, models_dict, config)
                 is_valid(loss)
@@ -362,19 +373,25 @@ def main(rank, world_size):
             loss_running_avg = (
                 loss_running_avg*(batch_ind) + loss_item)/(batch_ind+1)
 
-            if (batch_ind+1) % config['batches_per_sample'] == 0:
+            if ((batch_ind+1) % config['batches_per_sample'] == 0) and config['make_samples']:
                 with torch.no_grad():
-                    if config['make_samples']:
+                    if config['data_loader'] == 'AmsGridLoaderPointwise':
+                        sample_points = make_sample_pointwise(4000,context,context_voxel_indices, models_dict, config, sample_distrib=None)
+                        cond_nump = voxel_points[0].cpu().numpy()
+                    else:
+                        cond_nump = extract_0[0].cpu().numpy()
                         sample_points = make_sample(
                             4000, extract_0, models_dict, config)
-                        sample_points = sample_points.cpu().numpy().squeeze()
-                        sample_points[:, 3:6] = np.clip(
-                            sample_points[:, 3:6]*255, 0, 255)
-                        cond_nump = extract_0[0].cpu().numpy()
-                        cond_nump[:, 3:6] = np.clip(
-                            cond_nump[:, 3:6]*255, 0, 255)
-                        wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:, :6]), "Gen_cloud": wandb.Object3D(
-                            sample_points[:, :6]), 'loss': loss_item, 'nats': nats.item(), 'lr': current_lr, 'time_batch': time_batch})
+                        
+
+                    
+                    cond_nump[:, 3:6] = np.clip(
+                    cond_nump[:, 3:6]*255, 0, 255)
+                    sample_points = sample_points.cpu().numpy().squeeze()
+                    sample_points[:, 3:6] = np.clip(
+                    sample_points[:, 3:6]*255, 0, 255)
+                    wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:, :6]), "Gen_cloud": wandb.Object3D(
+                        sample_points[:, :6]), 'loss': loss_item, 'nats': nats.item(), 'lr': current_lr, 'time_batch': time_batch})
             else:
                 pass
                 wandb.log({'loss': loss_item, 'nats': nats.item(),
