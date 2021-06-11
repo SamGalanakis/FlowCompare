@@ -16,7 +16,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # config_path = r"config/100_affine_long_astral-violet-2136.yaml"
 # config = config_loader(config_path)
-load_path = 'save/conditional_flow_compare/drawn-water-2240_e0_b31999_model_dict.pt'#r"save/conditional_flow_compare/lyric-dragon-2194_e0_b29999_model_dict.pt"#r"save/conditional_flow_compare/sunny-waterfall-2139_e0_b33999_model_dict.pt"    # r"save/conditional_flow_compare/clean-disco-2173_e0_b9999_model_dict.pt"
+load_path =  #'save/conditional_flow_compare/drawn-water-2240_e0_b31999_model_dict.pt'"
 save_dict = torch.load(load_path,map_location=device)
 config = save_dict['config']
 model_dict = initialize_flow(config,device,mode='test')
@@ -38,7 +38,8 @@ if dataset_type == 'challenge_grid':
 elif dataset_type == 'challenge':
     csv_path = 'save/challenge_data/Shrec_change_detection_dataset_public/new_final.csv'
     dirs = ['save/challenge_data/Shrec_change_detection_dataset_public/'+year for year in ["2016","2020"]]
-    dataset = ChallengeDataset(csv_path, dirs, out_path,subsample="fps",sample_size=2048,preload=True,normalization=config['normalization'],radius=int(config['grid_square_size']/2),device=device)
+    dataset = ChallengeDataset(csv_path, dirs, out_path,subsample="fps",sample_size=2048,preload=True,normalization=config['normalization'],radius=int(config['grid_square_size']/2),device=device,
+    voxel_size = config['voxel_size'])
 elif dataset_type=='ams':
     dataset=AmsGridLoader('/media/raid/sam/ams_dataset/',out_path='/media/raid/sam/processed_ams',preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
 else:

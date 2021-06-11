@@ -2,7 +2,7 @@ from numpy.lib.function_base import extract
 import torch
 import os
 import numpy as np
-from utils import load_las, random_subsample,view_cloud_plotly,co_min_max,co_standardize,sep_standardize,extract_area,co_unit_sphere
+from utils import load_las, random_subsample,view_cloud_plotly,co_min_max,co_standardize,sep_standardize,extract_area,co_unit_sphere,get_voxel
 from torch.utils.data import Dataset, DataLoader
 from itertools import permutations 
 from torch_geometric.nn import fps
@@ -10,7 +10,7 @@ from tqdm import tqdm
 import pandas as pd
 
 class ChallengeDataset(Dataset):
-    def __init__(self, csv_path,direcories_list,out_path,sample_size=2000,radius = 1,preload=False,subsample='fps',normalization='co_unit_sphere',device="cuda",apply_normalization=True):
+    def __init__(self, csv_path,direcories_list,out_path,voxel_size,sample_size=2000,radius = 1,preload=False,subsample='fps',normalization='co_unit_sphere',device="cuda",apply_normalization=True):
         self.sample_size  = sample_size
         self.out_path = out_path
         self.subsample = subsample
@@ -21,7 +21,7 @@ class ChallengeDataset(Dataset):
         self.class_int_dict = {x:self.class_labels.index(x) for x in self.class_labels}
         self.int_class_dict = {val:key for key,val in self.class_int_dict.items()}
         self.apply_normalization = apply_normalization
-    
+        self.voxel_size = torch.tensor(voxel_size)
         
         if not preload :
             print(f"Recreating challenge dataset, saving to: {self.out_path}")
@@ -46,9 +46,12 @@ class ChallengeDataset(Dataset):
                     
                 label = self.class_int_dict[row['classification']]
                 center = torch.Tensor([row['x'],row["y"]]).to(device)
+                center = torch.cat((center,voxel_size[-1]/2))
 
-                extract_0 = scene_0[extract_area(scene_0,center,self.radius,'circle'),:]
-                extract_1 = scene_1[extract_area(scene_1,center,self.radius,'circle'),:]
+                extract_0 = get_voxel(scene_0,center,voxel_size)
+                extract_1 = get_voxel(scene_1,center,voxel_size)
+                # extract_0 = scene_0[extract_area(scene_0,center,self.radius,'circle'),:]
+                # extract_1 = scene_1[extract_area(scene_1,center,self.radius,'circle'),:]
                 #Replace with placeholder if empty extract
                 if extract_0.shape[0] == 0:
                     extract_0 = extract_1.mean(axis=0).unsqueeze(0)

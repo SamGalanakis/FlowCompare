@@ -259,7 +259,9 @@ def main(rank, world_size):
                                 'sample_size'], min_points=config['min_points'], grid_type='circle', normalization=config['normalization'], grid_square_size=config['grid_square_size'])
     elif config['data_loader'] == 'AmsGridLoaderPointwise':
         dataset = AmsGridLoaderPointwise('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'],
-        n_samples = config['sample_size'],n_voxels=config['batch_size'],final_voxel_size = config['final_voxel_size'],device=device)
+        n_samples = config['sample_size'],n_voxels=config['batch_size'],final_voxel_size = config['final_voxel_size'],device=device,
+        n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size']
+        )
      
     else:
         raise Exception('Invalid dataloader type!')
@@ -369,14 +371,15 @@ def main(rank, world_size):
                 pass
                 wandb.log({'loss': loss_item, 'nats': nats.item(),
                           'lr': current_lr, 'time_batch': time_batch})
-            if (batch_ind+1) % config['batches_per_save'] == 0:
-                print(f'Saving!')
-                save_dict = {'config': config._items, "optimizer": optimizer.state_dict(
-                ), "flow": models_dict['flow'].state_dict(), "input_embedder": models_dict['input_embedder'].state_dict()}
-                torch.save(save_dict, os.path.join(
-                    save_model_path, f"{wandb.run.name}_e{epoch}_b{batch_ind}_model_dict.pt"))
+            
+                
         wandb.log({'epoch': epoch, "loss_epoch": loss_running_avg})
         print(f'Loss epoch: {loss_running_avg}')
+        print(f'Saving!')
+        save_dict = {'config': config._items, "optimizer": optimizer.state_dict(
+        ), "flow": models_dict['flow'].state_dict(), "input_embedder": models_dict['input_embedder'].state_dict()}
+        torch.save(save_dict, os.path.join(
+            save_model_path, f"{wandb.run.name}_e{epoch}_model_dict.pt"))
 
 
 if __name__ == "__main__":
