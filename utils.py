@@ -152,6 +152,12 @@ def extract_area(full_cloud, center, clearance, shape='circle'):
     return mask
 
 
+
+def get_voxel(cloud,center,dimensions):
+    for dim, size in enumerate(dimensions):
+        cloud = cloud[torch.logical_and(cloud[:,dim]<(center[dim]+size/2),cloud[:,dim]>(center[dim]-size/2))]
+    return cloud
+
 def grid_split(points, grid_size, center=False, clearance=20):
     if isinstance(center, bool):
         center = points[:, :2].mean(axis=0)

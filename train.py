@@ -193,19 +193,8 @@ def initialize_flow(config, device='cuda', mode='train'):
         f'Number of trainable parameters: {sum([x.numel() for x in parameters])}')
     return models_dict
 
-def inner_loop_pointwise(voxel_points, context,context_voxel_indices, models_dict, config):
-    n_voxels = voxel_points.shape[0]
-    n_context_points = context_voxel_indices.shape[1]
-    input_embeddings = models_dict["input_embedder"](context.unsqueeze(0)).squeeze()
-    input_embeddings = input_embeddings[context_voxel_indices.view(-1),:].reshape((n_voxels,n_context_points,config['input_embedding_dim']))
 
-    x = voxel_points
-    log_prob = models_dict['flow'].log_prob(x, context=input_embeddings)
-
-    loss = -log_prob.mean()
-    nats = -log_prob.sum() / (math.log(2) * x.numel())
-
-    return loss, log_prob, nats
+    
 def inner_loop(extract_0, extract_1, models_dict, config):
 
     input_embeddings = models_dict["input_embedder"](extract_0)
@@ -271,14 +260,12 @@ def main(rank, world_size):
     elif config['data_loader'] == 'AmsGridLoaderPointwise':
         dataset = AmsGridLoaderPointwise('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'],
         n_samples = config['sample_size'],n_voxels=config['batch_size'],final_voxel_size = config['final_voxel_size'],device=device)
-        
-        collate_fn = lambda x: x[0]
-                                #TODO : FIX hypers
+     
     else:
         raise Exception('Invalid dataloader type!')
 
 
-    batch_size = config['batch_size'] if not config['data_loader'] == 'AmsGridLoaderPointwise' else 1
+    batch_size = config['batch_size']
     dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=config[
                             "num_workers"], collate_fn=collate_fn, pin_memory=True, prefetch_factor=2, drop_last=True)
 
@@ -340,18 +327,10 @@ def main(rank, world_size):
                     torch.cuda.synchronize()
                     t0 = perf_counter()
                 batch = [x.to(device) for x in batch]
-                if config['data_loader'] == 'AmsGridLoaderPointwise':
-                    voxel_points,context,context_voxel_indices = batch
-
-                    loss, _, nats = inner_loop_pointwise(
-                        voxel_points, context,context_voxel_indices, models_dict, config)
-
-
-                else:
-                    
-                    extract_0, extract_1 = batch
-                    loss, _, nats = inner_loop(
-                        extract_0, extract_1, models_dict, config)
+          
+                extract_0, extract_1 = batch
+                loss, _, nats = inner_loop(
+                    extract_0, extract_1, models_dict, config)
                 is_valid(loss)
 
             scaler.scale(loss).backward()
@@ -375,16 +354,10 @@ def main(rank, world_size):
 
             if ((batch_ind+1) % config['batches_per_sample'] == 0) and config['make_samples']:
                 with torch.no_grad():
-                    if config['data_loader'] == 'AmsGridLoaderPointwise':
-                        sample_points = make_sample_pointwise(4000,context,context_voxel_indices, models_dict, config, sample_distrib=None)
-                        cond_nump = voxel_points[0].cpu().numpy()
-                    else:
-                        cond_nump = extract_0[0].cpu().numpy()
-                        sample_points = make_sample(
-                            4000, extract_0, models_dict, config)
-                        
-
                     
+                    cond_nump = extract_0[0].cpu().numpy()
+                    sample_points = make_sample(
+                        4000, extract_0, models_dict, config)
                     cond_nump[:, 3:6] = np.clip(
                     cond_nump[:, 3:6]*255, 0, 255)
                     sample_points = sample_points.cpu().numpy().squeeze()
