@@ -118,9 +118,9 @@ grad_clip_val:
 batches_per_sample:
   desc: Every how many batches to create a sample
   value: 15
-batches_per_save:
-  desc: Every how many batches to create a sample
-  value: 1000 
+epochs_per_save:
+  desc: Every how many epochs to checkpoint
+  value: 15 
 n_neighbors:
   desc: N neighbors for gcn knn aggregation steps
   value: 40
@@ -186,7 +186,7 @@ lr_factor:
   value: 0.8
 mem_iter_scheduler:
   desc: Every how many batches to reset and adjust custom scheduler
-  value: 800
+  value: 1000
 lr_scheduler:
   desc: What scheduler to use
   value: custom
