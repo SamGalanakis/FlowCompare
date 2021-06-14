@@ -375,7 +375,7 @@ def main(rank, world_size):
                 
         wandb.log({'epoch': epoch, "loss_epoch": loss_running_avg})
         print(f'Loss epoch: {loss_running_avg}')
-        if epoch % config['epochs_per_save'] and epoch != 0:
+        if (epoch % config['epochs_per_save'] == 0) and epoch != 0:
             print(f'Saving!')
             save_dict = {'config': config._items, "optimizer": optimizer.state_dict(
             ), "flow": models_dict['flow'].state_dict(), "input_embedder": models_dict['input_embedder'].state_dict()}

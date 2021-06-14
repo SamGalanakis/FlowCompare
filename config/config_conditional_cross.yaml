@@ -120,7 +120,7 @@ batches_per_sample:
   value: 15
 epochs_per_save:
   desc: Every how many epochs to checkpoint
-  value: 15 
+  value: 20 
 n_neighbors:
   desc: N neighbors for gcn knn aggregation steps
   value: 40

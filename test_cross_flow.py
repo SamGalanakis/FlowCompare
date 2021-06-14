@@ -16,38 +16,25 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # config_path = r"config/100_affine_long_astral-violet-2136.yaml"
 # config = config_loader(config_path)
-load_path =  #'save/conditional_flow_compare/drawn-water-2240_e0_b31999_model_dict.pt'"
+load_path =  'save/conditional_flow_compare/clear-field-2387_e400_model_dict.pt'#'save/conditional_flow_compare/drawn-water-2240_e0_b31999_model_dict.pt'"
 save_dict = torch.load(load_path,map_location=device)
 config = save_dict['config']
 model_dict = initialize_flow(config,device,mode='test')
 model_dict = load_flow(save_dict,model_dict)
 mode = 'train'
 
-dataset_type  = 'challenge'
+
 one_up_path = os.path.dirname(__file__)
 out_path = os.path.join(one_up_path,r"save/processed_dataset")
-if dataset_type == 'challenge_grid':
-    if config['preselected_points']:
-            scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(os.path.join(config['dirs_challenge_csv'].replace('train',mode),x)) for x in os.listdir(config['dirs_challenge_csv'].replace('train',mode)) }
-            preselected_points_dict = {key:val[['x','y']].values for key,val in scene_df_dict.items()}
-            preselected_points_dict = { key:(val.unsqueeze(0) if len(val.shape)==1 else val) for key,val in preselected_points_dict.items() }
-    else: 
-        preselected_points_dict= None
-    dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',r'/mnt/cm-nas03/synch/students/sam/data_test/2019',r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
-    dataset=ConditionalDataGrid(dirs,out_path=out_path,preload=True,subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'],preselected_points=preselected_points_dict,mode=mode)
-elif dataset_type == 'challenge':
-    csv_path = 'save/challenge_data/Shrec_change_detection_dataset_public/new_final.csv'
-    dirs = ['save/challenge_data/Shrec_change_detection_dataset_public/'+year for year in ["2016","2020"]]
-    dataset = ChallengeDataset(csv_path, dirs, out_path,subsample="fps",sample_size=2048,preload=True,normalization=config['normalization'],radius=int(config['grid_square_size']/2),device=device,
-    voxel_size = config['voxel_size'])
-elif dataset_type=='ams':
-    dataset=AmsGridLoader('/media/raid/sam/ams_dataset/',out_path='/media/raid/sam/processed_ams',preload=config['preload'],subsample=config['subsample'],sample_size=config['sample_size'],min_points=config['min_points'],grid_type='circle',normalization=config['normalization'],grid_square_size=config['grid_square_size'])
-else:
-    raise Exception('invalid dataset_type')
+
+preload = False
+csv_path = 'save/challenge_data/Shrec_change_detection_dataset_public/new_final.csv'
+dirs = ['save/challenge_data/Shrec_change_detection_dataset_public/'+year for year in ["2016","2020"]]
+dataset = ChallengeDataset(csv_path, dirs, out_path,n_samples = config['sample_size'],preload=preload,device=device,final_voxel_size = config['final_voxel_size'],n_samples_context = config['n_samples_context'],context_voxel_size = config['context_voxel_size'])
+
     
-def calc_change(extract_0,extract_1,model_dict,config,preprocess=False):
-    if preprocess:
-        extract_0, extract_1 = ConditionalDataGrid.last_processing(extract_0, extract_1,config['normalization'])
+def calc_change(extract_0,extract_1,model_dict,config):
+    
     
   
     loss,log_prob_1_given_0,_ = inner_loop(extract_0.unsqueeze(0),extract_1.unsqueeze(0),model_dict,config)
@@ -89,34 +76,45 @@ def create_dataset(dataset,model_dict,dataset_out = 'save/processed_dataset/'):
     print(f"Skipped {skipped}")
 
 
-def dataset_view(dataset,index,multiple =3.,gen_std=0.6,show=False,n_points=2000):
+def dataset_view(dataset,index,multiple =3.,gen_std=0.6,show=False):
     
-    
-    extract_0, extract_1, *other = dataset[index]
-  
-    extract_0, extract_1 = extract_0.to(device),extract_1.to(device)
-    
+    sample_distrib = models.Normal(torch.zeros(1),torch.ones(1)*gen_std,shape = (config['min_points'],config['latent_dim'])).to(device)
+    return_dict,label = dataset[index]
     print('starting calc ')
-    log_prob_1_given_0 = calc_change(extract_0, extract_1,model_dict,config,preprocess=False)
-    bpd = bits_per_dim(log_prob_1_given_0,6)
-    log_prob_0_given_0 = calc_change(extract_0, extract_0,model_dict,config,preprocess=False)
-    log_prob_0_given_1 = calc_change(extract_1, extract_0,model_dict,config,preprocess=False)
-    log_prob_1_given_1 = calc_change(extract_1, extract_1,model_dict,config,preprocess=False)
+    extract_0,extract_1 = return_dict['cloud_0'],return_dict['cloud_1']
+    procesed_dict = {}
+    procesed_dict['gen_given_0'] = []
+    procesed_dict['gen_given_1'] = []
+    procesed_dict['change_1_given_0'] = []
+    procesed_dict['change_0_given_1'] = []
+    for key,val in return_dict['voxels'].items():
+        procesed_dict[key] = {}
+        context_0,voxel_1,context_1,voxel_0,z_voxel_center = [x.to(device) for x in val]
+        
+        log_prob_1_given_0 = calc_change(context_0, voxel_1,model_dict,config,preprocess=False)
+        bpd = bits_per_dim(log_prob_1_given_0,6)
+        log_prob_0_given_0 = calc_change(context_0, voxel_0,model_dict,config,preprocess=False)
+        log_prob_0_given_1 = calc_change(context_1, voxel_0,model_dict,config,preprocess=False)
+        log_prob_1_given_1 = calc_change(context_1, voxel_1,model_dict,config,preprocess=False)
+        
+
+        
+        procesed_dict['gen_given_0'].append(make_sample(2000,extract_0.unsqueeze(0),model_dict,config,sample_distrib=sample_distrib))
+        procesed_dict['gen_given_1'].append(make_sample(2000,extract_1.unsqueeze(0),model_dict,config,sample_distrib=sample_distrib))
+        procesed_dict['gen_given_0'][key][:,2] += z_voxel_center
+        procesed_dict['gen_given_1'][key][:,2] += z_voxel_center
+    
+    
+        procesed_dict['change_1_given_0'].append(log_prob_to_color(log_prob_1_given_0,log_prob_0_given_0,multiple = multiple))
+        procesed_dict['change_0_given_1'].append(log_prob_to_color(log_prob_0_given_1,log_prob_1_given_1,multiple = multiple))
+    
+    procesed_dict = {key:torch.stack(val,dim=0) for key,val in procesed_dict}
+    fig_gen_given_0 = view_cloud_plotly(procesed_dict['gen_given_0'][:,:3],procesed_dict['gen_given_0'][:,3:],show=show,title='Gen given 0')
+    fig_gen_given_1 = view_cloud_plotly(procesed_dict['gen_given_1'][:,:3],procesed_dict['gen_given_1'][:,3:],show=show,title='Gen given 1')
+    fig_0_given_1 = view_cloud_plotly(extract_0[:,:3],procesed_dict['change_0_given_1'],colorscale='Bluered',show_scale=True,show=show,title='Extract 0 given 1')
+    fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],procesed_dict['change_1_given_0'],colorscale='Bluered',show_scale=True,show=show,title='Extract 1 given 0')
     fig_0 = view_cloud_plotly(extract_0[:,:3],extract_0[:,3:],show=show,title='Extract 0',point_size=5)
     fig_1 = view_cloud_plotly(extract_1[:,:3],extract_1[:,3:],show=show,title='Extract 1',point_size=5)
-
-    sample_distrib = models.Normal(torch.zeros(1),torch.ones(1)*gen_std,shape = (config['min_points'],config['latent_dim'])).to(device)
-    gen_given_0 = make_sample(2000,extract_0.unsqueeze(0),model_dict,config,sample_distrib=sample_distrib)
-    gen_given_1 = make_sample(2000,extract_1.unsqueeze(0),model_dict,config,sample_distrib=sample_distrib)
-    fig_gen_given_0 = view_cloud_plotly(gen_given_0[:,:3],gen_given_0[:,3:],show=show,title='Gen given 0')
-    fig_gen_given_1 = view_cloud_plotly(gen_given_1[:,:3],gen_given_1[:,3:],show=show,title='Gen given 1')
-    
-    print('loadings probs')
-    change_1_given_0 = log_prob_to_color(log_prob_1_given_0,log_prob_0_given_0,multiple = multiple)
-    change_0_given_1 = log_prob_to_color(log_prob_0_given_1,log_prob_1_given_1,multiple = multiple)
-
-    fig_0_given_1 = view_cloud_plotly(extract_0[:,:3],change_0_given_1,colorscale='Bluered',show_scale=True,show=show,title='Extract 0 given 1')
-    fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],change_1_given_0,colorscale='Bluered',show_scale=True,show=show,title='Extract 1 given 0')
     return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1,fig_gen_given_1,fig_gen_given_0
     
 if __name__ == '__main__':

@@ -25,17 +25,11 @@ from torch.utils.data import Dataset
 import json
 from datetime import datetime
 import random
-import cupoch as cph
 import open3d as o3d
 import torch_cluster
-
+from .dataset_utils import registration_pipeline,context_voxel_center,icp_reg_precomputed_target,downsample_transform
 eps = 1e-8
-def context_voxel_center(voxel):
-    voxel = voxel[:,:3]
-    _min = voxel.min(dim=0)[0]
-    _max = voxel.max(dim=0)[0]
-    approx_center = _min/2 + _max/2
-    return approx_center
+
 
 
 
@@ -49,33 +43,10 @@ def is_only_ground(cloud, perc=0.99):
     return n_close_ground/cloud.shape[0] >= perc
 
 
-def icp_reg_precomputed_target(source_cloud, target, voxel_size=0.05, max_it=2000):
-    source_cloud = source_cloud.cpu().numpy()
-    threshold = voxel_size * 0.4
-    trans_init = np.eye(4).astype(np.float32)
-    source = o3d.geometry.PointCloud()
-    source.points = o3d.utility.Vector3dVector(source_cloud[:, :3])
-    source.colors = o3d.utility.Vector3dVector(source_cloud[:, 3:])
-    source = source.voxel_down_sample(voxel_size)
-    source.estimate_normals()
-    result = o3d.pipelines.registration.registration_icp(
-        source, target, threshold, trans_init,
-        o3d.pipelines.registration.TransformationEstimationPointToPlane(), o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=max_it))
-
-    return result
 
 
-def downsample_transform(cloud, voxel_size, transform):
-    device = cloud.device
-    source = o3d.geometry.PointCloud()
-    cloud = cloud.cpu().numpy()
-    source.points = o3d.utility.Vector3dVector(cloud[:, :3])
-    source.colors = o3d.utility.Vector3dVector(cloud[:, 3:])
-    source = source.voxel_down_sample(voxel_size)
-    source.transform(transform)
-    cloud = torch.from_numpy(np.concatenate(
-        (np.asarray(source.points), np.asarray(source.colors)), axis=-1))
-    return cloud.to(device)
+
+
 
 
 def filter_scans(scans_list, dist):
@@ -179,31 +150,21 @@ class AmsGridLoaderPointwise(Dataset):
                 # Extract square at center since only those will be used for grid
                 clouds_per_time = [x[extract_area(x, center=np.array(
                     [0, 0]), clearance=self.clearance, shape='square'), :] for x in clouds_per_time]
-                # Apply registration between each cloud and first in list, store transforms
-                # First cloud does not need to be transformed
-                registration_transforms = [np.eye(4, dtype=np.float32)]
-
+                
+                
                 voxel_size_icp = 0.05
-                target_cloud = clouds_per_time[0].cpu().numpy()
-                target = o3d.geometry.PointCloud()
-                target.points = o3d.utility.Vector3dVector(target_cloud[:, :3])
-                target.colors = o3d.utility.Vector3dVector(target_cloud[:, 3:])
-                target = target.voxel_down_sample(voxel_size_icp)
-                target.estimate_normals()
-                for source_cloud in clouds_per_time[1:]:
-                    result = icp_reg_precomputed_target(
-                        source_cloud, target, voxel_size=voxel_size_icp)
-                    registration_transforms.append(result.transformation)
 
+                clouds_per_time = registration_pipeline(clouds_per_time,voxel_size_icp,self.final_voxel_size)
+                
+                
                 # Remove below ground and above cutoff
                 # Cut off slightly under ground height
                 ground_cutoff = scan.ground_height - 0.05
                 height_cutoff = ground_cutoff+max_height
                 clouds_per_time = [x[torch.logical_and(
                     x[:, 2] > ground_cutoff, x[:, 2] < height_cutoff), ...] for x in clouds_per_time]
-                # Downsample and apply registration
-                clouds_per_time = [downsample_transform(x, self.voxel_size, transform) for x, transform in zip(
-                    clouds_per_time, registration_transforms)]
+               
+              
                 clouds_per_time = [x.float().cpu() for x in clouds_per_time]
 
                 save_id += 1
