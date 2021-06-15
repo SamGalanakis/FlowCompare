@@ -12,7 +12,7 @@ import models
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# device = 'cpu'
+
 
 # config_path = r"config/100_affine_long_astral-violet-2136.yaml"
 # config = config_loader(config_path)
@@ -27,7 +27,7 @@ mode = 'train'
 one_up_path = os.path.dirname(__file__)
 out_path = os.path.join(one_up_path,r"save/processed_dataset")
 
-preload = False
+preload = True
 csv_path = 'save/challenge_data/Shrec_change_detection_dataset_public/new_final.csv'
 dirs = ['save/challenge_data/Shrec_change_detection_dataset_public/'+year for year in ["2016","2020"]]
 dataset = ChallengeDataset(csv_path, dirs, out_path,n_samples = config['sample_size'],preload=preload,device=device,final_voxel_size = config['final_voxel_size'],n_samples_context = config['n_samples_context'],context_voxel_size = config['context_voxel_size'])
@@ -82,37 +82,47 @@ def dataset_view(dataset,index,multiple =3.,gen_std=0.6,show=False):
     return_dict,label = dataset[index]
     print('starting calc ')
     extract_0,extract_1 = return_dict['cloud_0'],return_dict['cloud_1']
-    procesed_dict = {}
-    procesed_dict['gen_given_0'] = []
-    procesed_dict['gen_given_1'] = []
-    procesed_dict['change_1_given_0'] = []
-    procesed_dict['change_0_given_1'] = []
+    vars = ['gen_given_0','gen_given_1','change_1_given_0','change_0_given_1','voxel_0','voxel_1']
+    procesed_dict = {x:[] for x in vars}
+    def to_dev(x,device):
+        try:
+            return x.to(device)
+        except:
+            return x
     for key,val in return_dict['voxels'].items():
-        procesed_dict[key] = {}
-        context_0,voxel_1,context_1,voxel_0,z_voxel_center = [x.to(device) for x in val]
         
-        log_prob_1_given_0 = calc_change(context_0, voxel_1,model_dict,config,preprocess=False)
-        bpd = bits_per_dim(log_prob_1_given_0,6)
-        log_prob_0_given_0 = calc_change(context_0, voxel_0,model_dict,config,preprocess=False)
-        log_prob_0_given_1 = calc_change(context_1, voxel_0,model_dict,config,preprocess=False)
-        log_prob_1_given_1 = calc_change(context_1, voxel_1,model_dict,config,preprocess=False)
+        context_0,voxel_1,context_1,voxel_0,inverse_voxel_0,inverse_voxel_1,z_voxel_center = [to_dev(x,device) for x in val]
+        height_adjust = torch.tensor([0.,0.,z_voxel_center.item(),0.,0.,0.]).to(device)
+        
+        
+        log_prob_1_given_0 = calc_change(context_0, voxel_1,model_dict,config)
+        log_prob_0_given_0 = calc_change(context_0, voxel_0,model_dict,config)
+        log_prob_0_given_1 = calc_change(context_1, voxel_0,model_dict,config)
+        log_prob_1_given_1 = calc_change(context_1, voxel_1,model_dict,config)
         
 
+        gen_given_0 = make_sample(2000,context_0.unsqueeze(0),model_dict,config,sample_distrib=sample_distrib)
+        gen_given_1 = make_sample(2000,context_1.unsqueeze(0),model_dict,config,sample_distrib=sample_distrib)
+        gen_given_0[:,:3] = inverse_voxel_1(gen_given_0[:,:3])
+        gen_given_1[:,:3] = inverse_voxel_0(gen_given_1[:,:3])
+        procesed_dict['gen_given_0'].append(gen_given_0)
+        procesed_dict['gen_given_1'].append(gen_given_1)
         
-        procesed_dict['gen_given_0'].append(make_sample(2000,extract_0.unsqueeze(0),model_dict,config,sample_distrib=sample_distrib))
-        procesed_dict['gen_given_1'].append(make_sample(2000,extract_1.unsqueeze(0),model_dict,config,sample_distrib=sample_distrib))
-        procesed_dict['gen_given_0'][key][:,2] += z_voxel_center
-        procesed_dict['gen_given_1'][key][:,2] += z_voxel_center
     
     
         procesed_dict['change_1_given_0'].append(log_prob_to_color(log_prob_1_given_0,log_prob_0_given_0,multiple = multiple))
         procesed_dict['change_0_given_1'].append(log_prob_to_color(log_prob_0_given_1,log_prob_1_given_1,multiple = multiple))
+
+        voxel_0[:,:3] = inverse_voxel_0(voxel_0[:,:3])
+        voxel_1[:,:3] = inverse_voxel_1(voxel_1[:,:3])
+        procesed_dict['voxel_0'].append(voxel_0)
+        procesed_dict['voxel_1'].append(voxel_1)
     
-    procesed_dict = {key:torch.stack(val,dim=0) for key,val in procesed_dict}
+    procesed_dict = {key:torch.cat(val,dim=0) for key,val in procesed_dict.items()}
     fig_gen_given_0 = view_cloud_plotly(procesed_dict['gen_given_0'][:,:3],procesed_dict['gen_given_0'][:,3:],show=show,title='Gen given 0')
     fig_gen_given_1 = view_cloud_plotly(procesed_dict['gen_given_1'][:,:3],procesed_dict['gen_given_1'][:,3:],show=show,title='Gen given 1')
-    fig_0_given_1 = view_cloud_plotly(extract_0[:,:3],procesed_dict['change_0_given_1'],colorscale='Bluered',show_scale=True,show=show,title='Extract 0 given 1')
-    fig_1_given_0 = view_cloud_plotly(extract_1[:,:3],procesed_dict['change_1_given_0'],colorscale='Bluered',show_scale=True,show=show,title='Extract 1 given 0')
+    fig_0_given_1 = view_cloud_plotly(procesed_dict['voxel_0'][:,:3],procesed_dict['change_0_given_1'],colorscale='Bluered',show_scale=True,show=show,title='Extract 0 given 1')
+    fig_1_given_0 = view_cloud_plotly(procesed_dict['voxel_1'][:,:3],procesed_dict['change_1_given_0'],colorscale='Bluered',show_scale=True,show=show,title='Extract 1 given 0')
     fig_0 = view_cloud_plotly(extract_0[:,:3],extract_0[:,3:],show=show,title='Extract 0',point_size=5)
     fig_1 = view_cloud_plotly(extract_1[:,:3],extract_1[:,3:],show=show,title='Extract 1',point_size=5)
     return fig_0 ,fig_1,fig_1_given_0,fig_0_given_1,fig_gen_given_1,fig_gen_given_0
@@ -125,7 +135,8 @@ if __name__ == '__main__':
 
     #dataset_view(dataset,0,multiple = 3.,show=True)
     pass
-    visualize_change(lambda index,multiple,gen_std: dataset_view(dataset,index,multiple = multiple,gen_std=gen_std,n_points = 2000),range(len(dataset)))
+    #dataset_view(dataset,0,multiple = 3.,gen_std=0.6)
+    visualize_change(lambda index,multiple,gen_std: dataset_view(dataset,index,multiple = multiple,gen_std=gen_std),range(len(dataset)))
     
 
 

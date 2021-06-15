@@ -9,6 +9,16 @@ from pykeops.torch import LazyTensor
 from utils import load_las, random_oversample,save_las,random_subsample,extract_area,view_cloud_plotly
 from models import DGCNNembedder 
 
+
+
+def knn_spreader(full_cloud,source,feature,k=1):
+    knn = KNN_torch(k)
+    knn_trained = knn(source[:,:3])
+    knn_index = knn(full_cloud)
+    indexed_feats = feature
+
+    return
+
 def KNN_KeOps(K, metric="euclidean"):
     def fit(x_train):
         # Setup the K-NN estimator:

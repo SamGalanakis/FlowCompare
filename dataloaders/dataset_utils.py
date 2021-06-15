@@ -38,9 +38,9 @@ def context_voxel_center(voxel):
     return approx_center
 
 
-def icp_reg_precomputed_target(source_cloud, target, voxel_size=0.05, max_it=2000,recenter=np.array([0,0,0])):
+def icp_reg_precomputed_target(source_cloud, target, voxel_size=0.05, max_it=2000):
     source_cloud = source_cloud.cpu().numpy()
-    source_cloud[:,:3] -= recenter
+    
     threshold = voxel_size * 0.4
     trans_init = np.eye(4).astype(np.float32)
     source = o3d.geometry.PointCloud()
@@ -81,20 +81,25 @@ def registration_pipeline(cloud_list,voxel_size_registration,
     # First cloud does not need to be transformed
     registration_transforms = [np.eye(4, dtype=np.float32)]
     
-    target_cloud = cloud_list[0].cpu().numpy()
-    common_center  =  target_cloud[:,:3].mean(axis=0)
+    
+    
+    common_center  =  cloud_list[0].mean(axis=0)
+    common_center[3:] =0.0
+    cloud_list_ = [x - common_center for x in cloud_list]
+    target_cloud = cloud_list_[0].cpu().numpy()
     target = o3d.geometry.PointCloud()
-    target.points = o3d.utility.Vector3dVector(target_cloud[:, :3]-common_center)
+    target.points = o3d.utility.Vector3dVector(target_cloud[:, :3])
     target.colors = o3d.utility.Vector3dVector(target_cloud[:, 3:])
     target = target.voxel_down_sample(voxel_size_registration)
     target.estimate_normals()
     for source_cloud in cloud_list[1:]:
                     result = icp_reg_precomputed_target(
-                        source_cloud, target, voxel_size=voxel_size_registration,recenter=common_center)
+                        source_cloud, target, voxel_size=voxel_size_registration)
                     registration_transforms.append(result.transformation)
     # Downsample and apply registration
     cloud_list = [downsample_transform(x, voxel_size_final, transform) for x, transform in zip(
                     cloud_list, registration_transforms)]
+
     cloud_list = [x.to(device) for x in cloud_list]
     return cloud_list
 
