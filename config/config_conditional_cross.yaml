@@ -95,11 +95,11 @@ attn_input_dim:
   desc: dim of input to attn
   value: 256
 input_embedding_dim:
-  desc: Dimension of input embeddings, part of input for attention (feature dim for each point in cloud t0)
+  desc: Dimension of input embeddings, part of input for attention (feature dim for each point in cloud t0) or dim of global embedding
   value: 64 #was 512 
 cross_heads:
   desc: Number of attn heads
-  value: 1
+  value: 2 #1
 cross_dim_head:
   desc: Dimension of cross dim head
   value: 64 #256
@@ -111,7 +111,7 @@ amp:
   value: false
 input_embedder: 
   desc: input_embedder type
-  value: PAConv # 
+  value: PAConv #PAConv 
 grad_clip_val:
   desc: What value to clip grad norms to
   value: 1.0 # was 1.0
@@ -123,7 +123,7 @@ epochs_per_save:
   value: 20 
 n_neighbors:
   desc: N neighbors for gcn knn aggregation steps
-  value: 40
+  value: 20
 eps_expm:
   desc: Precision for computation of matrix exponential
   value: 1.0E-8 # Was 1.0E-8
@@ -179,7 +179,7 @@ linear_lu_eps:
   desc: Eps used for linear lu combiner
   value: 1.0E-7 #was 1.0E-5
 threshold_scheduler:
-  desc: Threshold to change lr at for scheduler
+  desc: Minimum increase percentage to decrease lr at for scheduler
   value: 0.01 #Percentage
 lr_factor:
   desc: Multiplication factor for lr scheduler]

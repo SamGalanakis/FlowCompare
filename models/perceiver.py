@@ -15,40 +15,6 @@ def default(val, d):
     return val if exists(val) else d
 
 
-class FeedForward(nn.Module):
-    def __init__(self, dim, mult=4, dropout=0.):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim, dim * mult * 2),
-            GEGLU(),
-            nn.Dropout(dropout),
-            nn.Linear(dim * mult, dim)
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
-class GEGLU(nn.Module):
-    def forward(self, x):
-        x, gates = x.chunk(2, dim=-1)
-        return x * F.gelu(gates)
-
-
-def cache_fn(f):
-    cache = None
-
-    @wraps(f)
-    def cached_fn(*args, _cache=True, **kwargs):
-        if not _cache:
-            return f(*args, **kwargs)
-        nonlocal cache
-        if cache is not None:
-            return cache
-        cache = f(*args, **kwargs)
-        return cache
-    return cached_fn
-
 
 class PreNorm(nn.Module):
     def __init__(self, dim, fn, context_dim=None):
@@ -75,22 +41,25 @@ class PreNorm(nn.Module):
 
 
 
-class Attention(nn.Module):
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.):
+
+class AttentionControlledOut(nn.Module):
+    def __init__(self, out_dim, query_dim, context_dim, heads, dim_head, dropout):
         super().__init__()
-        inner_dim = dim_head * heads
-        context_dim = default(context_dim, query_dim)
+        self.attention = Attention(query_dim, context_dim, heads, dim_head)
+        self.lin = nn. Linear(self.attention.inner_dim, out_dim)
 
-        self.scale = dim_head ** -0.5
+    def forward(self, x, context=None, mask=None):
+        return self.lin(self.attention(x, context=context, mask=mask))
+
+
+class Attention(nn.Module):
+    def __init__(self, query_dim, context_dim, heads, dim_head):
+        super().__init__()
         self.heads = heads
-
-        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-        self.to_kv = nn.Linear(context_dim, inner_dim * 2, bias=False)
-
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, query_dim),
-            nn.Dropout(dropout)
-        )
+        self.inner_dim = dim_head * heads
+        self.scale = self.inner_dim ** -0.5
+        self.to_q = nn.Linear(query_dim, self.inner_dim, bias=False)
+        self.to_kv = nn.Linear(context_dim, self.inner_dim * 2, bias=False)
 
     def forward(self, x, context=None, mask=None):
         h = self.heads
@@ -115,37 +84,8 @@ class Attention(nn.Module):
 
         out = einsum('b i j, b j d -> b i d', attn, v)
         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
-        return self.to_out(out)
-
-
-
-
-
-class AttentionControlledOut(nn.Module):
-    def __init__(self, out_dim, query_dim, context_dim, heads, dim_head, dropout):
-        super().__init__()
-        self.attention = AttentionMine(query_dim, context_dim, heads, dim_head)
-        self.lin = nn. Linear(self.attention.inner_dim, out_dim)
-
-    def forward(self, x, context=None, mask=None):
-        return self.lin(self.attention(x, context=context, mask=mask))
-
-
-class AttentionMine(nn.Module):
-    def __init__(self, query_dim, context_dim, heads, dim_head):
-        super().__init__()
-
-        self.inner_dim = dim_head * heads
-        self.scale = self.inner_dim ** -0.5
-        self.to_q = nn.Linear(query_dim, self.inner_dim, bias=False)
-        self.to_kv = nn.Linear(context_dim, self.inner_dim * 2, bias=False)
-
-    def forward(self, x, context=None, mask=None):
-        q = self.to_q(x)
-        k, v = self.to_kv(context).chunk(2, dim=-1)
-        attn = torch.matmul(F.softmax(torch.matmul(
-            q, k.transpose(1, 2))*self.scale, dim=-1), v)
-        return attn
+        return out
+        
 
 
 def get_cross_attn(out_dim, query_dim, context_dim, heads, dim_head, dropout): return PreNorm(

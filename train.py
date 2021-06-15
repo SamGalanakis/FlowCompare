@@ -1,6 +1,6 @@
 import math
 import os
-from time import perf_counter, time
+from time import perf_counter
 
 import numpy as np
 import pandas as pd
@@ -8,12 +8,11 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from knn import get_knn
 import models
 import wandb
-from dataloaders import AmsGridLoader, ConditionalDataGrid, AmsGridLoaderPointwise
-from utils import Scheduler, config_loader, is_valid
-
+from dataloaders import AmsGridLoader,AmsGridLoaderPointwise
+from utils import Scheduler,is_valid
+import einops
 
 def load_flow(load_dict, models_dict):
 
@@ -25,6 +24,17 @@ def load_flow(load_dict, models_dict):
 def initialize_flow(config, device='cuda', mode='train'):
 
     parameters = []
+
+
+
+    #Set global bool as needed for inner loop changes regarding global embedding vs attention
+    if config['input_embedder'] in ['DGCNNembedderGlobal']:
+        config['global'] = True
+    else:
+        config['global'] = False
+
+
+
 
     if config['coupling_block_nonlinearity'] == "ELU":
         coupling_block_nonlinearity = nn.ELU()
@@ -127,7 +137,7 @@ def initialize_flow(config, device='cuda', mode='train'):
     else:
         raise Exception('Invalid cif_dist')
 
-    context_dim = config['attn_dim'] if config['input_embedder'] != 'DGCNNembedderGlobal' else config['input_embeeding_dim']
+    context_dim = config['attn_dim'] if not config['global'] else config['input_embedding_dim']
 
     def cif_block(): return models.cif_helper(input_dim=config['latent_dim'], augment_dim=config['cif_latent_dim'], distribution_aug=cif_dist_aug, distribution_slice=cif_dist_slice, context_dim=context_dim, flow=flow_for_cif, attn=attn,
                                               pre_attention_mlp=pre_attention_mlp, event_dim=-1, conditional_aug=config['conditional_aug_cif'], conditional_slice=config['conditional_slice_cif'], input_embedder_type=config['input_embedder'])
@@ -161,11 +171,13 @@ def initialize_flow(config, device='cuda', mode='train'):
     elif config['input_embedder'] == 'DGCNNembedderGlobal':
         input_embedder = models.DGCNN_cls(
             input_dim=config['input_dim'], out_dim=config['input_embedding_dim'], k=config['n_neighbors'])
-
     elif config['input_embedder'] == 'idenity':
         input_embedder = nn.Identity()
     else:
-        raise Exception('Invalid input embeder!')
+        raise Exception('Invalid input embedder!')
+
+
+ 
 
     if mode == 'train':
         input_embedder.train()
@@ -199,6 +211,10 @@ def inner_loop(extract_0, extract_1, models_dict, config):
 
     input_embeddings = models_dict["input_embedder"](extract_0)
 
+    if config['global']:
+        input_embeddings = einops.repeat(input_embeddings,'b e -> b n e',n=extract_1.shape[1])
+
+
     x = extract_1
 
     log_prob = models_dict['flow'].log_prob(x, context=input_embeddings)
@@ -211,6 +227,9 @@ def inner_loop(extract_0, extract_1, models_dict, config):
 def make_sample(n_points, extract_0, models_dict, config, sample_distrib=None):
 
     input_embeddings = models_dict["input_embedder"](extract_0[0].unsqueeze(0))
+
+    if config['global']:
+        input_embeddings = einops.repeat(input_embeddings,'b e -> b n e',n=n_points)
 
     x = models_dict['flow'].sample(num_samples=1, n_points=n_points,
                                    context=input_embeddings, sample_distrib=sample_distrib).squeeze()
