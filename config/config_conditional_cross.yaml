@@ -177,7 +177,7 @@ num_bins_spline:
   value: 8 # 128
 linear_lu_eps:
   desc: Eps used for linear lu combiner
-  value: 1.0E-5
+  value: 1.0E-7 #was 1.0E-5
 threshold_scheduler:
   desc: Threshold to change lr at for scheduler
   value: 0.01 #Percentage
@@ -197,7 +197,7 @@ final_voxel_size:
   desc: Voxel size used in pointwise
   value: [2.,2.,4.]
 context_voxel_size:
-  desc: Voxel size of larger context
+  desc: Voxel size of context
   value: [2.2,2.2,4.2]
 n_samples_context:
   desc: Points in context

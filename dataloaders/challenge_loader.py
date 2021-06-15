@@ -28,7 +28,7 @@ class ChallengeDataset(Dataset):
         self.class_labels = ['nochange','removed',"added",'change',"color_change"]
         self.class_int_dict = {x:self.class_labels.index(x) for x in self.class_labels}
         self.int_class_dict = {val:key for key,val in self.class_int_dict.items()}
-      
+        
         
         df = pd.read_csv(csv_path)
         df = df[df['classification'].isin(self.class_labels)] #Remove unfit!
@@ -78,7 +78,7 @@ class ChallengeDataset(Dataset):
     def get_voxels(self,cloud,context_cloud,vox_center):
         voxel_mask_1 = get_voxel(cloud,vox_center,self.final_voxel_size,return_mask=True)
         voxel_1 = cloud[voxel_mask_1]
-
+        
         voxel_center_0 = context_voxel_center(voxel_1)
         voxel_0 = get_voxel(context_cloud,voxel_center_0,self.context_voxel_size)
 
@@ -91,6 +91,12 @@ class ChallengeDataset(Dataset):
         voxel_1 = voxel_1[:self.n_samples,:]
         voxel_0, voxel_1,inverse = self.last_processing(voxel_0, voxel_1)
         return voxel_0,voxel_1,inverse
+    def voxel_center_heights(self,z_min,z_max):
+        voxel_height = self.final_voxel_size[2]
+        heights = [z_min+voxel_height/2]
+        while (heights[-1] + voxel_height/2) < z_max:
+            heights.append(min(heights[-1]+voxel_height,z_max))
+        return heights
     def __getitem__(self, idx):
         return_dict = {}
         scene_num,center,label = self.pair_dict[idx]
@@ -99,7 +105,8 @@ class ChallengeDataset(Dataset):
         voxel_height = self.final_voxel_size[2]
         z_max = max(cloud_0[:,2].max(),cloud_1[:,2].max())
         z_min = min(cloud_0[:,2].min(),cloud_1[:,2].min())
-        z_voxel_centers = torch.arange(z_min+voxel_height/2,z_max-voxel_height/2,voxel_height)
+        
+        z_voxel_centers = self.voxel_center_heights(z_min,z_max)
         return_dict['voxels'] = {}
         for index,z_voxel_center in enumerate(z_voxel_centers):
             vox_center = torch.cat((center,z_voxel_center.unsqueeze(0).to(center.device)),dim=-1)

@@ -216,16 +216,6 @@ def make_sample(n_points, extract_0, models_dict, config, sample_distrib=None):
                                    context=input_embeddings, sample_distrib=sample_distrib).squeeze()
     return x
 
-def make_sample_pointwise(n_points,context,context_voxel_indices, models_dict, config, sample_distrib=None):
-    
-    n_voxels = context_voxel_indices.shape[0]
-    n_context_points = context_voxel_indices.shape[1]
-    input_embeddings = models_dict["input_embedder"](context.unsqueeze(0)).squeeze()
-    input_embeddings = input_embeddings[context_voxel_indices[0],:].reshape((1,n_context_points,config['input_embedding_dim']))
-
-    x = models_dict['flow'].sample(num_samples=1, n_points=n_points,
-                                   context=input_embeddings, sample_distrib=sample_distrib).squeeze()
-    return x
 
 def main(rank, world_size):
 
@@ -251,8 +241,8 @@ def main(rank, world_size):
     else:
         preselected_points_dict = None
 
-    one_up_path = os.path.dirname(__file__)
-    out_path = os.path.join(one_up_path, r"save/processed_dataset")
+    
+    
     collate_fn = None
     if config['data_loader'] == 'AmsGridLoader':
         dataset = AmsGridLoader('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'], subsample=config['subsample'], sample_size=config[

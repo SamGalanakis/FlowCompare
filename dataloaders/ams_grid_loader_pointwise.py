@@ -93,7 +93,7 @@ class AmsGridLoaderPointwise(Dataset):
         self.height_min_dif = height_min_dif
         self.max_height = max_height
         self.rotation_augment = rotation_augment
-
+        self.random_seed = 0
         self.save_name = f"pointwise_ams_save_dict_{clearance}.pt"
         self.years = [2019, 2020]
         self.ground_keep_perc = ground_keep_perc
@@ -104,6 +104,8 @@ class AmsGridLoaderPointwise(Dataset):
         self.n_voxels = n_voxels
 
         save_path = os.path.join(self.out_path, self.save_name)
+
+        random.seed(0)
         if not preload:
 
             with open(os.path.join(directory_path, 'args.json')) as f:
