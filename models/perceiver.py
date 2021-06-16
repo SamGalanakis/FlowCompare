@@ -53,13 +53,14 @@ class AttentionControlledOut(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, query_dim, context_dim, heads, dim_head):
+    def __init__(self, query_dim, context_dim, heads, dim_head,store_last_attn=False):
         super().__init__()
         self.heads = heads
         self.inner_dim = dim_head * heads
         self.scale = self.inner_dim ** -0.5
         self.to_q = nn.Linear(query_dim, self.inner_dim, bias=False)
         self.to_kv = nn.Linear(context_dim, self.inner_dim * 2, bias=False)
+        self.store_last_attn = store_last_attn
 
     def forward(self, x, context=None, mask=None):
         h = self.heads
@@ -82,6 +83,9 @@ class Attention(nn.Module):
         # attention, what we cannot get enough of
         attn = sim.softmax(dim=-1)
 
+        #For visualization purposes, should be off otherwise
+        if self.store_last_attn:
+            self.last_attn = attn.cpu()
         out = einsum('b i j, b j d -> b i d', attn, v)
         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
         return out

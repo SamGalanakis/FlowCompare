@@ -13,6 +13,17 @@ import wandb
 from dataloaders import AmsGridLoader,AmsGridLoaderPointwise
 from utils import Scheduler,is_valid
 import einops
+import inspect
+
+def set_module_name_tag(module,name_tag):
+    module.name_tag = name_tag
+    children = inspect.getmembers(module, lambda x:isinstance(x,torch.nn.Module))
+    for class_type,child in children:
+        set_module_name_tag(child,name_tag)
+
+
+
+
 
 def load_flow(load_dict, models_dict):
 
@@ -139,23 +150,32 @@ def initialize_flow(config, device='cuda', mode='train'):
 
     context_dim = config['attn_dim'] if not config['global'] else config['input_embedding_dim']
 
-    def cif_block(): return models.cif_helper(input_dim=config['latent_dim'], augment_dim=config['cif_latent_dim'], distribution_aug=cif_dist_aug, distribution_slice=cif_dist_slice, context_dim=context_dim, flow=flow_for_cif, attn=attn,
+    cif_block = lambda : models.cif_helper(input_dim=config['latent_dim'], augment_dim=config['cif_latent_dim'], distribution_aug=cif_dist_aug, distribution_slice=cif_dist_slice, context_dim=context_dim, flow=flow_for_cif, attn=attn,
                                               pre_attention_mlp=pre_attention_mlp, event_dim=-1, conditional_aug=config['conditional_aug_cif'], conditional_slice=config['conditional_slice_cif'], input_embedder_type=config['input_embedder'])
 
     transforms = []
     # Add transformations to list
     transforms.append(augmenter)
-
+    
     # transforms.append(ActNormBijectionCloud(config['latent_dim'],data_dep_init=True)) #Entry norm
     for index in range(config['n_flow_layers']):
-
-        transforms.append(cif_block())
+        layer_list = []
+        cif_trans = cif_block()
+        
+        layer_list.append(cif_trans)
+        
         # Don't permute output
         if index != config['n_flow_layers']-1:
             if config['act_norm']:
-                transforms.append(models.ActNormBijectionCloud(
+                layer_list.append(models.ActNormBijectionCloud(
                     config['latent_dim'], data_dep_init=True))
-            transforms.append(permuter(config['latent_dim']))
+            layer_list.append(permuter(config['latent_dim']))
+        #Set layer tag name
+        for module in layer_list:
+            set_module_name_tag(module,index)
+        transforms.extend(layer_list)
+
+    
 
     base_dist = models.StandardNormal(
         shape=(config['min_points'], config['latent_dim']))

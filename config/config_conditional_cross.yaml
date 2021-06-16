@@ -25,9 +25,9 @@ early_stop_margin:
 input_dim:
   desc: Dimension of pointcloud data
   value: 6
-grid_square_size:
-  desc: Size of grid square or circle diameter
-  value: 2 # was 2 !!!
+# grid_square_size:
+#   desc: Size of grid square or circle diameter
+#   value: 2 # was 2 !!!
 clearance:
   desc: clearance
   value: 10
@@ -36,7 +36,7 @@ subsample:
   value: 'fps'
 patience:
   desc: patience (number of batches not epochs!)
-  value: 1000 #Was 10 for challenge
+  value: 500 #Was 10 for challenge
 preload:
   desc: Preload_dataset
   value: true
@@ -99,7 +99,7 @@ input_embedding_dim:
   value: 64 #was 512 
 cross_heads:
   desc: Number of attn heads
-  value: 2 #1
+  value: 1 #1
 cross_dim_head:
   desc: Dimension of cross dim head
   value: 64 #256
@@ -180,10 +180,10 @@ linear_lu_eps:
   value: 1.0E-7 #was 1.0E-5
 threshold_scheduler:
   desc: Minimum increase percentage to decrease lr at for scheduler
-  value: 0.01 #Percentage
+  value: 0.0001 #Percentage
 lr_factor:
   desc: Multiplication factor for lr scheduler]
-  value: 0.8
+  value: 0.1
 mem_iter_scheduler:
   desc: Every how many batches to reset and adjust custom scheduler
   value: 1000
