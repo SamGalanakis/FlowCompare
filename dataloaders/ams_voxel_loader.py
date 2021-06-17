@@ -77,7 +77,7 @@ class Scan:
             self.recording_properties['RecordingTimeGps'].split('-')[1]), int(self.recording_properties['RecordingTimeGps'].split('-')[-1].split('T')[0]))
 
 
-class AmsGridLoaderPointwise(Dataset):
+class AmsVoxelLoader(Dataset):
     def __init__(self, directory_path, out_path, clearance=10, preload=False,
                  height_min_dif=0.5, max_height=15.0, device="cpu", ground_keep_perc=1/40, voxel_size=0.07, n_samples=2048, n_voxels=10, final_voxel_size=[3., 3., 4.],
                  rotation_augment = True,n_samples_context=2048, context_voxel_size = [3., 3., 4.],

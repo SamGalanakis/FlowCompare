@@ -1,28 +1,25 @@
 import math
 import os
 from time import perf_counter
-
 import numpy as np
-import pandas as pd
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import models
 import wandb
-from dataloaders import AmsGridLoader,AmsGridLoaderPointwise
-from utils import Scheduler,is_valid
+from dataloaders import AmsVoxelLoader, AmsVoxelLoader
+from utils import Scheduler, is_valid
 import einops
 import inspect
 
-def set_module_name_tag(module,name_tag):
+
+def set_module_name_tag(module, name_tag):
     module.name_tag = name_tag
-    children = inspect.getmembers(module, lambda x:isinstance(x,torch.nn.Module))
-    for class_type,child in children:
-        set_module_name_tag(child,name_tag)
-
-
-
+    children = inspect.getmembers(
+        module, lambda x: isinstance(x, torch.nn.Module))
+    for class_type, child in children:
+        set_module_name_tag(child, name_tag)
 
 
 def load_flow(load_dict, models_dict):
@@ -36,16 +33,11 @@ def initialize_flow(config, device='cuda', mode='train'):
 
     parameters = []
 
-
-
-    #Set global bool as needed for inner loop changes regarding global embedding vs attention
+    # Set global bool as needed for inner loop changes regarding global embedding vs attention
     if config['input_embedder'] in ['DGCNNembedderGlobal']:
         config['global'] = True
     else:
         config['global'] = False
-
-
-
 
     if config['coupling_block_nonlinearity'] == "ELU":
         coupling_block_nonlinearity = nn.ELU()
@@ -60,10 +52,10 @@ def initialize_flow(config, device='cuda', mode='train'):
 
         if config['augmenter_dist'] == 'StandardUniform':
             augmenter_dist = models.StandardUniform(
-                shape=(config['min_points'], config['latent_dim']-config['input_dim']))
+                shape=(config['sample_size'], config['latent_dim']-config['input_dim']))
         elif config['augmenter_dist'] == 'StandardNormal':
             augmenter_dist = models.StandardNormal(
-                shape=(config['min_points'], config['latent_dim']-config['input_dim']))
+                shape=(config['sample_size'], config['latent_dim']-config['input_dim']))
         elif config['augmenter_dist'] == 'ConditionalMeanStdNormal':
             net_augmenter_dist = models.MLP(config['input_dim'], config['net_augmenter_dist_hidden_dims'],
                                             config['latent_dim']-config['input_dim'], coupling_block_nonlinearity)
@@ -118,7 +110,7 @@ def initialize_flow(config, device='cuda', mode='train'):
         def permuter(dim): return models.FullCombiner(dim=dim)
     else:
         raise Exception(
-            f'Invalid permuter type: {config["""permuter_type"""]}')
+            f'Invalid permuter type: {config["permuter_type"]}')
 
     if config['cif_dist'] == 'StandardUniform':
         def cif_dist(): return models.StandardUniform(
@@ -150,54 +142,51 @@ def initialize_flow(config, device='cuda', mode='train'):
 
     context_dim = config['attn_dim'] if not config['global'] else config['input_embedding_dim']
 
-    cif_block = lambda : models.cif_helper(input_dim=config['latent_dim'], augment_dim=config['cif_latent_dim'], distribution_aug=cif_dist_aug, distribution_slice=cif_dist_slice, context_dim=context_dim, flow=flow_for_cif, attn=attn,
+    def cif_block(): return models.cif_helper(input_dim=config['latent_dim'], augment_dim=config['cif_latent_dim'], distribution_aug=cif_dist_aug, distribution_slice=cif_dist_slice, context_dim=context_dim, flow=flow_for_cif, attn=attn,
                                               pre_attention_mlp=pre_attention_mlp, event_dim=-1, conditional_aug=config['conditional_aug_cif'], conditional_slice=config['conditional_slice_cif'], input_embedder_type=config['input_embedder'])
 
     transforms = []
     # Add transformations to list
     transforms.append(augmenter)
-    
+
     # transforms.append(ActNormBijectionCloud(config['latent_dim'],data_dep_init=True)) #Entry norm
     for index in range(config['n_flow_layers']):
         layer_list = []
         cif_trans = cif_block()
-        
+
         layer_list.append(cif_trans)
-        
+
         # Don't permute output
         if index != config['n_flow_layers']-1:
             if config['act_norm']:
                 layer_list.append(models.ActNormBijectionCloud(
                     config['latent_dim'], data_dep_init=True))
             layer_list.append(permuter(config['latent_dim']))
-        #Set layer tag name
+        # Set layer tag name
         for module in layer_list:
-            set_module_name_tag(module,index)
+            set_module_name_tag(module, index)
         transforms.extend(layer_list)
 
-    
-
     base_dist = models.StandardNormal(
-        shape=(config['min_points'], config['latent_dim']))
+        shape=(config['sample_size'], config['latent_dim']))
     sample_dist = models.Normal(torch.zeros(1), torch.ones(
-        1)*0.6, shape=(config['min_points'], config['latent_dim']))
+        1)*0.6, shape=(config['sample_size'], config['latent_dim']))
     final_flow = models.Flow(transforms, base_dist, sample_dist)
 
     if config['input_embedder'] == 'DGCNNembedder':
-        input_embedder = models.DGCNNembedder(
+        input_embedder = models.DGCNNembedder(input_dim=config['input_dim'],
             emb_dim=config['input_embedding_dim'], n_neighbors=config['n_neighbors'], out_mlp_dims=config['hidden_dims_embedder_out'])
     elif config['input_embedder'] == 'PAConv':
-        input_embedder = models.PointNet2SSGSeg( c=3,k=config['input_embedding_dim'],out_mlp_dims=config['hidden_dims_embedder_out'])
+        input_embedder = models.PointNet2SSGSeg(
+            c=config['input_dim']-3, k=config['input_embedding_dim'], out_mlp_dims=config['hidden_dims_embedder_out'])
     elif config['input_embedder'] == 'DGCNNembedderGlobal':
-        input_embedder = models.DGCNN_cls(
-            input_dim=config['input_dim'], out_dim=config['input_embedding_dim'], k=config['n_neighbors'])
+        input_embedder = models.DGCNNembedderGlobal(
+            input_dim=config['input_dim'], out_mlp_dims=config['hidden_dims_embedder_out'], n_neighbors=config['n_neighbors'],emb_dim=config['input_embedding_dim'])
     elif config['input_embedder'] == 'idenity':
         input_embedder = nn.Identity()
+        assert config['input_dim'] == config['input_embedding_dim'], 'Embedding dim must match input dim when not using an embedder'
     else:
         raise Exception('Invalid input embedder!')
-
-
- 
 
     if mode == 'train':
         input_embedder.train()
@@ -222,18 +211,18 @@ def initialize_flow(config, device='cuda', mode='train'):
                    "flow": final_flow, 'input_embedder': input_embedder}
 
     print(
-        f'Number of trainable parameters: {sum([x.numel() for x in parameters])}')
+        f'Model initialized, number of trainable parameters: {sum([x.numel() for x in parameters])}')
     return models_dict
 
 
-    
 def inner_loop(extract_0, extract_1, models_dict, config):
 
-    input_embeddings = models_dict["input_embedder"](extract_0)
+    input_embeddings = torch.utils.checkpoint.checkpoint(
+                models_dict["input_embedder"], extract_0, preserve_rng_state=False)  # models_dict["input_embedder"](extract_0)
 
     if config['global']:
-        input_embeddings = einops.repeat(input_embeddings,'b e -> b n e',n=extract_1.shape[1])
-
+        input_embeddings = einops.repeat(
+            input_embeddings, 'b e -> b n e', n=extract_1.shape[1])
 
     x = extract_1
 
@@ -249,56 +238,37 @@ def make_sample(n_points, extract_0, models_dict, config, sample_distrib=None):
     input_embeddings = models_dict["input_embedder"](extract_0[0].unsqueeze(0))
 
     if config['global']:
-        input_embeddings = einops.repeat(input_embeddings,'b e -> b n e',n=n_points)
+        input_embeddings = einops.repeat(
+            input_embeddings, 'b e -> b n e', n=n_points)
 
     x = models_dict['flow'].sample(num_samples=1, n_points=n_points,
                                    context=input_embeddings, sample_distrib=sample_distrib).squeeze()
     return x
 
 
-def main(rank, world_size):
-
-    dirs = [r'/mnt/cm-nas03/synch/students/sam/data_test/2018',
-            r'/mnt/cm-nas03/synch/students/sam/data_test/2019', r'/mnt/cm-nas03/synch/students/sam/data_test/2020']
+def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    config_path = r"config/config_conditional_cross.yaml"
+    print(f'Using device: {device}')
+    config_path = r"config/config.yaml"
     wandb.init(project="flow_change", config=config_path)
     config = wandb.config
 
-
     models_dict = initialize_flow(config, device, mode='train')
 
-    if config['preselected_points']:
-        scene_df_dict = {int(os.path.basename(x).split("_")[0]): pd.read_csv(os.path.join(
-            config['dirs_challenge_csv'], x)) for x in os.listdir(config['dirs_challenge_csv'])}
-        preselected_points_dict = {
-            key: val[['x', 'y']].values for key, val in scene_df_dict.items()}
-        preselected_points_dict = {key: (val.unsqueeze(0) if len(
-            val.shape) == 1 else val) for key, val in preselected_points_dict.items()}
-    else:
-        preselected_points_dict = None
+   
+    if config['data_loader'] == 'AmsVoxelLoader':
+        dataset = AmsVoxelLoader('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'],
+                                         n_samples=config['sample_size'], n_voxels=config[
+                                             'batch_size'], final_voxel_size=config['final_voxel_size'], device=device,
+                                         n_samples_context=config['n_samples_context'], context_voxel_size=config['context_voxel_size']
+                                         )
 
-    
-    
-    collate_fn = None
-    if config['data_loader'] == 'AmsGridLoader':
-        dataset = AmsGridLoader('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'], subsample=config['subsample'], sample_size=config[
-                                'sample_size'], min_points=config['min_points'], grid_type='circle', normalization=config['normalization'], grid_square_size=config['grid_square_size'])
-    elif config['data_loader'] == 'AmsGridLoaderPointwise':
-        dataset = AmsGridLoaderPointwise('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'],
-        n_samples = config['sample_size'],n_voxels=config['batch_size'],final_voxel_size = config['final_voxel_size'],device=device,
-        n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size']
-        )
-     
     else:
         raise Exception('Invalid dataloader type!')
 
-
-    batch_size = config['batch_size']
-    dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=config[
-                            "num_workers"], collate_fn=collate_fn, pin_memory=True, prefetch_factor=2, drop_last=True)
+    dataloader = DataLoader(dataset, shuffle=True, batch_size=config['batch_size'], num_workers=config[
+                            "num_workers"], collate_fn=None, pin_memory=True, prefetch_factor=2, drop_last=True)
 
     if config["optimizer_type"] == 'Adam':
         optimizer = torch.optim.Adam(
@@ -315,17 +285,8 @@ def main(rank, world_size):
     else:
         raise Exception('Invalid optimizer type!')
 
-    if config['lr_scheduler'] == 'ReduceLROnPlateau':
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=config['lr_factor'], patience=config["patience"], threshold=config['threshold_scheduler'], min_lr=config["min_lr"])
-    elif config['lr_scheduler'] == 'OneCycleLR':
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer, max_lr=config['lr'], epochs=config['n_epochs'], steps_per_epoch=len(dataloader), total_steps=len(dataloader))
-    elif config['lr_scheduler'] == 'custom':
-        scheduler = Scheduler(optimizer, config['mem_iter_scheduler'], factor=config['lr_factor'],
-                              threshold=config['threshold_scheduler'], min_lr=config["min_lr"])
-    else:
-        raise Exception('Invalid cheduler')
+    scheduler = Scheduler(optimizer, config['mem_iter_scheduler'], factor=config['lr_factor'],
+                          threshold=config['threshold_scheduler'], min_lr=config["min_lr"])
 
     save_model_path = r'save/conditional_flow_compare'
 
@@ -337,9 +298,8 @@ def main(rank, world_size):
 
     else:
         print("Starting training from scratch!")
-    # Override min lr to allow for changing after checkpointing
-    scheduler.min_lrs = [config['min_lr']]
-    # Watch models:
+
+    # Set flags
     detect_anomaly = False
     if detect_anomaly:
         print('DETECT ANOMALY ON')
@@ -358,7 +318,7 @@ def main(rank, world_size):
                     torch.cuda.synchronize()
                     t0 = perf_counter()
                 batch = [x.to(device) for x in batch]
-          
+
                 extract_0, extract_1 = batch
                 loss, _, nats = inner_loop(
                     extract_0, extract_1, models_dict, config)
@@ -385,23 +345,22 @@ def main(rank, world_size):
 
             if ((batch_ind+1) % config['batches_per_sample'] == 0) and config['make_samples']:
                 with torch.no_grad():
-                    
+
                     cond_nump = extract_0[0].cpu().numpy()
                     sample_points = make_sample(
                         4000, extract_0, models_dict, config)
                     cond_nump[:, 3:6] = np.clip(
-                    cond_nump[:, 3:6]*255, 0, 255)
+                        cond_nump[:, 3:6]*255, 0, 255)
                     sample_points = sample_points.cpu().numpy().squeeze()
                     sample_points[:, 3:6] = np.clip(
-                    sample_points[:, 3:6]*255, 0, 255)
+                        sample_points[:, 3:6]*255, 0, 255)
                     wandb.log({"Cond_cloud": wandb.Object3D(cond_nump[:, :6]), "Gen_cloud": wandb.Object3D(
                         sample_points[:, :6]), 'loss': loss_item, 'nats': nats.item(), 'lr': current_lr, 'time_batch': time_batch})
             else:
                 pass
                 wandb.log({'loss': loss_item, 'nats': nats.item(),
                           'lr': current_lr, 'time_batch': time_batch})
-            
-                
+
         wandb.log({'epoch': epoch, "loss_epoch": loss_running_avg})
         print(f'Loss epoch: {loss_running_avg}')
         if (epoch % config['epochs_per_save'] == 0) and epoch != 0:
@@ -413,7 +372,5 @@ def main(rank, world_size):
 
 
 if __name__ == "__main__":
-    world_size = torch.cuda.device_count()
-    print('Let\'s use', world_size, 'GPUs!')
-    rank = ''
-    main(rank, world_size)
+
+    main()
