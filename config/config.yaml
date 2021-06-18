@@ -102,7 +102,7 @@ amp:
   value: false
 input_embedder: 
   desc: input_embedder type
-  value: DGCNNembedderGlobal #PAConv,DGCNNembedderGlobal,DGCNNembedder
+  value: DGCNNembedder #PAConv,DGCNNembedderGlobal,DGCNNembedder
 grad_clip_val:
   desc: What value to clip grad norms to
   value: 1.0 # was 1.0
@@ -190,6 +190,9 @@ context_voxel_size:
 n_samples_context:
   desc: Points in context
   value: 1250
+base_dist:
+  desc: What distribution to use as base distribution (to evaluate loglikelihood)
+  value: ConditionalNormal # StandardNormal
 cond_base_dist_hidden_dims:
   desc: Hidden dim dimensions of mlp when using conditional distribution as base 
   value: [512,512,512]

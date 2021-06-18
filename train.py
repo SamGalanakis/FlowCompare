@@ -176,15 +176,17 @@ def initialize_flow(config, device='cuda', mode='train'):
             1)*0.6, shape=(config['sample_size'], config['latent_dim']))
         
     elif config['base_dist'] == 'ConditionalNormal':
-        if config['global']: 
+        if not config['global']: 
             base_dist_net = models.DistributedToGlobal(config['cond_base_dist_hidden_dims'],config['input_embedding_dim'],out_dim=config['latent_dim']*2)
         else:
-            base_dist_net = models.MLP(config['input_embedding_dim'],config['cond_base_dist_hidden_dims'],config['latent_dim']*2)
+            base_dist_net = models.MLP(config['input_embedding_dim'],config['cond_base_dist_hidden_dims'],config['latent_dim']*2,nonlin=nn.GELU())
             
         
         base_dist = models.ConditionalNormal(base_dist_net)
         #Sample from same dist, but could implement a multiplier for net out std as in non conditional form 
         sample_dist = base_dist
+    else:
+        raise Exception('Invalid base_dist!')
 
     final_flow = models.Flow(transforms, base_dist, sample_dist)
 
