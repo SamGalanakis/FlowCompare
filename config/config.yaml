@@ -3,7 +3,7 @@ sample_size:
   value: 1024 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 115 # was 46 for 64 latent
+  value: 114 # was 115 latent
 data_loader:
   desc: What loader to use
   value: AmsVoxelLoader #AmsGridLoader
@@ -87,7 +87,7 @@ attn_input_dim:
   value: 256
 input_embedding_dim:
   desc: Dimension of input embeddings, part of input for attention (feature dim for each point in cloud t0) or dim of global embedding
-  value: 64 #was 512 
+  value: 124 #was 512 
 cross_heads:
   desc: Number of attn heads
   value: 1 #1
@@ -190,6 +190,9 @@ context_voxel_size:
 n_samples_context:
   desc: Points in context
   value: 1250
+cond_base_dist_hidden_dims:
+  desc: Hidden dim dimensions of mlp when using conditional distribution as base 
+  value: [512,512,512]
 
 
 

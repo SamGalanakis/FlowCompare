@@ -216,3 +216,9 @@ class Normal(Distribution):
         sample_shape = list(self.shape)
         sample_shape[-2] = n_points
         return (self.std_normal.sample(num_samples=num_samples, n_points=n_points, context=None) * self.scale) + self.loc
+
+
+
+    
+
+

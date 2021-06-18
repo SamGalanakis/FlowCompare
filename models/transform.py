@@ -67,13 +67,13 @@ class Flow(Transform):
         for index,transform in enumerate(self.transforms):
             x, ldj = transform(x,context=context)
             log_prob += ldj
-        log_prob += self.base_dist.log_prob(x)
+        log_prob += self.base_dist.log_prob(x,context= context)
         return log_prob
 
     
     def sample(self,num_samples,n_points,context=None,sample_distrib=None):
         dist_for_sample = sample_distrib if sample_distrib!= None else self.sample_dist
-        z = dist_for_sample.sample(num_samples,n_points=n_points)
+        z = dist_for_sample.sample(num_samples,n_points=n_points,context= context)
         for transform in reversed(self.transforms):
             z = transform.inverse(z,context=context)
         return z
