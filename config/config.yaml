@@ -87,7 +87,7 @@ attn_input_dim:
   value: 256
 input_embedding_dim:
   desc: Dimension of input embeddings, part of input for attention (feature dim for each point in cloud t0) or dim of global embedding
-  value: 124 #was 512 
+  value: 64 #was 512 
 cross_heads:
   desc: Number of attn heads
   value: 1 #1
@@ -102,7 +102,7 @@ amp:
   value: false
 input_embedder: 
   desc: input_embedder type
-  value: DGCNNembedder #PAConv,DGCNNembedderGlobal,DGCNNembedder
+  value: PAConv #PAConv,DGCNNembedderGlobal,DGCNNembedder
 grad_clip_val:
   desc: What value to clip grad norms to
   value: 1.0 # was 1.0

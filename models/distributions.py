@@ -133,6 +133,7 @@ class ConditionalNormal(ConditionalDistribution):
         mean, log_std = torch.chunk(params, chunks=2, dim=-1)
         scale = log_std.exp()
         if self.clamp:
+            #Clamp for stability
             scale = scale.clamp_max(self.clamp)
 
         return torch.distributions.Normal(loc=mean, scale=scale)
@@ -141,9 +142,11 @@ class ConditionalNormal(ConditionalDistribution):
         dist = self.cond_dist(context)
         return sum_except_batch(dist.log_prob(x), num_dims=2)
 
-    def sample(self, context):
+    def sample(self, num_samples,context, n_points):
+        sample_shape = [num_samples,n_points]
+        
         dist = self.cond_dist(context)
-        return dist.rsample()
+        return dist.rsample(sample_shape=torch.Size(sample_shape)).reshape(sample_shape+[dist.loc.shape[-1]])
 
     def sample_with_log_prob(self, context):
         dist = self.cond_dist(context)
