@@ -581,8 +581,13 @@ def rotate_xy(rad):
 
 
 def is_valid(tensor):
-    assert not torch.logical_or(
-        tensor.isnan(), tensor.isinf()).any(), 'Invalid values!'
+    if torch.logical_or(
+        tensor.isnan(), tensor.isinf()).any():
+        raise Exception('Invalid values!')
+        
+    else:
+
+        return True
 
 
 if __name__ == '__main__':

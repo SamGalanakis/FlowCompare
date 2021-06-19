@@ -30,7 +30,7 @@ def load_flow(load_dict, models_dict):
 
 
 def initialize_flow(config, device='cuda', mode='train'):
-
+    models_dict = {}
     parameters = []
 
     # Set global bool as needed for inner loop changes regarding global embedding vs attention
@@ -168,27 +168,8 @@ def initialize_flow(config, device='cuda', mode='train'):
         transforms.extend(layer_list)
 
 
-    #Base, sample dist
-    if config['base_dist'] == 'StandardNormal':
-        base_dist = models.StandardNormal(
-            shape=(config['sample_size'], config['latent_dim']))
-        sample_dist = models.Normal(torch.zeros(1), torch.ones(
-            1)*0.6, shape=(config['sample_size'], config['latent_dim']))
-        
-    elif config['base_dist'] == 'ConditionalNormal':
-        if not config['global']: 
-            base_dist_net = models.DistributedToGlobal(config['cond_base_dist_hidden_dims'],config['input_embedding_dim'],out_dim=config['latent_dim']*2)
-        else:
-            base_dist_net = models.MLP(config['input_embedding_dim'],config['cond_base_dist_hidden_dims'],config['latent_dim']*2,nonlin=nn.GELU())
-            
-        
-        base_dist = models.ConditionalNormal(base_dist_net)
-        #Sample from same dist, but could implement a multiplier for net out std as in non conditional form 
-        sample_dist = base_dist
-    else:
-        raise Exception('Invalid base_dist!')
+ 
 
-    final_flow = models.Flow(transforms, base_dist, sample_dist)
 
     if config['input_embedder'] == 'DGCNNembedder':
         input_embedder = models.DGCNNembedder(input_dim=config['input_dim'],
@@ -200,10 +181,45 @@ def initialize_flow(config, device='cuda', mode='train'):
         input_embedder = models.DGCNNembedderGlobal(
             input_dim=config['input_dim'], out_mlp_dims=config['hidden_dims_embedder_out'], n_neighbors=config['n_neighbors'],emb_dim=config['input_embedding_dim'])
     elif config['input_embedder'] == 'idenity':
+
+
+        
         input_embedder = nn.Identity()
         assert config['input_dim'] == config['input_embedding_dim'], 'Embedding dim must match input dim when not using an embedder'
+
     else:
         raise Exception('Invalid input embedder!')
+
+
+       #Base, sample dist
+    if config['base_dist'] == 'StandardNormal':
+        base_dist = models.StandardNormal(
+            shape=(config['sample_size'], config['latent_dim']))
+        sample_dist = models.Normal(torch.zeros(1), torch.ones(
+            1)*0.6, shape=(config['sample_size'], config['latent_dim']))
+        
+    elif config['base_dist'] == 'ConditionalNormal':
+        if not config['global']: 
+            #base_dist_net = models.DistributedToGlobal(config['cond_base_dist_hidden_dims'],config['input_embedding_dim'],out_dim=config['latent_dim']*2)
+            base_dist_net = models.MLP(600,config['cond_base_dist_hidden_dims'],out_dim=config['latent_dim']*2,nonlin= nn.GELU())
+            models_dict['base_dist_embedder'] = models.DGCNNembedderGlobal(
+            input_dim=config['input_dim'], out_mlp_dims=config['hidden_dims_embedder_out'], n_neighbors=config['n_neighbors'],emb_dim=600).cuda()
+            
+        else:
+            base_dist_net = models.MLP(config['input_embedding_dim'],config['cond_base_dist_hidden_dims'],config['latent_dim']*2,nonlin=nn.GELU())
+            
+        
+        base_dist = models.ConditionalNormal(base_dist_net)
+        #Sample from same dist, but could implement a multiplier for net out std as in non conditional form 
+        sample_dist = base_dist
+    else:
+        raise Exception('Invalid base_dist!')
+
+
+
+    final_flow = models.Flow(transforms, base_dist, sample_dist)
+
+    
 
     if mode == 'train':
         input_embedder.train()
@@ -224,8 +240,8 @@ def initialize_flow(config, device='cuda', mode='train'):
     parameters += input_embedder.parameters()
     parameters += final_flow.parameters()
 
-    models_dict = {'parameters': parameters,
-                   "flow": final_flow, 'input_embedder': input_embedder}
+    models_dict.update({'parameters': parameters,
+                   "flow": final_flow, 'input_embedder': input_embedder})
 
     print(
         f'Model initialized, number of trainable parameters: {sum([x.numel() for x in parameters])}')
@@ -237,13 +253,17 @@ def inner_loop(extract_0, extract_1, models_dict, config):
     input_embeddings = torch.utils.checkpoint.checkpoint(
                 models_dict["input_embedder"], extract_0, preserve_rng_state=False)  # models_dict["input_embedder"](extract_0)
 
-    if config['global']:
-        input_embeddings = einops.repeat(
-            input_embeddings, 'b e -> b n e', n=extract_1.shape[1])
+    input_embeddings_global =  torch.utils.checkpoint.checkpoint(
+                models_dict["base_dist_embedder"], extract_0, preserve_rng_state=False) 
 
+    if config['global']:
+        input_embeddings = input_embeddings.unsqueeze(1)
+
+    
+    input_embeddings_global = input_embeddings_global.unsqueeze(1)
     x = extract_1
 
-    log_prob = models_dict['flow'].log_prob(x, context=input_embeddings)
+    log_prob = models_dict['flow'].log_prob(x, context=[input_embeddings,input_embeddings_global])
 
     loss = -log_prob.mean()
     nats = -log_prob.sum() / (math.log(2) * x.numel())
@@ -252,14 +272,17 @@ def inner_loop(extract_0, extract_1, models_dict, config):
 
 def make_sample(n_points, extract_0, models_dict, config, sample_distrib=None):
 
+
+    input_embeddings_global =  torch.utils.checkpoint.checkpoint(
+                models_dict["base_dist_embedder"], extract_0[0].unsqueeze(0), preserve_rng_state=False)
     input_embeddings = models_dict["input_embedder"](extract_0[0].unsqueeze(0))
 
+    input_embeddings_global =input_embeddings_global.unsqueeze(1)
     if config['global']:
-        input_embeddings = einops.repeat(
-            input_embeddings, 'b e -> b n e', n=n_points)
+        input_embeddings = input_embeddings.unsqueeze(1)
 
     x = models_dict['flow'].sample(num_samples=1, n_points=n_points,
-                                   context=input_embeddings, sample_distrib=sample_distrib).squeeze()
+                                   context=[input_embeddings,input_embeddings_global], sample_distrib=sample_distrib).squeeze()
     return x
 
 
@@ -366,9 +389,8 @@ def main():
                     cond_nump = extract_0[0].cpu().numpy()
                     sample_points = make_sample(
                         config['n_samples_context'], extract_0, models_dict, config)
-                    if torch.logical_or(sample_points.isnan(), sample_points.isinf()).any():
-                        print('Invalid sample')
-                        sample_points[:,:3] = sample_points[:,:3].clamp(-2,2)
+              
+                    sample_points[:,:3] = sample_points[:,:3].clamp(-2,2)
 
                                             
 
@@ -389,7 +411,7 @@ def main():
         if (epoch % config['epochs_per_save'] == 0) and epoch != 0:
             print(f'Saving!')
             save_dict = {'config': config._items, "optimizer": optimizer.state_dict(
-            ), "flow": models_dict['flow'].state_dict(), "input_embedder": models_dict['input_embedder'].state_dict()}
+            ), "flow": models_dict['flow'].state_dict(), "input_embedder": models_dict['input_embedder'].state_dict(),'base_dist_embedder':models_dict['base_dist_embedder'].state_dict()}
             torch.save(save_dict, os.path.join(
                 save_model_path, f"{wandb.run.name}_e{epoch}_model_dict.pt"))
 

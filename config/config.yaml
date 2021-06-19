@@ -3,7 +3,7 @@ sample_size:
   value: 1024 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 114 # was 115 latent
+  value: 115 # was 115 latent
 data_loader:
   desc: What loader to use
   value: AmsVoxelLoader #AmsGridLoader
@@ -31,21 +31,18 @@ clearance:
 subsample:
   desc: How to subsample
   value: 'fps'
-patience:
-  desc: patience (number of batches not epochs!)
-  value: 500 #Was 10 for challenge
 preload:
   desc: Preload_dataset
   value: true
 n_epochs:
   desc: Number of epochs to train for
-  value: 10000 #Not used
+  value: 10000 
 batch_size:
   desc: Batch size
-  value: 26  #26 Paconv
+  value: 24  #26 Paconv
 lr:
   desc: Initial learning rate for optimizer
-  value: 1.0E-4 # was  1.0E-4
+  value: 5.0E-5 # was  1.0E-4
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -177,7 +174,7 @@ lr_factor:
   value: 0.5
 mem_iter_scheduler:
   desc: Every how many batches to reset and adjust custom scheduler
-  value: 1100
+  value: 500
 affine_scale_fn:
   desc: Scaling function to use for affine coupling
   value: sigmoid

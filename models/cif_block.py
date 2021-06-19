@@ -4,6 +4,28 @@ import torch.nn as nn
 from models import (ActNormBijectionCloud, Augment, IdentityTransform,
                     PreConditionApplier, Reverse, Slice, transform)
 from models.transform import Transform
+import models
+
+class AffineCif(Transform):
+    def __init__(self,input_dim,parameter_mlp_in_dim,hidden_mlp_dims):
+        self.input_dim = input_dim
+        self.parameter_mlp_in_dim = parameter_mlp_in_dim
+        self.hidden_mlp_dims = hidden_mlp_dims
+
+        self.param_mlp = models.MLP(parameter_mlp_in_dim,hidden_mlp_dims,input_dim*2,nonlune=nn.GELU())
+        
+    def forward(self,x,u):
+        s,t = torch.chunk(self.param_mlp(u),2,dim=-1)
+        s = torch.exp(-s)
+        ldj = torch.einsum('bnd->bn', torch.log(s))
+        x = s*x - t
+        return x,ldj
+
+    def inverse(self,y,u):
+        s,t = torch.chunk(self.param_mlp(u),2,dim=-1)
+        s = torch.exp(-s)
+        return (y+t)/s
+
 
 
 class CouplingPreconditionerNoAttn(nn.Module):
@@ -64,9 +86,8 @@ class CIFblock(Transform):
         distrib_slice = distribution_slice()
         self.augmenter = Augment(
             distrib_augment, input_dim, split_dim=event_dim)
-
-        pre_attention_mlp_input_dim = augment_dim - \
-            input_dim  # - input_dim//2  #Context is x1,noise
+        self.affine_cif = AffineCif()
+        pre_attention_mlp_input_dim = augment_dim - input_dim  # - input_dim//2  #Context is x1,noise
         self.attention = attn()
         self.pre_attention_mlp = pre_attention_mlp(pre_attention_mlp_input_dim)
         self.flow = flow(input_dim=augment_dim, context_dim=context_dim)

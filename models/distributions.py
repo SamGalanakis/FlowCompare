@@ -148,9 +148,10 @@ class ConditionalNormal(ConditionalDistribution):
         dist = self.cond_dist(context)
         return dist.rsample(sample_shape=torch.Size(sample_shape)).reshape(sample_shape+[dist.loc.shape[-1]])
 
-    def sample_with_log_prob(self, context):
+    def sample_with_log_prob(self, x,num_samples,context, n_points):
         dist = self.cond_dist(context)
-        z = dist.rsample()
+        sample_shape = [num_samples,n_points]
+        z = dist.rsample(sample_shape=torch.Size(sample_shape)).reshape(sample_shape+[dist.loc.shape[-1]])
         log_prob = dist.log_prob(z)
         log_prob = sum_except_batch(log_prob, num_dims=2)
         return z, log_prob
