@@ -53,6 +53,6 @@ class Slice(Transform):
         if self.cond:
             x2 = self.noise_dist.sample(context=context)
         else:
-            x2 = self.noise_dist.sample(num_samples=z.shape[0])
+            x2 = self.noise_dist.sample(num_samples=z.shape[0],n_points = z.shape[1])
         x = torch.cat([z, x2], dim=self.dim)
         return x

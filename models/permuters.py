@@ -57,7 +57,7 @@ class ExponentialCombiner(Transform):
         return torch.matmul(expm(-w_mat,eps= self.eps_expm,algo=self.algo),y.unsqueeze(-1)).squeeze(-1)
 
 class Permuter(Transform):
-    def __init__(self,permutation,event_dim=-1):
+    def __init__(self,permutation,event_dim= -1):
         super().__init__()
         
         self.register_buffer('permutation', permutation)
@@ -85,7 +85,7 @@ class Reverse(Permuter):
         dim: int, dimension to permute (excluding batch_dimension)
     """
 
-    def __init__(self, dim_size, dim=1):
+    def __init__(self, dim_size, dim= - 1):
         super(Reverse, self).__init__(torch.arange(dim_size - 1, -1, -1), dim)
 
 

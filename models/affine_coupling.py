@@ -7,11 +7,11 @@ import einops
 
 
 class AffineCoupling(Transform):
-    def __init__(self, input_dim, hidden_dims, nonlinearity, context_dim=0, event_dim=-1, scale_fn_type='exp', eps=1E-8):
+    def __init__(self, input_dim, hidden_dims, nonlinearity, context_dim=0, event_dim=-1, scale_fn_type='exp', eps=1E-8,split_dim=None):
         super().__init__()
         self.event_dim = event_dim
         self.input_dim = input_dim
-        self.split_dim = input_dim//2
+        self.split_dim = split_dim if split_dim != None else input_dim//2
         self.context_dim = context_dim
         out_dim = (self.input_dim - self.split_dim)*2
         self.nn = MLP(self.split_dim + context_dim, hidden_dims,

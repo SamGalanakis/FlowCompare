@@ -142,8 +142,8 @@ def initialize_flow(config, device='cuda', mode='train'):
 
     context_dim = config['attn_dim'] if not config['global'] else config['input_embedding_dim']
 
-    def cif_block(): return models.cif_helper(input_dim=config['latent_dim'], augment_dim=config['cif_latent_dim'], distribution_aug=cif_dist_aug, distribution_slice=cif_dist_slice, context_dim=context_dim, flow=flow_for_cif, attn=attn,
-                                              pre_attention_mlp=pre_attention_mlp, event_dim=-1, conditional_aug=config['conditional_aug_cif'], conditional_slice=config['conditional_slice_cif'], input_embedder_type=config['input_embedder'])
+    def cif_block(): return models.cif_helper(config,flow=flow_for_cif, attn=attn,
+                                              pre_attention_mlp=pre_attention_mlp, event_dim=-1)
 
     transforms = []
     # Add transformations to list

@@ -3,7 +3,7 @@ sample_size:
   value: 1024 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 115 # was 115 latent
+  value: 114 # was 115 latent
 data_loader:
   desc: What loader to use
   value: AmsVoxelLoader #AmsGridLoader
@@ -39,7 +39,7 @@ n_epochs:
   value: 10000 
 batch_size:
   desc: Batch size
-  value: 24  #26 Paconv
+  value: 20  #26 Paconv
 lr:
   desc: Initial learning rate for optimizer
   value: 5.0E-5 # was  1.0E-4
@@ -53,7 +53,7 @@ optimizer_type:
   desc: optimizer type
   value: Adam #was Adam
 weight_decay:
-  desc: weigth decay for optimizer (l1 reg)
+  desc: weight decay for optimizer (l1 reg)
   value: 0.0 #was 0.000001 Affects bits per dim
 data_parallel:
   desc: Use parallel
@@ -78,7 +78,7 @@ attn_dim:
   value: 512
 latent_dim:
   desc: Latent dim for main flow - output of first augment
-  value: 300
+  value: 200
 attn_input_dim:
   desc: dim of input to attn
   value: 256
@@ -102,7 +102,7 @@ input_embedder:
   value: PAConv #PAConv,DGCNNembedderGlobal,DGCNNembedder
 grad_clip_val:
   desc: What value to clip grad norms to
-  value: 1.0 # was 1.0
+  value: 0.1 # was 1.0
 batches_per_sample:
   desc: Every how many batches to create a sample
   value: 15
@@ -132,10 +132,10 @@ cif_dist:
   value: ConditionalNormal
 net_cif_dist_hidden_dims:
   desc: Hidden dims for conditional distribution nets in the cif augmenter/slicer
-  value: [64,64]
+  value: [64,64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 300
+  value: 250
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
   value: torch # Was original
@@ -147,16 +147,16 @@ cif_act_norm:
   value: true
 make_samples:
   desc: Make samples during training
-  value: true
+  value: false
 clamp_dist:
   desc: Clamp std val for stability
-  value: 10.0
+  value: false # 10.0
 time_stats:
   desc: Use cuda synchronize to get time stats
   value: false
 conditional_aug_cif:
   desc: Use conditional info in augment of cif
-  value: True
+  value: True #TODO this?
 conditional_slice_cif:
   desc: Use conditional info in slice of cif
   value: True
@@ -189,9 +189,12 @@ n_samples_context:
   value: 1250
 base_dist:
   desc: What distribution to use as base distribution (to evaluate loglikelihood)
-  value: ConditionalNormal # StandardNormal
+  value: StandardNormal # StandardNormal
 cond_base_dist_hidden_dims:
-  desc: Hidden dim dimensions of mlp when using conditional distribution as base 
+  desc: Hidden dimensions of mlp when using conditional distribution as base 
+  value: [512,512,512]
+affine_cif_hidden:
+  desc: Hidden dimensions of mlp AffineCif
   value: [512,512,512]
 
 

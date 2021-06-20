@@ -120,10 +120,18 @@ class ConditionalMeanStdNormal(ConditionalDistribution):
 class ConditionalNormal(ConditionalDistribution):
     """A multivariate Normal with conditional mean and log_std."""
 
-    def __init__(self, net, split_dim=-1, clamp=False):
+    def __init__(self, net, split_dim=-1, clamp=False,scale_fn_type='sigmoid',eps=1E-8):
         super().__init__()
         self.net = net
+        self.eps = eps
         self.clamp = clamp
+        self.scale_fn_type = scale_fn_type
+        if self.scale_fn_type == 'exp':
+            self.scale_fn = lambda x: torch.exp(x)
+        elif self.scale_fn_type == 'sigmoid':
+            self.scale_fn = lambda x: (2*torch.sigmoid(x) - 1) * (1 - eps) + 1 +eps
+        else:
+            raise Exception('Invalid scale_fn_type')
 
     def cond_dist(self, context):
 
@@ -131,27 +139,28 @@ class ConditionalNormal(ConditionalDistribution):
             self.net, context, preserve_rng_state=False)
         #params = self.net(context)
         mean, log_std = torch.chunk(params, chunks=2, dim=-1)
-        scale = log_std.exp()
+    
         if self.clamp:
             #Clamp for stability
-            scale = scale.clamp_max(self.clamp)
-
+            log_std = log_std.clamp_max(self.clamp)
+        scale =  self.scale_fn(log_std)
+        
         return torch.distributions.Normal(loc=mean, scale=scale)
 
     def log_prob(self, x, context):
         dist = self.cond_dist(context)
         return sum_except_batch(dist.log_prob(x), num_dims=2)
 
-    def sample(self, num_samples,context, n_points):
-        sample_shape = [num_samples,n_points]
+    def sample(self,context):
+        
         
         dist = self.cond_dist(context)
-        return dist.rsample(sample_shape=torch.Size(sample_shape)).reshape(sample_shape+[dist.loc.shape[-1]])
+        return dist.rsample()
 
-    def sample_with_log_prob(self, x,num_samples,context, n_points):
+    def sample_with_log_prob(self,context):
         dist = self.cond_dist(context)
-        sample_shape = [num_samples,n_points]
-        z = dist.rsample(sample_shape=torch.Size(sample_shape)).reshape(sample_shape+[dist.loc.shape[-1]])
+        
+        z = dist.rsample()
         log_prob = dist.log_prob(z)
         log_prob = sum_except_batch(log_prob, num_dims=2)
         return z, log_prob
@@ -182,7 +191,8 @@ class StandardUniform(Distribution):
     def sample(self, num_samples, context=None, n_points=None):
         sample_shape = list(self.shape)
         sample_shape[-2] = n_points
-        return torch.rand((num_samples,) + sample_shape, device=self.zero.device, dtype=self.zero.dtype)
+        sample_shape.insert(0,num_samples)
+        return torch.rand(sample_shape, device=self.zero.device, dtype=self.zero.dtype)
 
 
 class StandardNormal(Distribution):
