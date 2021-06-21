@@ -7,7 +7,7 @@ import einops
 
 
 class AffineCoupling(Transform):
-    def __init__(self, input_dim, hidden_dims, nonlinearity, context_dim=0, event_dim=-1, scale_fn_type='exp', eps=1E-8,split_dim=None):
+    def __init__(self, input_dim, hidden_dims, nonlinearity, context_dim=0, event_dim=-1, scale_fn_type='exp', eps=1E-8, split_dim=None):
         super().__init__()
         self.event_dim = event_dim
         self.input_dim = input_dim

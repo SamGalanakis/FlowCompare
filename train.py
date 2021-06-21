@@ -77,15 +77,15 @@ def initialize_flow(config, device='cuda', mode='train'):
         raise Exception('Latent dim < Input dim')
 
     if config['flow_type'] == 'AffineCoupling':
-        def flow_for_cif(input_dim, context_dim): return models.AffineCoupling(input_dim, context_dim=context_dim,
-                                                                               nonlinearity=coupling_block_nonlinearity, hidden_dims=config['hidden_dims'], scale_fn_type=config['affine_scale_fn'])
+        def flow_lambda(input_dim, context_dim): return models.AffineCoupling(input_dim, context_dim=context_dim,
+                                                                              nonlinearity=coupling_block_nonlinearity, hidden_dims=config['hidden_dims'], scale_fn_type=config['affine_scale_fn'])
     elif config['flow_type'] == 'ExponentialCoupling':
-        def flow_for_cif(input_dim, context_dim): return models.ExponentialCoupling(input_dim, context_dim=context_dim, nonlinearity=coupling_block_nonlinearity, hidden_dims=config['hidden_dims'],
-                                                                                    eps_expm=config['eps_expm'], algo=config['coupling_expm_algo'])
+        def flow_lambda(input_dim, context_dim): return models.ExponentialCoupling(input_dim, context_dim=context_dim, nonlinearity=coupling_block_nonlinearity, hidden_dims=config['hidden_dims'],
+                                                                                   eps_expm=config['eps_expm'], algo=config['coupling_expm_algo'])
     elif config['flow_type'] == 'RationalQuadraticSplineCoupling':
-        def flow_for_cif(input_dim, context_dim): return models.RationalQuadraticSplineCoupling(input_dim, context_dim=context_dim, nonlinearity=coupling_block_nonlinearity, hidden_dims=config['hidden_dims'],
-                                                                                                num_bins=config['num_bins_spline']
-                                                                                                )
+        def flow_lambda(input_dim, context_dim): return models.RationalQuadraticSplineCoupling(input_dim, context_dim=context_dim, nonlinearity=coupling_block_nonlinearity, hidden_dims=config['hidden_dims'],
+                                                                                               num_bins=config['num_bins_spline']
+                                                                                               )
 
     else:
         raise Exception('Invalid flow type')
@@ -112,38 +112,8 @@ def initialize_flow(config, device='cuda', mode='train'):
         raise Exception(
             f'Invalid permuter type: {config["permuter_type"]}')
 
-    if config['cif_dist'] == 'StandardUniform':
-        def cif_dist(): return models.StandardUniform(
-            shape=(config['sample_size'], config['cif_latent_dim']-config['latent_dim']))
-    elif config['cif_dist'] == 'ConditionalMeanStdNormal':
-        net_cif_dist = models.MLP(config['latent_dim'], config['net_cif_dist_hidden_dims'],
-                                  config['cif_latent_dim']-config['latent_dim'], coupling_block_nonlinearity)
-
-        def cif_dist(): return models.ConditionalMeanStdNormal(net=net_cif_dist,
-                                                               scale_shape=config['cif_latent_dim']-config['latent_dim'])
-    elif config['cif_dist'] == 'ConditionalNormal':
-        cif_dist_aug_in = (config['attn_dim']+config['latent_dim']
-                           ) if config['conditional_aug_cif'] else config['latent_dim']
-        cif_dist_aug_mlp = models.MLP(cif_dist_aug_in, config['net_cif_dist_hidden_dims'], (
-            config['cif_latent_dim']-config['latent_dim'])*2, coupling_block_nonlinearity)
-
-        def cif_dist_aug(): return models.ConditionalNormal(
-            net=cif_dist_aug_mlp, split_dim=-1, clamp=config['clamp_dist'])
-
-        cif_dist_slice_in = (config['attn_dim']+config['latent_dim']
-                             ) if config['conditional_aug_cif'] else config['latent_dim']
-        cif_dist_slice_mlp = models.MLP(cif_dist_slice_in, config['net_cif_dist_hidden_dims'], (
-            config['cif_latent_dim']-config['latent_dim'])*2, coupling_block_nonlinearity)
-
-        def cif_dist_slice(): return models.ConditionalNormal(
-            net=cif_dist_slice_mlp, split_dim=-1, clamp=config['clamp_dist'])
-    else:
-        raise Exception('Invalid cif_dist')
-
-    context_dim = config['attn_dim'] if not config['global'] else config['input_embedding_dim']
-
-    def cif_block(): return models.cif_helper(config,flow=flow_for_cif, attn=attn,
-                                              pre_attention_mlp=pre_attention_mlp, event_dim=-1)
+    def flow_block(): return models.flow_block_helper(config, flow=flow_lambda, attn=attn,
+                                                      pre_attention_mlp=pre_attention_mlp, event_dim=-1)
 
     transforms = []
     # Add transformations to list
@@ -152,7 +122,7 @@ def initialize_flow(config, device='cuda', mode='train'):
     # transforms.append(ActNormBijectionCloud(config['latent_dim'],data_dep_init=True)) #Entry norm
     for index in range(config['n_flow_layers']):
         layer_list = []
-        cif_trans = cif_block()
+        cif_trans = flow_block()
 
         layer_list.append(cif_trans)
 
@@ -167,23 +137,23 @@ def initialize_flow(config, device='cuda', mode='train'):
             set_module_name_tag(module, index)
         transforms.extend(layer_list)
 
-
-    #Base, sample dist
+    # Base, sample dist
     if config['base_dist'] == 'StandardNormal':
         base_dist = models.StandardNormal(
             shape=(config['sample_size'], config['latent_dim']))
         sample_dist = models.Normal(torch.zeros(1), torch.ones(
             1)*0.6, shape=(config['sample_size'], config['latent_dim']))
-        
+
     elif config['base_dist'] == 'ConditionalNormal':
-        if not config['global']: 
-            base_dist_net = models.DistributedToGlobal(config['cond_base_dist_hidden_dims'],config['input_embedding_dim'],out_dim=config['latent_dim']*2)
+        if not config['global']:
+            base_dist_net = models.DistributedToGlobal(
+                config['cond_base_dist_hidden_dims'], config['input_embedding_dim'], out_dim=config['latent_dim']*2)
         else:
-            base_dist_net = models.MLP(config['input_embedding_dim'],config['cond_base_dist_hidden_dims'],config['latent_dim']*2,nonlin=nn.GELU())
-            
-        
+            base_dist_net = models.MLP(
+                config['input_embedding_dim'], config['cond_base_dist_hidden_dims'], config['latent_dim']*2, nonlin=nn.GELU())
+
         base_dist = models.ConditionalNormal(base_dist_net)
-        #Sample from same dist, but could implement a multiplier for net out std as in non conditional form 
+        # Sample from same dist, but could implement a multiplier for net out std as in non conditional form
         sample_dist = base_dist
     else:
         raise Exception('Invalid base_dist!')
@@ -192,13 +162,13 @@ def initialize_flow(config, device='cuda', mode='train'):
 
     if config['input_embedder'] == 'DGCNNembedder':
         input_embedder = models.DGCNNembedder(input_dim=config['input_dim'],
-            emb_dim=config['input_embedding_dim'], n_neighbors=config['n_neighbors'], out_mlp_dims=config['hidden_dims_embedder_out'])
+                                              emb_dim=config['input_embedding_dim'], n_neighbors=config['n_neighbors'], out_mlp_dims=config['hidden_dims_embedder_out'])
     elif config['input_embedder'] == 'PAConv':
         input_embedder = models.PointNet2SSGSeg(
             c=config['input_dim']-3, k=config['input_embedding_dim'], out_mlp_dims=config['hidden_dims_embedder_out'])
     elif config['input_embedder'] == 'DGCNNembedderGlobal':
         input_embedder = models.DGCNNembedderGlobal(
-            input_dim=config['input_dim'], out_mlp_dims=config['hidden_dims_embedder_out'], n_neighbors=config['n_neighbors'],emb_dim=config['input_embedding_dim'])
+            input_dim=config['input_dim'], out_mlp_dims=config['hidden_dims_embedder_out'], n_neighbors=config['n_neighbors'], emb_dim=config['input_embedding_dim'])
     elif config['input_embedder'] == 'idenity':
         input_embedder = nn.Identity()
         assert config['input_dim'] == config['input_embedding_dim'], 'Embedding dim must match input dim when not using an embedder'
@@ -235,7 +205,7 @@ def initialize_flow(config, device='cuda', mode='train'):
 def inner_loop(extract_0, extract_1, models_dict, config):
 
     input_embeddings = torch.utils.checkpoint.checkpoint(
-                models_dict["input_embedder"], extract_0, preserve_rng_state=False)  # models_dict["input_embedder"](extract_0)
+        models_dict["input_embedder"], extract_0, preserve_rng_state=False)  # models_dict["input_embedder"](extract_0)
 
     if config['global']:
         input_embeddings = einops.repeat(
@@ -273,13 +243,12 @@ def main():
 
     models_dict = initialize_flow(config, device, mode='train')
 
-   
     if config['data_loader'] == 'AmsVoxelLoader':
         dataset = AmsVoxelLoader('save/processed_dataset', out_path='save/processed_dataset', preload=config['preload'],
-                                         n_samples=config['sample_size'], n_voxels=config[
-                                             'batch_size'], final_voxel_size=config['final_voxel_size'], device=device,
-                                         n_samples_context=config['n_samples_context'], context_voxel_size=config['context_voxel_size']
-                                         )
+                                 n_samples=config['sample_size'], n_voxels=config[
+            'batch_size'], final_voxel_size=config['final_voxel_size'], device=device,
+            n_samples_context=config['n_samples_context'], context_voxel_size=config['context_voxel_size']
+        )
 
     else:
         raise Exception('Invalid dataloader type!')
@@ -368,9 +337,8 @@ def main():
                         config['n_samples_context'], extract_0, models_dict, config)
                     if torch.logical_or(sample_points.isnan(), sample_points.isinf()).any():
                         print('Invalid sample')
-                        sample_points[:,:3] = sample_points[:,:3].clamp(-2,2)
-
-                                            
+                        sample_points[:, :3] = sample_points[:,
+                                                             :3].clamp(-2, 2)
 
                     cond_nump[:, 3:6] = np.clip(
                         cond_nump[:, 3:6]*255, 0, 255)

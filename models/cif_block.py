@@ -37,7 +37,7 @@ class CouplingPreconditionerAttn(nn.Module):
         return attn_emb
 
 
-def cif_helper(config,flow, attn,pre_attention_mlp, event_dim=-1):
+def flow_block_helper(config,flow, attn,pre_attention_mlp, event_dim=-1):
     # CIF if aug>base latent dim else normal flow
     if config['input_dim'] < config['cif_latent_dim']:
 

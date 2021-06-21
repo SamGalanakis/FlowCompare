@@ -6,23 +6,15 @@ import torch
 from matplotlib import pyplot as plt
 from pykeops.torch import Vi, Vj
 from pykeops.torch import LazyTensor
-from utils import load_las, random_oversample,save_las,random_subsample,extract_area,view_cloud_plotly
-from models import DGCNNembedder 
+from models import DGCNNembedder
 
 
 
-def knn_spreader(full_cloud,source,feature,k=1):
-    knn = KNN_torch(k)
-    knn_trained = knn(source[:,:3])
-    knn_index = knn(full_cloud)
-    indexed_feats = feature
-
-    return
 
 def KNN_KeOps(K, metric="euclidean"):
     def fit(x_train):
         # Setup the K-NN estimator:
-        
+
         start = time.time()
 
         # Encoding as KeOps LazyTensors:
@@ -53,11 +45,11 @@ def KNN_KeOps(K, metric="euclidean"):
 
     return fit
 
+
 def KNN_torch_fun(x_train, x_train_norm, x_test, K):
-    
+
     largest = False  # Default behaviour is to look for the smallest values
 
-    
     x_test_norm = (x_test ** 2).sum(-1)
     diss = (
         x_test_norm.view(-1, 1)
@@ -71,14 +63,14 @@ def KNN_torch_fun(x_train, x_train_norm, x_test, K):
 def KNN_torch(K):
     def fit(x_train):
         # Setup the K-NN estimator:
-        
+
         start = time.time()
         # The "training" time here should be negligible:
         x_train_norm = (x_train ** 2).sum(-1)
         elapsed = time.time() - start
 
         def f(x_test):
-            
+
             start = time.time()
 
             # Actual K-NN query:
@@ -92,42 +84,17 @@ def KNN_torch(K):
 
     return fit
 
-def get_knn(samples,context_cloud,n_neighbors,type='torch'):
-        if type == 'torch':
-            knn_func = KNN_torch
-        elif type == 'KeOps':
-            knn_func = KNN_KeOps
-        else:
-            raise Exception('Invalid knn func')
-        knn =  knn_func(n_neighbors)
-        knn,_ = knn(context_cloud)
-        index,_  = knn(samples)
-        
-        return index
-if __name__ == '__main__':
-    use_cuda = True
-    dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
+def get_knn(samples, context_cloud, n_neighbors, type='torch'):
+    if type == 'torch':
+        knn_func = KNN_torch
+    elif type == 'KeOps':
+        knn_func = KNN_KeOps
+    else:
+        raise Exception('Invalid knn func')
+    knn = knn_func(n_neighbors)
+    knn, _ = knn(context_cloud)
+    index, _ = knn(samples)
 
-
-
-
-    device = 'cpu'
-    context_cloud = torch.randn((100000,3)).to(device).contiguous()
-    context = context_cloud[:,:3].contiguous()
-    x = torch.randn((1000,3)).to(device).contiguous()
-    k=1000
-
-
-    for knn_func in [KNN_torch,KNN_KeOps]:
-        print(str(knn_func))
-        knn = knn_func(k)
-        fitted_knn,elapsed_fit = knn(context)
-        print(f'Fitting: {elapsed_fit}')
-        index,elapsed_query = fitted_knn(x)
-        print(f'Query: {elapsed_query}')
-        elapsed_total = elapsed_fit+elapsed_query
-        print(f'Total: {elapsed_total}')
-        context_cloud = context_cloud.cpu()
-        index = index.cpu()
+    return index
 

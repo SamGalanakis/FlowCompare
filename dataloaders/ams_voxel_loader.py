@@ -1,4 +1,4 @@
-from o3d_reg import draw_registration_result
+
 import torch
 import matplotlib.pyplot as plt
 import os
@@ -8,31 +8,20 @@ import pykeops
 import pickle
 
 from utils import (load_las,
-                   random_subsample,
-                   view_cloud_plotly,
-                   grid_split, co_min_max,
-                   circle_split, co_standardize,
-                   sep_standardize,
                    co_unit_sphere,
                    extract_area,
                    rotate_xy,
-                   view_cloud_o3d,
                    get_voxel)
-from itertools import permutations, combinations
+from itertools import combinations
 from torch_cluster import fps
 from tqdm import tqdm
 from torch.utils.data import Dataset
 import json
 from datetime import datetime
 import random
-import open3d as o3d
 import torch_cluster
-from .dataset_utils import registration_pipeline,context_voxel_center,icp_reg_precomputed_target,downsample_transform
+from .dataset_utils import registration_pipeline, context_voxel_center
 eps = 1e-8
-
-
-
-
 
 
 def is_only_ground(cloud, perc=0.99):
@@ -41,12 +30,6 @@ def is_only_ground(cloud, perc=0.99):
     n_close_ground = (clouz_z < (cloud_min + 0.3)).sum()
 
     return n_close_ground/cloud.shape[0] >= perc
-
-
-
-
-
-
 
 
 def filter_scans(scans_list, dist):
@@ -80,8 +63,8 @@ class Scan:
 class AmsVoxelLoader(Dataset):
     def __init__(self, directory_path, out_path, clearance=10, preload=False,
                  height_min_dif=0.5, max_height=15.0, device="cpu", ground_keep_perc=1/40, voxel_size=0.07, n_samples=2048, n_voxels=10, final_voxel_size=[3., 3., 4.],
-                 rotation_augment = True,n_samples_context=2048, context_voxel_size = [3., 3., 4.],
-                mode='pointwise'):
+                 rotation_augment=True, n_samples_context=2048, context_voxel_size=[3., 3., 4.],
+                 mode='pointwise'):
         self.mode = mode
         self.n_samples_context = n_samples_context
         self.context_voxel_size = torch.tensor(context_voxel_size)
@@ -152,21 +135,19 @@ class AmsVoxelLoader(Dataset):
                 # Extract square at center since only those will be used for grid
                 clouds_per_time = [x[extract_area(x, center=np.array(
                     [0, 0]), clearance=self.clearance, shape='square'), :] for x in clouds_per_time]
-                
-                
+
                 voxel_size_icp = 0.05
 
-                clouds_per_time = registration_pipeline(clouds_per_time,voxel_size_icp,self.final_voxel_size)
-                
-                
+                clouds_per_time = registration_pipeline(
+                    clouds_per_time, voxel_size_icp, self.final_voxel_size)
+
                 # Remove below ground and above cutoff
                 # Cut off slightly under ground height
                 ground_cutoff = scan.ground_height - 0.05
                 height_cutoff = ground_cutoff+max_height
                 clouds_per_time = [x[torch.logical_and(
                     x[:, 2] > ground_cutoff, x[:, 2] < height_cutoff), ...] for x in clouds_per_time]
-               
-              
+
                 clouds_per_time = [x.float().cpu() for x in clouds_per_time]
 
                 save_id += 1
@@ -188,15 +169,6 @@ class AmsVoxelLoader(Dataset):
     def __len__(self):
         return len(self.save_dict)
 
-    def view(self, index, grid_ind_0=0, grid_ind_1=1):
-        clouds = self.save_dict[index]['clouds']
-        cloud_0, cloud_1 = clouds[grid_ind_0], clouds[grid_ind_1]
-
-        a_, b_ = o3d.geometry.PointCloud(), o3d.geometry.PointCloud()
-        a_.points = o3d.utility.Vector3dVector(cloud_0[:, :3])
-        b_.points = o3d.utility.Vector3dVector(cloud_1[:, :3])
-        draw_registration_result(a_, b_, np.eye(4))
-
     def last_processing(self, tensor_0, tensor_1):
         return co_unit_sphere(tensor_0, tensor_1)
 
@@ -213,7 +185,7 @@ class AmsVoxelLoader(Dataset):
         cluster_min = clouds[0].min(axis=0)[0][:3]
         cluster_max = clouds[0].max(axis=0)[0][:3]
         clusters = [torch_cluster.grid_cluster(
-            x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size) for x in clouds]
+            x[:, :3], start=cluster_min, end=cluster_max, size=self.final_voxel_size) for x in clouds]
 
         valid_voxels = []
         for cluster in clusters:
@@ -236,42 +208,38 @@ class AmsVoxelLoader(Dataset):
             # If not enough recursively give other index from dataset
             print(f"Couldn't find combinations for index: {idx}")
             return self.__getitem__(random.randint(0, self.__len__()-1))
-        
 
         random.shuffle(valid_combs)
         found_valid = False
-        for draw_ind,draw in enumerate(valid_combs):
-            
+        for draw_ind, draw in enumerate(valid_combs):
+
             cloud_ind_1 = draw[1]
             indices = clusters[cloud_ind_1] == draw[2]
             voxel_1 = clouds[cloud_ind_1][indices, :]
             cloud_ind_0 = draw[0]
             voxel_center = context_voxel_center(voxel_1)
-            voxel_0 = get_voxel(clouds[cloud_ind_0],voxel_center,self.context_voxel_size)
-            if not voxel_0.shape[0]>=self.n_samples_context:
+            voxel_0 = get_voxel(clouds[cloud_ind_0],
+                                voxel_center, self.context_voxel_size)
+            if not voxel_0.shape[0] >= self.n_samples_context:
                 continue
             else:
                 found_valid = True
                 break
-        
+
         if not found_valid:
             print(f"Couldn't find valid context for any tile: {idx}")
             return self.__getitem__(random.randint(0, self.__len__()-1))
-            
+
         voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
         ), ratio=self.n_samples/voxel_1.shape[0], random_start=False), :]
         voxel_1 = voxel_1[:self.n_samples, :]
 
-        
-
-        
         are_same = (cloud_ind_1 == cloud_ind_0)
-        
-     
+
         voxel_0 = voxel_0[fps(voxel_0, torch.zeros(voxel_0.shape[0]).long(
         ), ratio=self.n_samples_context/voxel_0.shape[0], random_start=False), :]
-        voxel_0 = voxel_0[:self.n_samples_context,:]
-        
+        voxel_0 = voxel_0[:self.n_samples_context, :]
+
         if are_same:
             # Add rgb noise 0-1 cm when same cloud
             voxel_1 = voxel_1.clone()

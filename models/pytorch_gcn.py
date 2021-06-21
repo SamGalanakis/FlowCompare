@@ -10,6 +10,7 @@ from models.nets import MLP
 
 # Code adapted from: https://github.com/WangYueFt/dgcnn/blob/master/pytorch/model.py
 
+
 def knn(x, k):
     inner = -2*torch.matmul(x.transpose(2, 1), x)
     xx = torch.sum(x**2, dim=1, keepdim=True)
@@ -48,7 +49,7 @@ def get_graph_feature(x, k=20, idx=None):
 
 
 class DGCNNembedder(nn.Module):
-    def __init__(self,input_dim, out_mlp_dims, emb_dim=22, n_neighbors=20):
+    def __init__(self, input_dim, out_mlp_dims, emb_dim=22, n_neighbors=20):
         super().__init__()
 
         self.n_neighbors = n_neighbors
@@ -78,10 +79,9 @@ class DGCNNembedder(nn.Module):
         self.out_mlp = MLP(512, out_mlp_dims, emb_dim, torch.nn.GELU())
 
     def forward(self, x):
-        
+
         x = x.permute((0, 2, 1))
-        
-    
+
         x = get_graph_feature(x, k=self.n_neighbors)
         x = self.conv1(x)
         x1 = x.max(dim=-1, keepdim=False)[0]
@@ -98,7 +98,7 @@ class DGCNNembedder(nn.Module):
         x = self.conv4(x)
         x4 = x.max(dim=-1, keepdim=False)[0]
 
-        x = torch.cat((x1, x2, x3, x4),dim=1) 
+        x = torch.cat((x1, x2, x3, x4), dim=1)
 
         x = self.conv5(x).permute((0, 2, 1))
 
@@ -107,11 +107,11 @@ class DGCNNembedder(nn.Module):
 
 
 class DGCNNembedderGlobal(nn.Module):
-    def __init__(self,input_dim, out_mlp_dims, emb_dim=22,n_neighbors=20):
+    def __init__(self, input_dim, out_mlp_dims, emb_dim=22, n_neighbors=20):
         super().__init__()
 
         self.n_neighbors = n_neighbors
-       
+
         self.input_dim = input_dim
 
         self.bn1 = nn.BatchNorm2d(64)
@@ -184,6 +184,3 @@ class DGCNNembedderGlobal(nn.Module):
         x = self.out_mlp(x)
 
         return x
-
-
-

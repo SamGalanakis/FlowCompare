@@ -19,12 +19,9 @@ from dash.dependencies import Input, Output
 import open3d as o3d
 
 
-
-
 # Losses from original repo
 
 eps = 1e-8
-
 
 
 def load_las(path, extra_dim_list=None, scale_colors=True):
@@ -153,15 +150,15 @@ def extract_area(full_cloud, center, clearance, shape='circle'):
     return mask
 
 
+def get_voxel(cloud, center, dimensions, return_mask=False):
 
-def get_voxel(cloud,center,dimensions,return_mask = False):
-    
-    
-    mask = (cloud[:,:3]>=(center-dimensions/2)).all(dim=1) & (cloud[:,:3]<=(center+dimensions/2)).all(dim=1)
+    mask = (cloud[:, :3] >= (center-dimensions/2)
+            ).all(dim=1) & (cloud[:, :3] <= (center+dimensions/2)).all(dim=1)
     if return_mask:
         return mask
-    else: 
+    else:
         return cloud[mask]
+
 
 def grid_split(points, grid_size, center=False, clearance=20):
     if isinstance(center, bool):
@@ -333,24 +330,25 @@ def co_min_max(tensor_list):
     return tensor_list
 
 
-def unit_sphere(points,return_inverse=False):
+def unit_sphere(points, return_inverse=False):
     mean = points[:, :3].mean(axis=0)
     points[:, :3] -= mean
-    furthest_distance = torch.max(torch.linalg.norm(points[:,:3],dim=-1))
+    furthest_distance = torch.max(torch.linalg.norm(points[:, :3], dim=-1))
     points[:, :3] = points[:, :3] / furthest_distance
     if return_inverse:
-        inverse = lambda x : furthest_distance*x + mean.to(x.device)
-        return points,inverse
+        def inverse(x): return furthest_distance*x + mean.to(x.device)
+        return points, inverse
     else:
         return points
 
 
-def co_unit_sphere(points_0, points_1,return_inverse=False):
+def co_unit_sphere(points_0, points_1, return_inverse=False):
     l_0 = points_0.shape[0]
 
-    joint,inverse = unit_sphere(torch.cat((points_0, points_1)),return_inverse=True)
+    joint, inverse = unit_sphere(
+        torch.cat((points_0, points_1)), return_inverse=True)
     if return_inverse:
-        return joint[:l_0, :], joint[l_0:],inverse 
+        return joint[:l_0, :], joint[l_0:], inverse
     else:
         return joint[:l_0, :], joint[l_0:]
 
@@ -582,9 +580,9 @@ def rotate_xy(rad):
 
 def is_valid(tensor):
     if torch.logical_or(
-        tensor.isnan(), tensor.isinf()).any():
+            tensor.isnan(), tensor.isinf()).any():
         raise Exception('Invalid values!')
-        
+
     else:
 
         return True

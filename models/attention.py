@@ -4,6 +4,7 @@ from math import pi, log
 from einops import rearrange, repeat
 from functools import wraps
 import torch.nn.functional as F
+
 # Code adapted from https://github.com/lucidrains/perceiver-pytorch
 
 

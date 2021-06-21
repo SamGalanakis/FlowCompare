@@ -3,7 +3,7 @@ sample_size:
   value: 1024 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 114 # was 115 latent
+  value: 115 # was 115 latent
 data_loader:
   desc: What loader to use
   value: AmsVoxelLoader #AmsGridLoader
@@ -42,7 +42,7 @@ batch_size:
   value: 20  #26 Paconv
 lr:
   desc: Initial learning rate for optimizer
-  value: 5.0E-5 # was  1.0E-4
+  value: 1.0E-4 # was  1.0E-4
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -78,7 +78,7 @@ attn_dim:
   value: 512
 latent_dim:
   desc: Latent dim for main flow - output of first augment
-  value: 200
+  value: 300
 attn_input_dim:
   desc: dim of input to attn
   value: 256
