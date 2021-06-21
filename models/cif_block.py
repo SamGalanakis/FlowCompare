@@ -1,23 +1,10 @@
 import torch
 import torch.nn as nn
 
-from models import (ActNormBijectionCloud, Augment, IdentityTransform,
-                    PreConditionApplier, Reverse, Slice, transform)
+from models import ( Augment, PreConditionApplier, Slice)
 from models.transform import Transform
 import models
-from utils import is_valid
-
-
-
-
-class CouplingPreconditionerNoAttn(nn.Module):
-    def __init__(self, event_dim=-1):
-        super().__init__()
-
-    def forward(self, x, context):
-
-        return context
-
+ 
 
 class CouplingPreconditionerAttn(nn.Module):
     def __init__(self, attn, pre_attention_mlp, x1_dim, event_dim=-1):
@@ -39,17 +26,17 @@ class CouplingPreconditionerAttn(nn.Module):
 
 def flow_block_helper(config,flow, attn,pre_attention_mlp, event_dim=-1):
     # CIF if aug>base latent dim else normal flow
-    if config['input_dim'] < config['cif_latent_dim']:
+    if config['latent_dim'] < config['cif_latent_dim']:
 
         if config['global']:
             raise Exception('CIF + global embedding not implemented')
 
         return CIFblock(config,flow,attn,event_dim)
-    elif config['input_dim'] ==  config['cif_latent_dim']:
+    elif config['latent_dim'] ==  config['cif_latent_dim']:
         if  not config['global']:
-            return PreConditionApplier(flow(config['input_dim'], config['attn_dim']), CouplingPreconditionerAttn(attn(), pre_attention_mlp(config['input_dim']//2), config['input_dim']//2, event_dim=event_dim))
+            return PreConditionApplier(flow(config['latent_dim'], config['attn_dim']), CouplingPreconditionerAttn(attn(), pre_attention_mlp(config['latent_dim']//2), config['latent_dim']//2, event_dim=event_dim))
         else:
-            return flow(config['input_dim'], config['input_embedding_dim'])
+            return flow(config['latent_dim'], config['input_embedding_dim'])
 
     else:
         raise Exception('Augment dim smaller than main latent!')
@@ -60,10 +47,7 @@ class CIFblock(Transform):
         super().__init__()
         self.config = config
         self.event_dim = event_dim
-        
-
-
-
+    
         distrib_augment_net = models.MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],(config['cif_latent_dim']- config['latent_dim'])*2,nonlin=torch.nn.GELU())
         distrib_augment = models.ConditionalNormal(net =distrib_augment_net,split_dim = event_dim,clamp = config['clamp_dist'])
         self.act_norm = models.ActNormBijectionCloud(config['cif_latent_dim'])

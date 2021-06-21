@@ -4,14 +4,13 @@ import matplotlib.pyplot as plt
 import os
 import math
 import numpy as np
-import pykeops
 import pickle
-
 from utils import (load_las,
                    co_unit_sphere,
                    extract_area,
                    rotate_xy,
                    get_voxel)
+                   
 from itertools import combinations
 from torch_cluster import fps
 from tqdm import tqdm
@@ -21,9 +20,8 @@ from datetime import datetime
 import random
 import torch_cluster
 from .dataset_utils import registration_pipeline, context_voxel_center
+
 eps = 1e-8
-
-
 def is_only_ground(cloud, perc=0.99):
     clouz_z = cloud[:, 2]
     cloud_min = clouz_z.min()

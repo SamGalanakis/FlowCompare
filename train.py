@@ -84,8 +84,7 @@ def initialize_flow(config, device='cuda', mode='train'):
                                                                                    eps_expm=config['eps_expm'], algo=config['coupling_expm_algo'])
     elif config['flow_type'] == 'RationalQuadraticSplineCoupling':
         def flow_lambda(input_dim, context_dim): return models.RationalQuadraticSplineCoupling(input_dim, context_dim=context_dim, nonlinearity=coupling_block_nonlinearity, hidden_dims=config['hidden_dims'],
-                                                                                               num_bins=config['num_bins_spline']
-                                                                                               )
+                                                                                               num_bins=config['num_bins_spline'])
 
     else:
         raise Exception('Invalid flow type')

@@ -1,33 +1,7 @@
-from o3d_reg import draw_registration_result
+
 import torch
-import matplotlib.pyplot as plt
-import os
-import math
 import numpy as np
-import pykeops
-import pickle
-
-from utils import (load_las,
-                   random_subsample,
-                   view_cloud_plotly,
-                   grid_split, co_min_max,
-                   circle_split, co_standardize,
-                   sep_standardize,
-                   co_unit_sphere,
-                   extract_area,
-                   rotate_xy,
-                   view_cloud_o3d,
-                   get_voxel)
-from itertools import permutations, combinations
-from torch_cluster import fps
-from tqdm import tqdm
-from torch.utils.data import Dataset
-import json
-from datetime import datetime
-import random
 import open3d as o3d
-import torch_cluster
-
 
 
 def context_voxel_center(voxel):
