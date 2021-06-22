@@ -108,7 +108,7 @@ batches_per_sample:
   value: 15
 epochs_per_save:
   desc: Every how many epochs to checkpoint
-  value: 20 
+  value: 10 
 n_neighbors:
   desc: N neighbors for gcn knn aggregation steps
   value: 20 #Was 40 for best so far?

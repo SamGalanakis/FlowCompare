@@ -584,16 +584,7 @@ def is_valid(tensor):
         raise Exception('Invalid values!')
 
     else:
-
         return True
 
 
-if __name__ == '__main__':
-    # circle_cover(10,10,0.5,overlap=0.1,show=True)
 
-    test_points = torch.randn((100, 2))
-    test_points[:, 0] = 0.
-    plt.scatter(test_points.numpy()[:, 0], test_points.numpy()[:, 1])
-    test_points = torch.matmul(test_points, rotate_xy(math.pi/2))
-    plt.scatter(test_points.numpy()[:, 0], test_points.numpy()[:, 1])
-    plt.savefig('test')
