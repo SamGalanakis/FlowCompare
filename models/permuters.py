@@ -200,16 +200,5 @@ class LinearLU(Transform):
         lower_inverse, _ = torch.triangular_solve(identity, L, upper=False, unitriangular=True)
         weight_inverse, _ = torch.triangular_solve(lower_inverse, U, upper=True, unitriangular=False)
         return weight_inverse
-if __name__ == '__main__':
-    exp_comb = Exponential_combiner(6)
-    learned_permuter = Learned_permuter(6)
-    for i in range(100):
-        a = torch.randn((20,2000,6))
-        print(torch.max(torch.abs(a-learned_permuter._inverse(learned_permuter(a)))))
 
-    # for i in tqdm(range(100)):
-    #     x = torch.randn((20,6,6))
-    #     y = exp_comb(x)
-    #     x_ = exp_comb._inverse(y)
-    #     print(torch.abs(x-x_).max())
     

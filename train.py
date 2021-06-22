@@ -70,7 +70,7 @@ def initialize_flow(config, device='cuda', mode='train'):
             raise Exception('Invalid augmenter_dist')
 
         augmenter = models.Augment(
-            augmenter_dist, split_dim=-1, x_size=config['input_dim'])
+            augmenter_dist, split_dim=-1, x_size=config['input_dim'],use_context=False)
     elif config['latent_dim'] == config['input_dim']:
         augmenter = models.IdentityTransform()
     else:
@@ -118,12 +118,12 @@ def initialize_flow(config, device='cuda', mode='train'):
     # Add transformations to list
     transforms.append(augmenter)
 
-    # transforms.append(ActNormBijectionCloud(config['latent_dim'],data_dep_init=True)) #Entry norm
+  
     for index in range(config['n_flow_layers']):
         layer_list = []
-        cif_trans = flow_block()
+        block = flow_block()
 
-        layer_list.append(cif_trans)
+        layer_list.append(block)
 
         # Don't permute output
         if index != config['n_flow_layers']-1:

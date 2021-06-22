@@ -10,7 +10,7 @@ from utils import (load_las,
                    extract_area,
                    rotate_xy,
                    get_voxel)
-                   
+
 from itertools import combinations
 from torch_cluster import fps
 from tqdm import tqdm
@@ -62,8 +62,9 @@ class AmsVoxelLoader(Dataset):
     def __init__(self, directory_path, out_path, clearance=10, preload=False,
                  height_min_dif=0.5, max_height=15.0, device="cpu", ground_keep_perc=1/40, voxel_size=0.07, n_samples=2048, n_voxels=10, final_voxel_size=[3., 3., 4.],
                  rotation_augment=True, n_samples_context=2048, context_voxel_size=[3., 3., 4.],
-                 mode='pointwise'):
+                 mode='pointwise',verbose=False):
         self.mode = mode
+        self.verbose = verbose
         self.n_samples_context = n_samples_context
         self.context_voxel_size = torch.tensor(context_voxel_size)
         self.directory_path = directory_path
@@ -178,7 +179,8 @@ class AmsVoxelLoader(Dataset):
         random.shuffle(clouds)
         clouds = [x for x in clouds if x.shape[0] > 5000]
         if len(clouds) < 2:
-            print(f'Not enough clouds {idx}, recursive return ')
+            if self.verbose:
+                print(f'Not enough clouds {idx}, recursive return ')
             return self.__getitem__(random.randint(0, self.__len__()-1))
         cluster_min = clouds[0].min(axis=0)[0][:3]
         cluster_max = clouds[0].max(axis=0)[0][:3]
@@ -204,7 +206,8 @@ class AmsVoxelLoader(Dataset):
 
         if len(valid_combs) < 1:
             # If not enough recursively give other index from dataset
-            print(f"Couldn't find combinations for index: {idx}")
+            if self.verbose:
+                print(f"Couldn't find combinations for index: {idx}")
             return self.__getitem__(random.randint(0, self.__len__()-1))
 
         random.shuffle(valid_combs)
@@ -225,7 +228,8 @@ class AmsVoxelLoader(Dataset):
                 break
 
         if not found_valid:
-            print(f"Couldn't find valid context for any tile: {idx}")
+            if self.verbose:
+                print(f"Couldn't find valid context for any tile: {idx}")
             return self.__getitem__(random.randint(0, self.__len__()-1))
 
         voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(

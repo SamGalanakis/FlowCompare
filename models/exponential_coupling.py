@@ -46,10 +46,18 @@ class ExponentialCoupling(Transform):
         x1, x2 = x.split([self.split_dim, x2_size], dim=self.event_dim)
 
         nn_input = torch.cat((x1,context),dim=self.event_dim) if self.context_dim!= 0 else x1
-        w_mat,b_vec = self.nn(nn_input).split([x2_size**2,x2_size],dim=-1)
+
+
+    
+        w_mat,b_vec = torch.utils.checkpoint.checkpoint(
+            self.nn, nn_input, preserve_rng_state=False).split([x2_size**2,x2_size],dim=-1)
+
         w_mat = self.rescale*torch.tanh(self.scale*w_mat+self.shift) +self.reshift + eps
         w_mat = w_mat.reshape((w_mat.shape[:-1] + (x2_size,x2_size)))
         expm_w_mat = expm(w_mat,algo=self.algo,eps = self.eps_expm)
+
+       
+
 
         y1 = x1
         y2 = torch.matmul(expm_w_mat,x2.unsqueeze(-1)).squeeze(-1) + b_vec

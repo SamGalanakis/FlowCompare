@@ -195,6 +195,23 @@ class StandardUniform(Distribution):
         return torch.rand(sample_shape, device=self.zero.device, dtype=self.zero.dtype)
 
 
+# class DistributionAttentionWrapper(Distribution):
+#     def __init__(self,dist,attn,pre_attn_mlp):
+#         super().__init__()
+#         self.attn = attn()
+#         self.dist = dist()
+#         self.pre_attn_mlp = pre_attn_mlp()
+#     def log_prob(self,x,context):
+        
+#         mlp_out = self.pre_attn_mlp(x)
+#         attn_emb = torch.utils.checkpoint.checkpoint(
+#             self.attn, mlp_out, context, preserve_rng_state=False)
+#         return self.dist.log_prob(x,context = attn_emb)
+#     def sample(x,context):
+
+
+
+
 class StandardNormal(Distribution):
     """A multivariate Normal with zero mean and unit covariance."""
 

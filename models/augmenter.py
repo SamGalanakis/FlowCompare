@@ -16,11 +16,12 @@ class Augment(Transform):
             Chen et al., 2020, https://arxiv.org/abs/2002.09741
     '''
 
-    def __init__(self, noise_dist, x_size, split_dim=1):
+    def __init__(self, noise_dist, x_size, split_dim=1,use_context=True):
         super().__init__()
         self.noise_dist = noise_dist
         self.split_dim = split_dim
         self.x_size = x_size
+        self.use_context = use_context
         self.cond = isinstance(self.noise_dist, ConditionalDistribution)
 
     def split_z(self, z):
@@ -29,7 +30,7 @@ class Augment(Transform):
         return torch.split(z, split_proportions, dim=self.split_dim)
 
     def forward(self, x, context=None):
-        if context is not None and self.cond:
+        if context is not None and self.cond and self.use_context:
             context = torch.cat((x, context), axis=self.split_dim)
         else:
             context = x
