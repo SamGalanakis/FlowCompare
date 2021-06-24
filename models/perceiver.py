@@ -15,39 +15,11 @@ def default(val, d):
     return val if exists(val) else d
 
 
-class FeedForward(nn.Module):
-    def __init__(self, dim, mult=4, dropout=0.):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim, dim * mult * 2),
-            GEGLU(),
-            nn.Dropout(dropout),
-            nn.Linear(dim * mult, dim)
-        )
-
-    def forward(self, x):
-        return self.net(x)
 
 
-class GEGLU(nn.Module):
-    def forward(self, x):
-        x, gates = x.chunk(2, dim=-1)
-        return x * F.gelu(gates)
 
 
-def cache_fn(f):
-    cache = None
 
-    @wraps(f)
-    def cached_fn(*args, _cache=True, **kwargs):
-        if not _cache:
-            return f(*args, **kwargs)
-        nonlocal cache
-        if cache is not None:
-            return cache
-        cache = f(*args, **kwargs)
-        return cache
-    return cached_fn
 
 
 class PreNorm(nn.Module):

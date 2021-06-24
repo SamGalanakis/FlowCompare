@@ -1,4 +1,3 @@
-from o3d_reg import draw_registration_result
 import torch
 import matplotlib.pyplot as plt
 import os
@@ -6,76 +5,26 @@ import math
 import numpy as np
 import pykeops
 import pickle
-
+from .dataset_utils import registration_pipeline, context_voxel_center
 from utils import (load_las,
-                   random_subsample,
-                   view_cloud_plotly,
-                   grid_split, co_min_max,
-                   circle_split, co_standardize,
-                   sep_standardize,
                    co_unit_sphere,
                    extract_area,
-                   rotate_xy,
-                   view_cloud_o3d,
-                   get_voxel)
-from itertools import permutations, combinations
+                   rotate_xy,get_voxel)
+
+from itertools import combinations
 from torch_cluster import fps
 from tqdm import tqdm
 from torch.utils.data import Dataset
 import json
 from datetime import datetime
 import random
-import cupoch as cph
 import open3d as o3d
 import torch_cluster
 
 eps = 1e-8
-def context_voxel_center(voxel):
-    voxel = voxel[:,:3]
-    _min = voxel.min(dim=0)[0]
-    _max = voxel.max(dim=0)[0]
-    approx_center = _min/2 + _max/2
-    return approx_center
 
 
 
-
-
-def is_only_ground(cloud, perc=0.99):
-    clouz_z = cloud[:, 2]
-    cloud_min = clouz_z.min()
-    n_close_ground = (clouz_z < (cloud_min + 0.3)).sum()
-
-    return n_close_ground/cloud.shape[0] >= perc
-
-
-def icp_reg_precomputed_target(source_cloud, target, voxel_size=0.05, max_it=2000):
-    source_cloud = source_cloud.cpu().numpy()
-    threshold = voxel_size * 0.4
-    trans_init = np.eye(4).astype(np.float32)
-    source = o3d.geometry.PointCloud()
-    source.points = o3d.utility.Vector3dVector(source_cloud[:, :3])
-    source.colors = o3d.utility.Vector3dVector(source_cloud[:, 3:])
-    source = source.voxel_down_sample(voxel_size)
-    source.estimate_normals()
-    result = o3d.pipelines.registration.registration_icp(
-        source, target, threshold, trans_init,
-        o3d.pipelines.registration.TransformationEstimationPointToPlane(), o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=max_it))
-
-    return result
-
-
-def downsample_transform(cloud, voxel_size, transform):
-    device = cloud.device
-    source = o3d.geometry.PointCloud()
-    cloud = cloud.cpu().numpy()
-    source.points = o3d.utility.Vector3dVector(cloud[:, :3])
-    source.colors = o3d.utility.Vector3dVector(cloud[:, 3:])
-    source = source.voxel_down_sample(voxel_size)
-    source.transform(transform)
-    cloud = torch.from_numpy(np.concatenate(
-        (np.asarray(source.points), np.asarray(source.colors)), axis=-1))
-    return cloud.to(device)
 
 
 def filter_scans(scans_list, dist):
@@ -106,12 +55,21 @@ class Scan:
             self.recording_properties['RecordingTimeGps'].split('-')[1]), int(self.recording_properties['RecordingTimeGps'].split('-')[-1].split('T')[0]))
 
 
-class AmsGridLoaderPointwise(Dataset):
-    def __init__(self, directory_path, out_path, clearance=10, preload=False,
+class AmsVoxelLoader(Dataset):
+    def __init__(self, directory_path_train,directory_path_test, out_path, clearance=10, preload=False,
                  height_min_dif=0.5, max_height=15.0, device="cpu", ground_keep_perc=1/40, voxel_size=0.07, n_samples=2048, n_voxels=10, final_voxel_size=[3., 3., 4.],
                  rotation_augment = True,n_samples_context=2048, context_voxel_size = [3., 3., 4.],
-                mode='pointwise'):
+                mode='train',verbose=False):
+
+        print(f'Dataset mode: {mode}')
         self.mode = mode
+        if self.mode =='train':
+            directory_path = directory_path_train
+        elif self.mode == 'test':
+            directory_path = directory_path_test
+        else:
+            raise Exception('Invalid mode')
+        self.verbose = verbose 
         self.n_samples_context = n_samples_context
         self.context_voxel_size = torch.tensor(context_voxel_size)
         self.directory_path = directory_path
@@ -122,8 +80,7 @@ class AmsGridLoaderPointwise(Dataset):
         self.height_min_dif = height_min_dif
         self.max_height = max_height
         self.rotation_augment = rotation_augment
-
-        self.save_name = f"pointwise_ams_save_dict_{clearance}.pt"
+        self.save_name = f'ams_{mode}_save_dict_{clearance}.pt'
         self.years = [2019, 2020]
         self.ground_keep_perc = ground_keep_perc
         self.over_ground_cutoff = 0.1
@@ -131,8 +88,11 @@ class AmsGridLoaderPointwise(Dataset):
         self.n_samples = n_samples
         self.final_voxel_size = torch.tensor(final_voxel_size)
         self.n_voxels = n_voxels
-
         save_path = os.path.join(self.out_path, self.save_name)
+
+
+        random.seed(0)
+
         if not preload:
 
             with open(os.path.join(directory_path, 'args.json')) as f:
@@ -174,37 +134,33 @@ class AmsGridLoaderPointwise(Dataset):
                 # Make xy 0 at center to avoid large values
                 center_trans = torch.cat(
                     (torch.from_numpy(scan.center), torch.tensor([0, 0, 0, 0]))).double().to(device)
-
+                center_z_change = scan.center[2]
                 clouds_per_time = [x-center_trans for x in clouds_per_time]
                 # Extract square at center since only those will be used for grid
                 clouds_per_time = [x[extract_area(x, center=np.array(
                     [0, 0]), clearance=self.clearance, shape='square'), :] for x in clouds_per_time]
                 # Apply registration between each cloud and first in list, store transforms
                 # First cloud does not need to be transformed
-                registration_transforms = [np.eye(4, dtype=np.float32)]
-
                 voxel_size_icp = 0.05
-                target_cloud = clouds_per_time[0].cpu().numpy()
-                target = o3d.geometry.PointCloud()
-                target.points = o3d.utility.Vector3dVector(target_cloud[:, :3])
-                target.colors = o3d.utility.Vector3dVector(target_cloud[:, 3:])
-                target = target.voxel_down_sample(voxel_size_icp)
-                target.estimate_normals()
-                for source_cloud in clouds_per_time[1:]:
-                    result = icp_reg_precomputed_target(
-                        source_cloud, target, voxel_size=voxel_size_icp)
-                    registration_transforms.append(result.transformation)
 
+                clouds_per_time = registration_pipeline(
+                    clouds_per_time, voxel_size_icp, self.final_voxel_size)
+
+               
                 # Remove below ground and above cutoff
                 # Cut off slightly under ground height
-                ground_cutoff = scan.ground_height - 0.05
-                height_cutoff = ground_cutoff+max_height
+                #Add center_z_change to account for move to center
+
+                ground_cutoff = scan.ground_height - 0.05 + center_z_change
+                height_cutoff = ground_cutoff+max_height + center_z_change
                 clouds_per_time = [x[torch.logical_and(
                     x[:, 2] > ground_cutoff, x[:, 2] < height_cutoff), ...] for x in clouds_per_time]
-                # Downsample and apply registration
-                clouds_per_time = [downsample_transform(x, self.voxel_size, transform) for x, transform in zip(
-                    clouds_per_time, registration_transforms)]
+
                 clouds_per_time = [x.float().cpu() for x in clouds_per_time]
+
+                save_id += 1
+                save_entry = {'clouds': clouds_per_time,
+                              'ground_height': scan.ground_height}
 
                 save_id += 1
                 save_entry = {'clouds': clouds_per_time,
@@ -245,7 +201,8 @@ class AmsGridLoaderPointwise(Dataset):
         random.shuffle(clouds)
         clouds = [x for x in clouds if x.shape[0] > 5000]
         if len(clouds) < 2:
-            print(f'Not enough clouds {idx}, recursive return ')
+            if self.verbose:
+                print(f'Not enough clouds {idx}, recursive return ')
             return self.__getitem__(random.randint(0, self.__len__()-1))
         cluster_min = clouds[0].min(axis=0)[0][:3]
         cluster_max = clouds[0].max(axis=0)[0][:3]
@@ -271,7 +228,8 @@ class AmsGridLoaderPointwise(Dataset):
 
         if len(valid_combs) < 1:
             # If not enough recursively give other index from dataset
-            print(f"Couldn't find combinations for index: {idx}")
+            if self.verbose:
+                print(f"Couldn't find combinations for index: {idx}")
             return self.__getitem__(random.randint(0, self.__len__()-1))
         
 
@@ -292,7 +250,8 @@ class AmsGridLoaderPointwise(Dataset):
                 break
         
         if not found_valid:
-            print(f"Couldn't find valid context for any tile: {idx}")
+            if self.verbose:
+                print(f"Couldn't find valid context for any tile: {idx}")
             return self.__getitem__(random.randint(0, self.__len__()-1))
             
         voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(

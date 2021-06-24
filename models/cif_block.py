@@ -1,18 +1,6 @@
 import torch
 import torch.nn as nn
-
-from models import (ActNormBijectionCloud, Augment, IdentityTransform,
-                    PreConditionApplier, Reverse, Slice, transform)
-from models.transform import Transform
-
-
-class CouplingPreconditionerNoAttn(nn.Module):
-    def __init__(self, event_dim=-1):
-        super().__init__()
-
-    def forward(self, x, context):
-
-        return context
+import models
 
 
 class CouplingPreconditionerAttn(nn.Module):
@@ -27,115 +15,91 @@ class CouplingPreconditionerAttn(nn.Module):
         x1, x2 = x.split([self.x1_dim, self.x1_dim], dim=self.event_dim)
         mlp_out = torch.utils.checkpoint.checkpoint(
             self.pre_attention_mlp, x1, preserve_rng_state=False)
-        #attn_emb = self.attn(mlp_out,context)
         attn_emb = torch.utils.checkpoint.checkpoint(
             self.attn, mlp_out, context, preserve_rng_state=False)
         return attn_emb
 
 
-def cif_helper(input_dim, augment_dim, distribution_aug, distribution_slice, context_dim, flow, attn, pre_attention_mlp, event_dim, conditional_aug, conditional_slice, input_embedder_type):
+def cif_helper(config,flow, attn,pre_attention_mlp, event_dim=-1):
     # CIF if aug>base latent dim else normal flow
-    if input_dim < augment_dim:
+    if config['latent_dim'] < config['cif_latent_dim']:
 
-        if input_embedder_type != 'DGCNNembedderGlobal':
+        if not config['global']:
             raise Exception('CIF + global embedding not implemented')
 
-        return CIFblock(input_dim, augment_dim, distribution_aug, distribution_slice, context_dim, flow, attn, pre_attention_mlp, event_dim=event_dim, conditional_aug=conditional_aug, conditional_slice=conditional_slice)
-    elif input_dim == augment_dim:
-        if input_embedder_type != 'DGCNNembedderGlobal':
-            return PreConditionApplier(flow(input_dim, context_dim), CouplingPreconditionerAttn(attn(), pre_attention_mlp(input_dim//2), input_dim//2, event_dim=event_dim))
+        return CIFblock(config,flow,attn,event_dim)
+    elif config['latent_dim'] == config['cif_latent_dim']:
+        if not config['global']:
+            return models.PreConditionApplier(flow(config['latent_dim'], config['attn_dim']), CouplingPreconditionerAttn(attn(), pre_attention_mlp(config['latent_dim']//2), config['latent_dim']//2, event_dim=event_dim))
         else:
-            return flow(input_dim, context_dim)
-
+            return flow(config['latent_dim'], config['input_embedding_dim'])
     else:
         raise Exception('Augment dim smaller than main latent!')
 
 
-class CIFblock(Transform):
-    def __init__(self, input_dim, augment_dim, distribution_aug, distribution_slice, context_dim, flow, attn, pre_attention_mlp, event_dim, conditional_aug=True, conditional_slice=True, share_attn_weights=True):
+class CIFblock(models.Transform):
+    def __init__(self, config,flow,attn,event_dim):
         super().__init__()
-        self.input_dim = input_dim
-        self.augment_dim = augment_dim
+        self.config = config
         self.event_dim = event_dim
-        self.conditional_aug = conditional_aug
-        self.conditional_slice = conditional_slice
+    
+        distrib_augment_net = models.MLP(config['latent_dim'],config['net_cif_dist_hidden_dims'],(config['cif_latent_dim']- config['latent_dim'])*2,nonlin=torch.nn.GELU())
+        distrib_augment = models.ConditionalNormal(net =distrib_augment_net,split_dim = event_dim,clamp = config['clamp_dist'])
+        self.act_norm = models.ActNormBijectionCloud(config['cif_latent_dim'])
+        distrib_slice = distrib_augment
+        self.augmenter = models.Augment(
+            distrib_augment, config['latent_dim'], split_dim=event_dim)
+        
+        pre_attention_mlp = models.MLP(config['latent_dim']//2,config['pre_attention_mlp_hidden_dims'], config['attn_input_dim'], torch.nn.GELU(), residual=True)
 
-        distrib_augment = distribution_aug()
-        distrib_slice = distribution_slice()
-        self.augmenter = Augment(
-            distrib_augment, input_dim, split_dim=event_dim)
-
-        pre_attention_mlp_input_dim = augment_dim - \
-            input_dim  # - input_dim//2  #Context is x1,noise
-        self.attention = attn()
-        self.pre_attention_mlp = pre_attention_mlp(pre_attention_mlp_input_dim)
-        self.flow = flow(input_dim=augment_dim, context_dim=context_dim)
-        self.slicer = Slice(distrib_slice, input_dim, dim=self.event_dim)
-        self.reverse = Reverse(augment_dim, dim=self.event_dim)
-
-        if self.conditional_aug:
-            self.pre_attention_mlp_aug = pre_attention_mlp(input_dim)
-            self.attention_aug = attn()
-
-        if self.conditional_slice:
-            self.pre_attention_mlp_slice = pre_attention_mlp(input_dim)
-            self.attention_slice = attn()
+        self.affine_cif = models.AffineCoupling(config['cif_latent_dim'],config['affine_cif_hidden'],nn.GELU(),scale_fn_type='sigmoid',split_dim=config['cif_latent_dim']-config['latent_dim'])
+        self.flow = models.PreConditionApplier(flow(config['latent_dim'], config['attn_dim']), CouplingPreconditionerAttn(attn(), pre_attention_mlp, config['latent_dim']//2, event_dim=event_dim))
+        self.slicer = models.Slice(distrib_slice, config['latent_dim'], dim=self.event_dim)
+        
+        self.reverse = models.Reverse(config['cif_latent_dim'],dim=-1)
+        
 
     def forward(self, x, context=None):
         ldj_cif = torch.zeros(x.shape[:-1], device=x.device, dtype=x.dtype)
 
-        if self.conditional_aug:
-            aug_mlp_out = torch.utils.checkpoint.checkpoint(
-                self.pre_attention_mlp_aug, x, preserve_rng_state=False)
-            context_aug = torch.utils.checkpoint.checkpoint(
-                self.attention_aug, aug_mlp_out, context, preserve_rng_state=False)
-        else:
-            context_aug = None
+       
 
-        combined, ldj = self.augmenter(x, context=context_aug)
-        ldj_cif += ldj
-        x, noise = combined.split(
-            [self.input_dim, self.augment_dim-self.input_dim], dim=self.event_dim)
-
-        mlp_out = torch.utils.checkpoint.checkpoint(
-            self.pre_attention_mlp, noise, preserve_rng_state=False)
-        attention_emb = torch.utils.checkpoint.checkpoint(
-            self.attention, mlp_out, context, preserve_rng_state=False)
-
-        x, _ = self.reverse(combined, context=None)  # 0 ldj
-        x, ldj = self.flow(x, context=attention_emb)
+        x, ldj = self.augmenter(x, context=None)
         ldj_cif += ldj
 
-        x, _ = self.reverse(x, context=None)
+        x,_ = self.reverse(x)
 
-        if self.conditional_slice:
-            slice_mlp_out = torch.utils.checkpoint.checkpoint(
-                self.pre_attention_mlp_slice, x[..., :self.input_dim], preserve_rng_state=False)
-            context_slice = torch.utils.checkpoint.checkpoint(
-                self.attention_slice, slice_mlp_out, context, preserve_rng_state=False)
-        else:
-            context_slice = None
-
-        x, ldj = self.slicer(x, context=context_slice)
+        x,ldj = self.affine_cif(x,context=None)
         ldj_cif += ldj
+
+        x,ldj = self.act_norm(x)
+        ldj_cif += ldj
+
+        x,_ = self.reverse(x)
+        
+        x, ldj = self.slicer(x, context=None)
+        ldj_cif += ldj
+
+
+        x, ldj = self.flow(x, context=context)
+        ldj_cif += ldj
+        
+        
+
+
+        
+        
 
         return x, ldj_cif
 
     def inverse(self, y, context=None):
+        y = self.flow.inverse(y,context=context)
+        y = self.slicer.inverse(y)
+        y = self.reverse.inverse(y)
+        y = self.act_norm.inverse(y)
+        y = self.affine_cif.inverse(y)
+        y = self.reverse.inverse(y)
+        x = self.augmenter.inverse(y)
 
-        context_slice = self.attention_slice(self.pre_attention_mlp_slice(
-            y), context=context) if self.conditional_slice else None
-        y = self.slicer.inverse(y, context=context_slice)
-        y = self.reverse.inverse(y, context=None)
 
-        noise, _ = torch.split(
-            y, [self.augment_dim-self.input_dim, self.input_dim], dim=self.event_dim)
-        attention_emb = self.attention(
-            self.pre_attention_mlp(noise), context=context)
-
-        y = self.flow.inverse(y, context=attention_emb)
-        y = self.reverse.inverse(y, context=None)
-
-        y = self.augmenter.inverse(y, context=None)
-
-        return y
+        return x

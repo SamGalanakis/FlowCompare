@@ -6,7 +6,11 @@ n_flow_layers:
   value: 115 # was 46 for 64 latent
 data_loader:
   desc: What loader to use
-  value: AmsGridLoaderPointwise #AmsGridLoader
+  value: AmsVoxelLoader 
+directory_path_train:
+  value: /media/raid/sam/ams_dataset
+directory_path_test:
+  value: /media/raid/sam/ams_dataset_test
 flow_type:
   desc: What flow blocks to use
   value:  AffineCoupling #RationalQuadraticSplineCoupling #AffineCoupling
@@ -40,9 +44,6 @@ patience:
 preload:
   desc: Preload_dataset
   value: true
-min_points:
-  desc: Minimum sample size
-  value: 2000
 n_epochs:
   desc: Number of epochs to train for
   value: 2000
