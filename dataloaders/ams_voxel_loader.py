@@ -57,9 +57,9 @@ class Scan:
 
 class AmsVoxelLoader(Dataset):
     def __init__(self, directory_path_train,directory_path_test, out_path, clearance=10, preload=False,
-                 height_min_dif=0.5, max_height=15.0, device="cpu", ground_keep_perc=1/40, voxel_size=0.07, n_samples=2048, n_voxels=10, final_voxel_size=[3., 3., 4.],
+                 height_min_dif=0.5, max_height=15.0, device="cpu", ground_keep_perc=1/40, n_samples=2048, n_voxels=10, final_voxel_size=[3., 3., 4.],
                  rotation_augment = True,n_samples_context=2048, context_voxel_size = [3., 3., 4.],
-                mode='train',verbose=False):
+                mode='train',verbose=False,voxel_size_final_downsample=0.07):
 
         print(f'Dataset mode: {mode}')
         self.mode = mode
@@ -70,25 +70,29 @@ class AmsVoxelLoader(Dataset):
         else:
             raise Exception('Invalid mode')
         self.verbose = verbose 
+        self.voxel_size_final_downsample = voxel_size_final_downsample
         self.n_samples_context = n_samples_context
         self.context_voxel_size = torch.tensor(context_voxel_size)
         self.directory_path = directory_path
         self.clearance = clearance
-        self.filtered_scan_path = os.path.join(
-            out_path, 'filtered_scan_path.pt')
+        
         self.out_path = out_path
         self.height_min_dif = height_min_dif
         self.max_height = max_height
         self.rotation_augment = rotation_augment
         self.save_name = f'ams_{mode}_save_dict_{clearance}.pt'
+        name_insert = self.save_name.split('.')[0]
+        self.filtered_scan_path = os.path.join  (
+            out_path, f'{name_insert}_filtered_scans.pt')
         self.years = [2019, 2020]
         self.ground_keep_perc = ground_keep_perc
         self.over_ground_cutoff = 0.1
-        self.voxel_size = voxel_size
+        
         self.n_samples = n_samples
         self.final_voxel_size = torch.tensor(final_voxel_size)
         self.n_voxels = n_voxels
         save_path = os.path.join(self.out_path, self.save_name)
+        voxel_size_icp = 0.05
 
 
         random.seed(0)
@@ -134,25 +138,25 @@ class AmsVoxelLoader(Dataset):
                 # Make xy 0 at center to avoid large values
                 center_trans = torch.cat(
                     (torch.from_numpy(scan.center), torch.tensor([0, 0, 0, 0]))).double().to(device)
-                center_z_change = scan.center[2]
+                
                 clouds_per_time = [x-center_trans for x in clouds_per_time]
                 # Extract square at center since only those will be used for grid
                 clouds_per_time = [x[extract_area(x, center=np.array(
                     [0, 0]), clearance=self.clearance, shape='square'), :] for x in clouds_per_time]
                 # Apply registration between each cloud and first in list, store transforms
                 # First cloud does not need to be transformed
-                voxel_size_icp = 0.05
+                
 
                 clouds_per_time = registration_pipeline(
-                    clouds_per_time, voxel_size_icp, self.final_voxel_size)
+                    clouds_per_time, voxel_size_icp, self.voxel_size_final_downsample)
 
                
                 # Remove below ground and above cutoff
                 # Cut off slightly under ground height
-                #Add center_z_change to account for move to center
+        
 
-                ground_cutoff = scan.ground_height - 0.05 + center_z_change
-                height_cutoff = ground_cutoff+max_height + center_z_change
+                ground_cutoff = scan.ground_height - 0.05 
+                height_cutoff = ground_cutoff+max_height 
                 clouds_per_time = [x[torch.logical_and(
                     x[:, 2] > ground_cutoff, x[:, 2] < height_cutoff), ...] for x in clouds_per_time]
 
@@ -181,14 +185,7 @@ class AmsVoxelLoader(Dataset):
     def __len__(self):
         return len(self.save_dict)
 
-    def view(self, index, grid_ind_0=0, grid_ind_1=1):
-        clouds = self.save_dict[index]['clouds']
-        cloud_0, cloud_1 = clouds[grid_ind_0], clouds[grid_ind_1]
 
-        a_, b_ = o3d.geometry.PointCloud(), o3d.geometry.PointCloud()
-        a_.points = o3d.utility.Vector3dVector(cloud_0[:, :3])
-        b_.points = o3d.utility.Vector3dVector(cloud_1[:, :3])
-        draw_registration_result(a_, b_, np.eye(4))
 
     def last_processing(self, tensor_0, tensor_1):
         return co_unit_sphere(tensor_0, tensor_1)

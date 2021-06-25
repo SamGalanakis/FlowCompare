@@ -24,10 +24,10 @@ def cif_helper(config,flow, attn,pre_attention_mlp, event_dim=-1):
     # CIF if aug>base latent dim else normal flow
     if config['latent_dim'] < config['cif_latent_dim']:
 
-        if not config['global']:
+        if config['global']:
             raise Exception('CIF + global embedding not implemented')
-
-        return CIFblock(config,flow,attn,event_dim)
+        else:
+            return CIFblock(config,flow,attn,event_dim)
     elif config['latent_dim'] == config['cif_latent_dim']:
         if not config['global']:
             return models.PreConditionApplier(flow(config['latent_dim'], config['attn_dim']), CouplingPreconditionerAttn(attn(), pre_attention_mlp(config['latent_dim']//2), config['latent_dim']//2, event_dim=event_dim))

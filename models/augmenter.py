@@ -4,6 +4,21 @@ from .distributions import ConditionalDistribution
 
 # Code adapted from : https://github.com/didriknielsen/survae_flows/
 
+class AugmentAttentionPreconditioner(Transform):
+    '''Wraps Augmenter to apply attn before passing context in forward'''
+    def __init__(self,augment,attn,pre_attn_mlp):
+        super().__init__()
+        self.augment = augment 
+        self.attn = attn()
+        self.pre_attn_mlp = pre_attn_mlp
+
+    def forward(self,x,context):
+        attention_emb = self.attn(self.pre_attn_mlp(x),context)
+        return self.augment(x,attention_emb)
+    def inverse(self,z,context=None):
+        return self.augment(z,context=None)
+
+
 
 class Augment(Transform):
     '''
@@ -16,12 +31,13 @@ class Augment(Transform):
             Chen et al., 2020, https://arxiv.org/abs/2002.09741
     '''
 
-    def __init__(self, noise_dist, x_size, split_dim=1):
+    def __init__(self, noise_dist, x_size, split_dim=1,use_context=True):
         super().__init__()
         self.noise_dist = noise_dist
         self.split_dim = split_dim
         self.x_size = x_size
         self.cond = isinstance(self.noise_dist, ConditionalDistribution)
+        self.use_context = use_context
 
     def split_z(self, z):
         split_proportions = (
@@ -29,7 +45,7 @@ class Augment(Transform):
         return torch.split(z, split_proportions, dim=self.split_dim)
 
     def forward(self, x, context=None):
-        if context is not None and self.cond:
+        if context is not None and self.cond and self.use_context:
             context = torch.cat((x, context), axis=self.split_dim)
         else:
             context = x

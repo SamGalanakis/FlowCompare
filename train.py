@@ -21,13 +21,20 @@ def load_flow(load_dict, models_dict):
 
 def initialize_flow(config, device='cuda', mode='train'):
 
-
+    
     # Set global bool as needed for inner loop changes regarding global embedding vs attention
     if config['input_embedder'] in ['DGCNNembedderGlobal']:
         config['global'] = True
     else:
         config['global'] = False
+
+
     parameters = []
+
+
+    #out_dim,query_dim, context_dim, heads, dim_head, dropout
+    attn = lambda: models.get_cross_attn(config['attn_dim'], config['attn_input_dim'],
+                                             config['input_embedding_dim'], config['cross_heads'], config['cross_dim_head'], config['attn_dropout'])
 
     if config['coupling_block_nonlinearity'] == "ELU":
         coupling_block_nonlinearity = nn.ELU()
@@ -40,27 +47,32 @@ def initialize_flow(config, device='cuda', mode='train'):
 
     if config['latent_dim'] > config['input_dim']:
 
-        if config['augmenter_dist'] == 'StandardUniform':
-            augmenter_dist = models.StandardUniform(
-                shape=(config['sample_size'], config['latent_dim']-config['input_dim']))
-        elif config['augmenter_dist'] == 'StandardNormal':
+    
+        if config['augmenter_dist'] == 'StandardNormal':
             augmenter_dist = models.StandardNormal(
                 shape=(config['sample_size'], config['latent_dim']-config['input_dim']))
-        elif config['augmenter_dist'] == 'ConditionalMeanStdNormal':
-            net_augmenter_dist = models.MLP(config['input_dim'], config['net_augmenter_dist_hidden_dims'],
-                                            config['latent_dim']-config['input_dim'], coupling_block_nonlinearity)
-            augmenter_dist = models.ConditionalMeanStdNormal(
-                net=net_augmenter_dist, scale_shape=config['latent_dim']-config['input_dim'])
+
+            augmenter = models.Augment(
+            augmenter_dist, split_dim=-1, x_size=config['input_dim'],use_context=False)
         elif config['augmenter_dist'] == 'ConditionalNormal':
-            net_augmenter_dist = models.MLP(config['input_dim'], config['net_augmenter_dist_hidden_dims'], (
-                config['latent_dim']-config['input_dim'])*2, coupling_block_nonlinearity)
-            # scale_shape =  config['latent_dim']-config['input_dim'])
-            augmenter_dist = models.ConditionalNormal(net=net_augmenter_dist)
+            if config['use_attn_augment']: 
+                net_augmenter_dist = models.MLP(config['attn_dim']+config['input_dim'], config['net_augmenter_dist_hidden_dims'], (
+                    config['latent_dim']-config['input_dim'])*2, coupling_block_nonlinearity)
+                augmenter_dist = models.ConditionalNormal(net=net_augmenter_dist,split_dim = -1)
+                augmenter_ = models.Augment(
+                augmenter_dist, split_dim=-1, x_size=config['input_dim'],use_context=True)
+                pre_attn_mlp_ = models.MLP(config['input_dim'],config['hidden_dims'],config['attn_input_dim'],nonlin=coupling_block_nonlinearity)
+                augmenter = models.AugmentAttentionPreconditioner(augmenter_,attn,pre_attn_mlp_)
+            else:
+                net_augmenter_dist = models.MLP(config['input_dim'], config['net_augmenter_dist_hidden_dims'], (
+                    config['latent_dim']-config['input_dim'])*2, coupling_block_nonlinearity)
+                augmenter_dist = models.ConditionalNormal(net=net_augmenter_dist,split_dim = -1)
+                augmenter = models.Augment(
+                augmenter_dist, split_dim=-1, x_size=config['input_dim'],use_context=False)
         else:
             raise Exception('Invalid augmenter_dist')
 
-        augmenter = models.Augment(
-            augmenter_dist, split_dim=-1, x_size=config['input_dim'])
+        
     elif config['latent_dim'] == config['input_dim']:
         augmenter = models.IdentityTransform()
     else:
@@ -80,9 +92,7 @@ def initialize_flow(config, device='cuda', mode='train'):
     else:
         raise Exception('Invalid flow type')
 
-    #out_dim,query_dim, context_dim, heads, dim_head, dropout
-    def attn(): return models.get_cross_attn(config['attn_dim'], config['attn_input_dim'],
-                                             config['input_embedding_dim'], config['cross_heads'], config['cross_dim_head'], config['attn_dropout'])
+    
 
     def pre_attention_mlp(input_dim_pre_attention_mlp): return models.MLP(input_dim_pre_attention_mlp,
                                                                           config['pre_attention_mlp_hidden_dims'], config['attn_input_dim'], coupling_block_nonlinearity, residual=True)
@@ -119,11 +129,14 @@ def initialize_flow(config, device='cuda', mode='train'):
                 transforms.append(models.ActNormBijectionCloud(
                     config['latent_dim'], data_dep_init=True))
             transforms.append(permuter(config['latent_dim']))
-
+   
     base_dist = models.StandardNormal(
         shape=(config['sample_size'], config['latent_dim']))
     sample_dist = models.Normal(torch.zeros(1), torch.ones(
         1)*0.6, shape=(config['sample_size'], config['latent_dim']))
+
+
+
     final_flow = models.Flow(transforms, base_dist, sample_dist)
 
     if config['input_embedder'] == 'DGCNNembedder':
@@ -182,8 +195,9 @@ def inner_loop(extract_0, extract_1, models_dict, config):
     log_prob = models_dict['flow'].log_prob(x, context=input_embeddings)
 
     loss = -log_prob.mean()
-    nats = -log_prob.sum() / (math.log(2) * x.numel())
-    return loss, log_prob, nats
+    with torch. no_grad():
+        bpd = loss*math.log2(math.exp(1)) / config['input_dim']
+    return loss, log_prob, bpd
 
 
 def make_sample(n_points, extract_0, models_dict, config, sample_distrib=None):
@@ -266,9 +280,10 @@ def main():
         torch.autograd.set_detect_anomaly(True)
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
-
+    
     scaler = torch.cuda.amp.GradScaler(enabled=config['amp'])
-
+    best_so_far = math.inf
+    last_save_path = None
     for epoch in range(config["n_epochs"]):
         print(f"Starting epoch: {epoch}")
         loss_running_avg = 0
@@ -324,12 +339,22 @@ def main():
                 
         wandb.log({'epoch': epoch, "loss_epoch": loss_running_avg})
         print(f'Loss epoch: {loss_running_avg}')
-        if epoch % config['epochs_per_save'] and epoch != 0:
-            print(f'Saving!')
-            save_dict = {'config': config._items, "optimizer": optimizer.state_dict(
-            ), "flow": models_dict['flow'].state_dict(), "input_embedder": models_dict['input_embedder'].state_dict()}
-            torch.save(save_dict, os.path.join(
-                save_model_path, f"{wandb.run.name}_e{epoch}_model_dict.pt"))
+        
+        
+        if (epoch % config['epochs_per_save'])==0 and epoch>0:
+            if loss_running_avg < best_so_far:
+                if last_save_path!=None:
+                    os.remove(last_save_path)
+                print(f'Saving!')
+                savepath = os.path.join(
+                    save_model_path, f"{wandb.run.name}_e{epoch}_model_dict.pt")
+                
+                save_dict = {'config': config._items, "optimizer": optimizer.state_dict(
+                ), "flow": models_dict['flow'].state_dict(), "input_embedder": models_dict['input_embedder'].state_dict()}
+                torch.save(save_dict, savepath)
+                last_save_path = savepath
+        
+                best_so_far = min(loss_running_avg,best_so_far)
 
 
 if __name__ == "__main__":

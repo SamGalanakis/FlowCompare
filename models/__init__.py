@@ -3,7 +3,7 @@ from .permuters import  ExponentialCombiner, Permuter,FullCombiner,Reverse,Linea
 from .perceiver import get_cross_attn
 from .pytorch_gcn import DGCNNembedder,DGCNNembedderGlobal
 from .transform import Transform, Flow, PreConditionApplier, IdentityTransform
-from .augmenter import Augment
+from .augmenter import Augment, AugmentAttentionPreconditioner
 from .distributions import Distribution,StandardUniform,StandardNormal, ConditionalDistribution, ConditionalMeanStdNormal,Normal,ConditionalNormal
 from .exponential_coupling import ExponentialCoupling
 from  .slice import Slice
