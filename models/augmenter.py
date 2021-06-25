@@ -16,7 +16,7 @@ class AugmentAttentionPreconditioner(Transform):
         attention_emb = self.attn(self.pre_attn_mlp(x),context)
         return self.augment(x,attention_emb)
     def inverse(self,z,context=None):
-        return self.augment(z,context=None)
+        return self.augment.inverse(z,context=None)
 
 
 

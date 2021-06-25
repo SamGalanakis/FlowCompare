@@ -49,7 +49,7 @@ n_epochs:
   value: 2000
 batch_size:
   desc: Batch size
-  value: 24  #16
+  value: 25  #16
 lr:
   desc: Initial learning rate for optimizer
   value: 1.0E-4 # was  1.0E-4
@@ -130,7 +130,7 @@ augmenter_dist:
   value: ConditionalNormal # ConditionalMeanStdNormal #ConditionalNormal, StandardUniform
 net_augmenter_dist_hidden_dims: 
   desc: Net hidden sizes for initial augmenter dim if using conditional distribution
-  value: [128,128,128]
+  value: [512,512,512]
 pre_attention_mlp_hidden_dims:
   desc: Hidden dims for pre attention mlp
   value: [256,256,256] # was # 64 64 64 64
