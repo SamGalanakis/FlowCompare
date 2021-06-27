@@ -188,13 +188,14 @@ class AmsVoxelLoader(Dataset):
 
 
     def last_processing(self, tensor_0, tensor_1):
-        return co_unit_sphere(tensor_0, tensor_1)
+        return co_unit_sphere(tensor_0, tensor_1,return_inverse=True)
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
         clouds = self.save_dict[idx]['clouds']
+        ground_height = self.save_dict[idx]['ground_height']
         random.shuffle(clouds)
         clouds = [x for x in clouds if x.shape[0] > 5000]
         if len(clouds) < 2:
@@ -270,12 +271,14 @@ class AmsVoxelLoader(Dataset):
             voxel_1 = voxel_1.clone()
             voxel_0[:, :3] += torch.rand_like(voxel_0[:, :3])*0.01
 
-        tensor_0, tensor_1 = self.last_processing(voxel_0, voxel_1)
+        tensor_0, tensor_1,inverse  = self.last_processing(voxel_0, voxel_1)
         rads = torch.rand((1))*math.pi*2
 
         if self.rotation_augment:
             rot_mat = rotate_xy(rads)
             tensor_0[:, :2] = torch.matmul(tensor_0[:, :2], rot_mat)
             tensor_1[:, :2] = torch.matmul(tensor_1[:, :2], rot_mat)
-
-        return tensor_0, tensor_1
+        # Distance from ground as extra context
+        extra_context = inverse['mean'][2] - ground_height
+        extra_context = extra_context.unsqueeze(-1)
+        return tensor_0, tensor_1,extra_context

@@ -12,10 +12,12 @@ class AugmentAttentionPreconditioner(Transform):
         self.attn = attn()
         self.pre_attn_mlp = pre_attn_mlp
 
-    def forward(self,x,context):
+    def forward(self,x,context,extra_context=None):
         attention_emb = self.attn(self.pre_attn_mlp(x),context)
+        if extra_context!=None:
+            attention_emb = torch.cat((extra_context,attention_emb),dim=-1)
         return self.augment(x,attention_emb)
-    def inverse(self,z,context=None):
+    def inverse(self,z,context=None,extra_context=None):
         return self.augment.inverse(z,context=None)
 
 

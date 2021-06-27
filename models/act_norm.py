@@ -34,7 +34,7 @@ class _ActNormBijection(Transform):
 
             self.log_scale = nn.Parameter(torch.log(x_std + self.eps))
 
-    def forward(self, x, context=None):
+    def forward(self, x, context=None,extra_context=None):
         if self.training and not self.initialized:
             self.data_init(x)
         z = (x - self.shift) * torch.exp(-self.log_scale)
@@ -42,7 +42,7 @@ class _ActNormBijection(Transform):
             x.shape[:-1]) * self.ldj_multiplier(x)
         return z, ldj
 
-    def inverse(self, z, context=None):
+    def inverse(self, z, context=None,extra_context=None):
         return self.shift + z * torch.exp(self.log_scale)
 
     def register_params(self):

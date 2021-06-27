@@ -207,3 +207,7 @@ use_attn_augment:
   desc: Use attention wrapper for conditional input augmenter
   value: True
 
+extra_z_value_context:
+  desc: Use z value of center voxel as extra context
+  value: True
+

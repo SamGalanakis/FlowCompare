@@ -11,7 +11,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 
-load_path = 'save/conditional_flow_compare/clean-snowball-2546_e200_model_dict.pt'
+load_path = 'save/conditional_flow_compare/sweet-voice-2619_e525_model_dict.pt'
 save_dict = torch.load(load_path, map_location=device)
 config = save_dict['config']
 model_dict = initialize_flow(config, device, mode='test')

@@ -153,11 +153,14 @@ def extract_area(full_cloud, center, clearance, shape='circle'):
 
 
 
-def get_voxel(cloud,center,dimensions):
+def get_voxel(cloud, center, dimensions, return_mask=False):
     
-    voxel = cloud[(cloud[:,:3]>=(center-dimensions/2)).all(dim=1) & (cloud[:,:3]<=(center+dimensions/2)).all(dim=1),:]
-    
-    return voxel
+    mask = (cloud[:, :3] >= (center-dimensions/2)
+            ).all(dim=1) & (cloud[:, :3] <= (center+dimensions/2)).all(dim=1)
+    if return_mask:
+        return mask
+    else:
+        return cloud[mask]
 
 def grid_split(points, grid_size, center=False, clearance=20):
     if isinstance(center, bool):
@@ -329,18 +332,26 @@ def co_min_max(tensor_list):
     return tensor_list
 
 
-def unit_sphere(points):
-    points[:, :3] -= points[:, :3].mean(axis=0)
-    furthest_distance = torch.max(torch.linalg.norm(points[:,:3],dim=-1))
+def unit_sphere(points, return_inverse=False):
+    mean = points[:, :3].mean(axis=0)
+    points[:, :3] -= mean
+    furthest_distance = torch.max(torch.linalg.norm(points[:, :3], dim=-1))
     points[:, :3] = points[:, :3] / furthest_distance
-    return points
+    if return_inverse:
+        inverse = {'furthest_distance':furthest_distance,'mean':mean}
+        return points, inverse
+    else:
+        return points
 
-
-def co_unit_sphere(points_0, points_1):
+def co_unit_sphere(points_0, points_1, return_inverse=False):
     l_0 = points_0.shape[0]
 
-    joint = unit_sphere(torch.cat((points_0, points_1)))
-    return joint[:l_0, :], joint[l_0:]
+    joint, inverse = unit_sphere(
+        torch.cat((points_0, points_1)), return_inverse=True)
+    if return_inverse:
+        return joint[:l_0, :], joint[l_0:], inverse
+    else:
+        return joint[:l_0, :], joint[l_0:]
 
 
 def co_standardize(tensor_0, tensor_1):

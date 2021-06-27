@@ -20,6 +20,13 @@ class CouplingPreconditionerAttn(nn.Module):
         return attn_emb
 
 
+class CouplingPreconditionerGlobal(nn.Module):
+    def __init__(self):
+        super().__init__()
+    def forward(self, x, context):
+        return context
+
+
 def cif_helper(config,flow, attn,pre_attention_mlp, event_dim=-1):
     # CIF if aug>base latent dim else normal flow
     if config['latent_dim'] < config['cif_latent_dim']:
@@ -30,9 +37,10 @@ def cif_helper(config,flow, attn,pre_attention_mlp, event_dim=-1):
             return CIFblock(config,flow,attn,event_dim)
     elif config['latent_dim'] == config['cif_latent_dim']:
         if not config['global']:
-            return models.PreConditionApplier(flow(config['latent_dim'], config['attn_dim']), CouplingPreconditionerAttn(attn(), pre_attention_mlp(config['latent_dim']//2), config['latent_dim']//2, event_dim=event_dim))
+            return models.PreConditionApplier(flow(config['latent_dim'], config['attn_dim']+ config['extra_context_dim']), CouplingPreconditionerAttn(attn(), pre_attention_mlp(config['latent_dim']//2), config['latent_dim']//2, event_dim=event_dim))
         else:
-            return flow(config['latent_dim'], config['input_embedding_dim'])
+            return models.PreConditionApplier(flow(config['latent_dim'], config['input_embedding_dim']+config['extra_context_dim']),CouplingPreconditionerGlobal())
+
     else:
         raise Exception('Augment dim smaller than main latent!')
 

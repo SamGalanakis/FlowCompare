@@ -23,12 +23,12 @@ class FullCombiner(Transform):
         self.w = nn.Parameter(torch.Tensor(dim, dim))
         nn.init.orthogonal_(self.w)
 
-    def forward(self,x,context=None):
+    def forward(self,x,context=None,extra_context=None):
         x = F.linear(x, self.w, bias=None)
         ldj  = torch.linalg.slogdet(self.w)[-1]
         return x,ldj
     
-    def inverse(self,y,context=None):
+    def inverse(self,y,context=None,extra_context=None):
         inv_mat = torch.linalg.inv(self.w)
         y = F.linear(y, inv_mat)
         return y
@@ -49,10 +49,10 @@ class ExponentialCombiner(Transform):
         self.eps_expm = eps_expm
  
     
-    def forward(self,x,context=None):
+    def forward(self,x,context=None,extra_context=None):
         w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + self.eps
         return torch.matmul(expm(w_mat,eps=self.eps_expm,algo=self.algo),x.unsqueeze(-1)).squeeze(-1), w_mat.diagonal(dim1=-2,dim2=-1).sum()
-    def inverse(self,y,context=None):
+    def inverse(self,y,context=None,extra_context=None):
         w_mat = self.rescale*torch.tanh(self.scale*self.w+self.shift) +self.reshift + self.eps
         return torch.matmul(expm(-w_mat,eps= self.eps_expm,algo=self.algo),y.unsqueeze(-1)).squeeze(-1)
 
@@ -65,10 +65,10 @@ class Permuter(Transform):
         self.register_buffer('inv_permutation',torch.argsort(self.permutation))
 
 
-    def forward(self,x,context=None):
+    def forward(self,x,context=None,extra_context=None):
         y = x.index_select(self.event_dim,self.permutation)
         return y, torch.zeros(x.size()[:self.event_dim], dtype=x.dtype, layout=x.layout, device=x.device)
-    def inverse(self, y ,context=None):
+    def inverse(self, y ,context=None,extra_context=None):
         x = y.index_select(self.event_dim,self.inv_permutation)
         return x
 
@@ -165,14 +165,14 @@ class LinearLU(Transform):
     def upper_diag(self):
         return F.softplus(self.unconstrained_upper_diag) + self.eps
 
-    def forward(self, x,context=None):
+    def forward(self, x,context=None,extra_context=None):
         L, U = self._create_lower_upper()
         t = F.linear(x, U)
         z = F.linear(t, L, self.bias)
         ldj = torch.sum(torch.log(self.upper_diag)).expand(x.shape[:2])
         return z, ldj
 
-    def inverse(self, z,context=None):
+    def inverse(self, z,context=None,extra_context=None):
         L, U = self._create_lower_upper()
         if self.bias is not None: z = z - self.bias
         t, _ = torch.triangular_solve(z.permute((0,2,1)), L, upper=False, unitriangular=True)
@@ -200,16 +200,3 @@ class LinearLU(Transform):
         lower_inverse, _ = torch.triangular_solve(identity, L, upper=False, unitriangular=True)
         weight_inverse, _ = torch.triangular_solve(lower_inverse, U, upper=True, unitriangular=False)
         return weight_inverse
-if __name__ == '__main__':
-    exp_comb = Exponential_combiner(6)
-    learned_permuter = Learned_permuter(6)
-    for i in range(100):
-        a = torch.randn((20,2000,6))
-        print(torch.max(torch.abs(a-learned_permuter._inverse(learned_permuter(a)))))
-
-    # for i in tqdm(range(100)):
-    #     x = torch.randn((20,6,6))
-    #     y = exp_comb(x)
-    #     x_ = exp_comb._inverse(y)
-    #     print(torch.abs(x-x_).max())
-    

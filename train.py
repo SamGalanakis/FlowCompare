@@ -10,7 +10,7 @@ import models
 import wandb
 from dataloaders import AmsVoxelLoader
 from utils import Scheduler, is_valid
-
+import einops
 
 def load_flow(load_dict, models_dict):
 
@@ -21,6 +21,13 @@ def load_flow(load_dict, models_dict):
 
 def initialize_flow(config, device='cuda', mode='train'):
 
+    extra_context_dim = 0
+    if config['extra_z_value_context']:
+        extra_context_dim+=1
+
+
+    config['extra_context_dim'] = extra_context_dim
+    config['using_extra_context'] = True if extra_context_dim>0 else False
     
     # Set global bool as needed for inner loop changes regarding global embedding vs attention
     if config['input_embedder'] in ['DGCNNembedderGlobal']:
@@ -56,7 +63,7 @@ def initialize_flow(config, device='cuda', mode='train'):
             augmenter_dist, split_dim=-1, x_size=config['input_dim'],use_context=False)
         elif config['augmenter_dist'] == 'ConditionalNormal':
             if config['use_attn_augment']: 
-                net_augmenter_dist = models.MLP(config['attn_dim']+config['input_dim'], config['net_augmenter_dist_hidden_dims'], (
+                net_augmenter_dist = models.MLP(config['attn_dim']+config['input_dim']+ config['extra_context_dim'], config['net_augmenter_dist_hidden_dims'], (
                     config['latent_dim']-config['input_dim'])*2, coupling_block_nonlinearity)
                 augmenter_dist = models.ConditionalNormal(net=net_augmenter_dist,split_dim = -1)
                 augmenter_ = models.Augment(
@@ -182,8 +189,15 @@ def initialize_flow(config, device='cuda', mode='train'):
 
 
     
-def inner_loop(extract_0, extract_1, models_dict, config):
+def inner_loop(batch, models_dict, config):
 
+    
+    
+    extract_0, extract_1,extra_context = batch
+
+    if extra_context!=None:
+        extra_context = einops.repeat(extra_context,'b c-> b n c',n = config['sample_size'])
+    
     input_embeddings = models_dict["input_embedder"](extract_0)
 
 
@@ -192,7 +206,7 @@ def inner_loop(extract_0, extract_1, models_dict, config):
 
     x = extract_1
 
-    log_prob = models_dict['flow'].log_prob(x, context=input_embeddings)
+    log_prob = models_dict['flow'].log_prob(x, context=input_embeddings,extra_context  = extra_context)
 
     loss = -log_prob.mean()
     with torch. no_grad():
@@ -200,16 +214,17 @@ def inner_loop(extract_0, extract_1, models_dict, config):
     return loss, log_prob, bpd
 
 
-def make_sample(n_points, extract_0, models_dict, config, sample_distrib=None):
+def make_sample(n_points, extract_0,models_dict, config, sample_distrib=None,extra_context=None):
 
-    input_embeddings = models_dict["input_embedder"](extract_0[0].unsqueeze(0))
+    input_embeddings = models_dict["input_embedder"](extract_0)
 
+    if extra_context!=None:
+        extra_context = einops.repeat(extra_context,'b c-> b n c',n = n_points)
 
-    if config['global']:
-        input_embeddings = input_embeddings.unsqueeze(1)
+    
 
     x = models_dict['flow'].sample(num_samples=1, n_points=n_points,
-                                   context=input_embeddings, sample_distrib=sample_distrib).squeeze()
+                                   context=input_embeddings, sample_distrib=sample_distrib,extra_context=extra_context).squeeze()
     return x
 
 
@@ -225,8 +240,6 @@ def main():
 
     models_dict = initialize_flow(config, device, mode='train')
 
-
-    
     
     if config['data_loader'] == 'AmsVoxelLoader':
         dataset = AmsVoxelLoader(config['directory_path_train'],config['directory_path_test'], out_path='save/processed_dataset', preload=config['preload'],
@@ -238,8 +251,8 @@ def main():
         raise Exception('Invalid dataloader type!')
 
 
-    batch_size = config['batch_size']
-    dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=config[
+  
+    dataloader = DataLoader(dataset, shuffle=True, batch_size=config['batch_size'], num_workers=config[
                             "num_workers"], collate_fn=None, pin_memory=True, prefetch_factor=2, drop_last=True)
 
     if config["optimizer_type"] == 'Adam':
@@ -293,10 +306,17 @@ def main():
                     torch.cuda.synchronize()
                     t0 = perf_counter()
                 batch = [x.to(device) for x in batch]
-          
-                extract_0, extract_1 = batch
+
+                # Set to None if not using
+                if not config['using_extra_context']:
+                    batch[-1] = None
+                extract_0 = batch[0]
+                extra_context = batch[-1]
+
+
+                
                 loss, _, nats = inner_loop(
-                    extract_0, extract_1, models_dict, config)
+                    batch, models_dict, config)
                 is_valid(loss)
 
             scaler.scale(loss).backward()
@@ -323,7 +343,7 @@ def main():
                     
                     cond_nump = extract_0[0].cpu().numpy()
                     sample_points = make_sample(
-                        4000, extract_0, models_dict, config)
+                        4000, extract_0[0].unsqueeze(0), models_dict, config,extra_context=extra_context[0].unsqueeze(0))
                     cond_nump[:, 3:6] = np.clip(
                     cond_nump[:, 3:6]*255, 0, 255)
                     sample_points = sample_points.cpu().numpy().squeeze()

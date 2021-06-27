@@ -43,12 +43,16 @@ class PreConditionApplier(Transform):
         
         self.transform = transform
 
-    def forward(self,x,context=None):
+    def forward(self,x,context=None,extra_context=None):
         context_for_transform= self.pre_conditioner(x,context)
+        if extra_context!=None:
+            context_for_transform = torch.cat((extra_context,context_for_transform),dim=-1)
         x,ldj = self.transform(x,context = context_for_transform)
         return x,ldj
-    def inverse(self,y,context):
+    def inverse(self,y,context,extra_context=None):
         context_for_transform= self.pre_conditioner(y,context)
+        if extra_context!=None:
+            context_for_transform = torch.cat((extra_context,context_for_transform),dim=-1)
         y= self.transform.inverse(y,context = context_for_transform)
         return y
 
@@ -62,26 +66,26 @@ class Flow(Transform):
         self.sample_dist = sample_dist if sample_dist!=None else base_dist
         self.transforms = nn.ModuleList(transform_list)
 
-    def log_prob(self, x,context=None):
+    def log_prob(self, x,context=None,extra_context=None):
         log_prob = torch.zeros(x.shape[:-1], device=x.device,dtype=x.dtype)
         for index,transform in enumerate(self.transforms):
-            x, ldj = transform(x,context=context)
+            x, ldj = transform(x,context=context,extra_context=extra_context)
             log_prob += ldj
         log_prob += self.base_dist.log_prob(x)
         return log_prob
 
     
-    def sample(self,num_samples,n_points,context=None,sample_distrib=None):
+    def sample(self,num_samples,n_points,context=None,sample_distrib=None,extra_context=None):
         dist_for_sample = sample_distrib if sample_distrib!= None else self.sample_dist
         z = dist_for_sample.sample(num_samples,n_points=n_points)
         for transform in reversed(self.transforms):
-            z = transform.inverse(z,context=context)
+            z = transform.inverse(z,context=context,extra_context=extra_context)
         return z
 
 class IdentityTransform(Transform):
     def __init__(self):
         super().__init__()
-    def forward(self,x,context=None):
+    def forward(self,x,context=None,extra_context=None):
         return x, 0
-    def inverse(self,y,context=None):
+    def inverse(self,y,context=None,extra_context=None):
         return y
