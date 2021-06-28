@@ -9,9 +9,11 @@ import models
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def inverse_map(cloud,inverse_dict):
+    device = cloud.device
+    return cloud*inverse_dict['furthest_distance'].to(device) + inverse_dict['mean'].to(device)
 
-
-load_path = 'save/conditional_flow_compare/sweet-voice-2619_e525_model_dict.pt'
+load_path = 'save/conditional_flow_compare/silver-salad-2635_e300_model_dict.pt'
 save_dict = torch.load(load_path, map_location=device)
 config = save_dict['config']
 model_dict = initialize_flow(config, device, mode='test')
@@ -30,10 +32,9 @@ dataset = ChallengeDataset(csv_path, dirs, out_path, n_samples=config['sample_si
                            'final_voxel_size'], n_samples_context=config['n_samples_context'], context_voxel_size=config['context_voxel_size'])
 
 
-def calc_change(extract_0, extract_1, model_dict, config):
+def calc_change(batch, model_dict, config):
 
-    loss, log_prob_1_given_0, _ = inner_loop(
-        extract_0.unsqueeze(0), extract_1.unsqueeze(0), model_dict, config)
+    loss, log_prob_1_given_0, _ = inner_loop(batch, model_dict, config)
 
     return log_prob_1_given_0.squeeze()
 
@@ -45,40 +46,6 @@ def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple=3.):
     log_prob_1_given_0[~changed_mask_1] = 0
     return log_prob_1_given_0
 
-
-def create_dataset(dataset, model_dict, dataset_out='save/processed_dataset/'):
-    def change_func(probs_same, probs_other): return torch.abs(
-        probs_other-probs_same.mean())/probs_same.std()
-    save_dict = {}
-    skipped = 0
-    with torch.no_grad():
-        save_key_index = 0
-        for index in tqdm(range(len(dataset))):
-            extract_0, extract_1, label, _ = dataset[index]
-            label_int = label.item()
-            label = dataset.int_class_dict[label_int]
-            extract_0, extract_1 = extract_0.to(device), extract_1.to(device)
-            if extract_0.shape[0] < 20 or extract_1.shape[0] < 20:
-                skipped += 1
-                continue
-            print(extract_0.shape, extract_1.shape)
-
-            log_prob_1_given_0 = calc_change(
-                extract_0, extract_1, model_dict, config, preprocess=False).to('cpu')
-            assert not log_prob_1_given_0.isnan().any()
-            log_prob_0_given_0 = calc_change(
-                extract_0, extract_0, model_dict, config, preprocess=False).to('cpu')
-            log_prob_0_given_1 = calc_change(
-                extract_1, extract_0, model_dict, config, preprocess=False).to('cpu')
-            log_prob_1_given_1 = calc_change(
-                extract_1, extract_1, model_dict, config, preprocess=False).to('cpu')
-            change_0 = change_func(log_prob_1_given_1, log_prob_0_given_1)
-            change_1 = change_func(log_prob_0_given_0, log_prob_1_given_0)
-            save_dict[save_key_index] = {0: torch.cat((extract_0.cpu(), change_0.unsqueeze(-1).cpu()), dim=-1).cpu(
-            ), 1: torch.cat((extract_1.cpu(), change_1.unsqueeze(-1).cpu()), dim=-1).cpu(), 'class': label}
-            save_key_index += 1
-    torch.save(save_dict, dataset_out)
-    print(f"Skipped {skipped}")
 
 
 def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False):
@@ -92,6 +59,14 @@ def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False):
                 'change_0_given_1', 'voxel_0', 'voxel_1']
         procesed_dict = {x: [] for x in vars}
 
+
+        def get_lob_prob(voxel,context_voxel):
+            voxel,context_voxel,inverse = dataset.last_processing(voxel,context_voxel)
+            extra_context = inverse['mean'][2].reshape(-1,1)
+            log_prob_1_given_0 = calc_change(
+                [context_voxel.unsqueeze(0), voxel.unsqueeze(0),extra_context], model_dict, config).cpu()
+            return voxel,context_voxel,inverse,log_prob_1_given_0
+
         def to_dev(x, device):
             try:
                 return x.to(device)
@@ -99,26 +74,27 @@ def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False):
                 return x
         for key, val in return_dict['voxels'].items():
 
-            context_0, voxel_1, context_1, voxel_0, inverse_voxel_0, inverse_voxel_1, z_voxel_center = [
+            context_for_1,voxel_1,context_0_0,context_for_0,voxel_0,context_1_1,z_voxel_center = [
                 to_dev(x, device) for x in val]
             print(f'Vox center {z_voxel_center}')
-            #height_adjust = torch.tensor([0.,0.,z_voxel_center.item(),0.,0.,0.]).to(device)
+            extra_context  = z_voxel_center.reshape((1,-1)) if config['using_extra_context'] else None
 
-            log_prob_1_given_0 = calc_change(
-                context_0, voxel_1, model_dict, config).cpu()
-            log_prob_0_given_0 = calc_change(
-                context_0, voxel_0, model_dict, config).cpu()
-            log_prob_0_given_1 = calc_change(
-                context_1, voxel_0, model_dict, config).cpu()
-            log_prob_1_given_1 = calc_change(
-                context_1, voxel_1, model_dict, config).cpu()
 
-            gen_given_0 = make_sample(1024, context_0.unsqueeze(
-                0), model_dict, config, sample_distrib=sample_distrib)
-            gen_given_1 = make_sample(1024, context_1.unsqueeze(
-                0), model_dict, config, sample_distrib=sample_distrib)
-            gen_given_0[:, :3] = inverse_voxel_1(gen_given_0[:, :3])
-            gen_given_1[:, :3] = inverse_voxel_0(gen_given_1[:, :3])
+
+            _,context_for_1,inverse_1,log_prob_1_given_0 = get_lob_prob(voxel_1,context_for_1)
+            _,_,_,log_prob_0_given_0 = get_lob_prob(voxel_0,context_0_0)
+            _,context_for_0,inverse_0,log_prob_0_given_1 = get_lob_prob(voxel_0,context_for_0)
+            _,_,_,log_prob_1_given_1 = get_lob_prob(voxel_1,context_1_1)
+
+                
+
+
+            gen_given_0 = make_sample(1024, context_for_1.unsqueeze(
+                0), model_dict, config, sample_distrib=sample_distrib,extra_context=extra_context)
+            gen_given_1 = make_sample(1024, context_for_0.unsqueeze(
+                0), model_dict, config, sample_distrib=sample_distrib,extra_context=extra_context)
+            gen_given_0[:, :3] = inverse_map(gen_given_0[:, :3],inverse_1)
+            gen_given_1[:, :3] = inverse_map(gen_given_1[:, :3],inverse_0)
             procesed_dict['gen_given_0'].append(gen_given_0.cpu())
             procesed_dict['gen_given_1'].append(gen_given_1.cpu())
 
@@ -127,10 +103,10 @@ def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False):
             procesed_dict['change_0_given_1'].append(log_prob_to_color(
                 log_prob_0_given_1, log_prob_1_given_1, multiple=multiple).cpu())
 
-            voxel_0[:, :3] = inverse_voxel_0(voxel_0[:, :3]).cpu()
-            voxel_1[:, :3] = inverse_voxel_1(voxel_1[:, :3]).cpu()
-            procesed_dict['voxel_0'].append(voxel_0)
-            procesed_dict['voxel_1'].append(voxel_1)
+            # voxel_0[:, :3] =  inverse_map(voxel_0[:, :3],inverse_1).cpu()
+            # voxel_1[:, :3] = inverse_map(voxel_1[:, :3],inverse_0).cpu()
+            procesed_dict['voxel_0'].append(voxel_0.cpu())
+            procesed_dict['voxel_1'].append(voxel_1.cpu())
 
         procesed_dict = {key: torch.cat(val, dim=0)
                          for key, val in procesed_dict.items()}
@@ -155,8 +131,7 @@ if __name__ == '__main__':
     #create_dataset(dataset,model_dict,dataset_out = dataset_out)
     # score_on_test(dataset,model_dict,n_bins=12)
 
-    #dataset_view(dataset,0,multiple = 3.,show=True)
+    #dataset_view(dataset,0,multiple = 3.,show=False)
     pass
     #dataset_view(dataset,0,multiple = 3.,gen_std=0.6)
-    visualize_change(lambda index, multiple, gen_std: dataset_view(
-        dataset, index, multiple=multiple, gen_std=gen_std), range(len(dataset)))
+    visualize_change(lambda index, multiple, gen_std: dataset_view(dataset, index, multiple=multiple, gen_std=gen_std), range(len(dataset)))

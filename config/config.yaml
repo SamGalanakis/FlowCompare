@@ -181,7 +181,7 @@ threshold_scheduler:
   value: 0.01 #Percentage
 lr_factor:
   desc: Multiplication factor for lr scheduler]
-  value: 0.8
+  value: 0.5
 mem_iter_scheduler:
   desc: Every how many batches to reset and adjust custom scheduler
   value: 1000

@@ -77,15 +77,25 @@ class ChallengeDataset(Dataset):
         voxel_center_0 = context_voxel_center(voxel_1)
         voxel_0 = get_voxel(context_cloud,voxel_center_0,self.context_voxel_size)
 
-        voxel_0 = voxel_0[fps(voxel_0, torch.zeros(voxel_0.shape[0]).long(
-        ), ratio=self.n_samples_context/voxel_0.shape[0], random_start=False), :]
-        voxel_0 = voxel_0[:self.n_samples_context,:]
+
+        voxel_1_1 = get_voxel(cloud,voxel_center_0,self.context_voxel_size)
+
+        voxel_1_1 = voxel_1_1[fps(voxel_1_1, torch.zeros(voxel_1_1.shape[0]).long(
+        ), ratio=self.n_samples_context/voxel_1_1.shape[0], random_start=False), :]
+
+        if voxel_0.shape[0]==0:
+            voxel_0 = voxel_1.mean(dim=-0).unsqueeze(0)
+            print('Empty contenxt,placing dummy point')
+        else:
+            voxel_0 = voxel_0[fps(voxel_0, torch.zeros(voxel_0.shape[0]).long(
+            ), ratio=self.n_samples_context/voxel_0.shape[0], random_start=False), :]
+            voxel_0 = voxel_0[:self.n_samples_context,:]
 
         voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
         ), ratio=self.n_samples/voxel_1.shape[0], random_start=False), :]
         voxel_1 = voxel_1[:self.n_samples,:]
-        voxel_0, voxel_1,inverse = self.last_processing(voxel_0, voxel_1)
-        return voxel_0,voxel_1,inverse
+
+        return voxel_0,voxel_1,voxel_1_1
     def voxel_center_heights(self,z_min,z_max):
         voxel_height = self.final_voxel_size[2]
         heights = [z_min+voxel_height/2]
@@ -97,7 +107,6 @@ class ChallengeDataset(Dataset):
         scene_num,center,label = self.pair_dict[idx]
         cloud_0,cloud_1 = [x[extract_area(x,center,self.context_voxel_size[0].item(),
         shape='square'),:] for x in self.loaded_clouds[scene_num]]
-        voxel_height = self.final_voxel_size[2]
         z_max = max(cloud_0[:,2].max(),cloud_1[:,2].max())
         z_min = min(cloud_0[:,2].min(),cloud_1[:,2].min())
         
@@ -105,11 +114,10 @@ class ChallengeDataset(Dataset):
         return_dict['voxels'] = {}
         for index,z_voxel_center in enumerate(z_voxel_centers):
             vox_center = torch.cat((center,z_voxel_center.unsqueeze(0).to(center.device)),dim=-1)
-            context_0, voxel_1,inverse_voxel_1 = self.get_voxels(cloud_1,cloud_0,vox_center)
-            context_1,voxel_0,inverse_voxel_0 = self.get_voxels(cloud_0,cloud_1,vox_center)
-            return_dict['voxels'][index] = [context_0,voxel_1,context_1,voxel_0,inverse_voxel_0,inverse_voxel_1,z_voxel_center]
+            context_for_1, voxel_1,context_0_0 = self.get_voxels(cloud_1,cloud_0,vox_center)
+            context_for_0, voxel_0,context_1_1 = self.get_voxels(cloud_0,cloud_1,vox_center)
+            return_dict['voxels'][index] = [context_for_1,voxel_1,context_0_0,context_for_0,voxel_0,context_1_1,z_voxel_center]
         return_dict['cloud_0'] = cloud_0
         return_dict['cloud_1'] = cloud_1
-        
-        
+
         return return_dict,label
