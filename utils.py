@@ -11,7 +11,7 @@ import math
 import laspy
 import torch
 import torch.nn.functional as F
-from yaml import load as load_yaml
+import yaml
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -470,7 +470,7 @@ def oversample_cloud(cloud, n_points):
 
 def config_loader(path):
     with open(path) as f:
-        raw_dict = load_yaml(f)
+        raw_dict = yaml.load(f,Loader=yaml.FullLoader)
     return {key: raw_dict[key]['value'] for key in raw_dict.keys()}
 
 

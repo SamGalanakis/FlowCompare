@@ -49,7 +49,7 @@ n_epochs:
   value: 500
 batch_size:
   desc: Batch size
-  value: 25  #16
+  value: 24  #16
 lr:
   desc: Initial learning rate for optimizer
   value: 1.0E-4 # was  1.0E-4
@@ -172,13 +172,13 @@ conditional_slice_cif:
   value: True
 num_bins_spline:
   desc: How many bins to use for spline flow
-  value: 8 # 128
+  value: 8 
 linear_lu_eps:
   desc: Eps used for linear lu combiner
   value: 1.0E-5
 threshold_scheduler:
   desc: Threshold to change lr at for scheduler
-  value: 0.01 #Percentage
+  value: 0.01 
 lr_factor:
   desc: Multiplication factor for lr scheduler]
   value: 0.8
@@ -206,7 +206,6 @@ affine_cif_hidden:
 use_attn_augment:
   desc: Use attention wrapper for conditional input augmenter
   value: True
-
 extra_z_value_context:
   desc: Use z value of center voxel as extra context
   value: True

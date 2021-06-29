@@ -59,10 +59,11 @@ class AmsVoxelLoader(Dataset):
     def __init__(self, directory_path_train,directory_path_test, out_path, clearance=10, preload=False,
                  height_min_dif=0.5, max_height=15.0, device="cpu", ground_keep_perc=1/40, n_samples=2048, n_voxels=10, final_voxel_size=[3., 3., 4.],
                  rotation_augment = True,n_samples_context=2048, context_voxel_size = [3., 3., 4.],
-                mode='train',verbose=False,voxel_size_final_downsample=0.07):
+                mode='train',verbose=False,voxel_size_final_downsample=0.07,getter_mode='sample'):
 
-        print(f'Dataset mode: {mode}')
+        print(f'Dataset mode: {mode}, getter_mode : {getter_mode}')
         self.mode = mode
+        self.getter_mode = getter_mode
         if self.mode =='train':
             directory_path = directory_path_train
         elif self.mode == 'test':
@@ -84,6 +85,8 @@ class AmsVoxelLoader(Dataset):
         name_insert = self.save_name.split('.')[0]
         self.filtered_scan_path = os.path.join  (
             out_path, f'{name_insert}_filtered_scans.pt')
+        self.all_valid_combs_path = os.path.join  (
+            out_path, f'{name_insert}_all_valid_combs.pt')
         self.years = [2019, 2020]
         self.ground_keep_perc = ground_keep_perc
         self.over_ground_cutoff = 0.1
@@ -180,23 +183,92 @@ class AmsVoxelLoader(Dataset):
         else:
             self.save_dict = torch.load(save_path)
 
+
+        if self.getter_mode == 'all':
+            
+            if os.path.isfile(self.all_valid_combs_path):
+                with open(self.all_valid_combs_path, "rb") as fp:
+                    self.all_valid_combs = pickle.load(fp)
+            else:
+                self.all_valid_combs = []
+                for idx, (save_id,save_entry) in enumerate(tqdm(self.save_dict.items())):
+                    clouds = save_entry['clouds']
+                    ground_height = save_entry['ground_height']
+           
+                    clouds = [x for x in clouds if x.shape[0] > 5000]
+                    if len(clouds) < 2:
+                        if self.verbose:
+                            print(f'Not enough clouds {idx}, skipping ')
+                        continue
+                    cluster_min = clouds[0].min(axis=0)[0][:3]
+                    cluster_max = clouds[0].max(axis=0)[0][:3]
+                    clusters = [torch_cluster.grid_cluster(
+                        x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size) for x in clouds]
+
+
+                    
+                
+                    valid_voxels = []
+                    for cluster in clusters:
+                        cluster_indices, counts = cluster.unique(return_counts=True)
+                        valid_indices = cluster_indices[counts > self.n_samples_context]
+                        valid_voxels.append(valid_indices)
+                    common_voxels = []
+                    for ind_0, ind_1 in combinations(range(0, len(clouds)), 2):
+                        if ind_0 == ind_1:
+                            continue
+                        common_voxels.append([ind_0, ind_1, np.intersect1d(
+                            valid_voxels[ind_0], valid_voxels[ind_1]).tolist()])
+                    valid_combs = []
+                    for val in common_voxels:
+                        valid_combs.extend([(val[0], val[1], x) for x in val[2]])
+                        # Self predict (only on index,since clouds shuffled and 1:1 other to same)
+                        valid_combs.extend([(val[0], val[0], x) for x in val[2]])
+
+                    if len(valid_combs) < 1:
+                        # If not enough recursively give other index from dataset
+                        if self.verbose:
+                            print(f"Couldn't find combinations for index: {idx}")
+                        continue
+                    
+
+                    
+                    found_valid = False
+                    for comb_ind,combination in enumerate(valid_combs):
+                        
+                        cloud_ind_1 = combination[1]
+                        indices = clusters[cloud_ind_1] == combination[2]
+                        
+                        voxel_1 = clouds[cloud_ind_1][indices, :]
+                        voxel_center = get_voxel_center(voxel_1[0,:3],cluster_min,self.final_voxel_size)
+                        cloud_ind_0 = combination[0]
+                        voxel_0 = get_voxel(clouds[cloud_ind_0],voxel_center,self.context_voxel_size)
+                        if voxel_0.shape[0]>=self.n_samples_context:
+                            self.all_valid_combs.append((save_id,)+combination)
+                        
+                    
+                    if not found_valid:
+                        if self.verbose:
+                            print(f"Couldn't find valid context for any tile: {idx}, skipping")
+                        continue
+                with open(self.all_valid_combs_path, "wb") as fp:
+                    pickle.dump(self.all_valid_combs, fp)
+                        
+                    
+
         print('Loaded dataset!')
 
     def __len__(self):
-        return len(self.save_dict)
+        if self.getter_mode =='sample':
+            return len(self.save_dict)
+        elif self.getter_mode == 'all':
+            return len(self.all_valid_combs)
 
-
-
-    def last_processing(self, tensor_0, tensor_1):
-        return co_unit_sphere(tensor_0, tensor_1,return_inverse=True)
-
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-
+    def sample_voxel_pairs(self,idx):
         clouds = self.save_dict[idx]['clouds']
         ground_height = self.save_dict[idx]['ground_height']
         random.shuffle(clouds)
+        
         clouds = [x for x in clouds if x.shape[0] > 5000]
         if len(clouds) < 2:
             if self.verbose:
@@ -207,9 +279,6 @@ class AmsVoxelLoader(Dataset):
         clusters = [torch_cluster.grid_cluster(
             x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size) for x in clouds]
 
-
-        
-       
         valid_voxels = []
         for cluster in clusters:
             cluster_indices, counts = cluster.unique(return_counts=True)
@@ -285,4 +354,75 @@ class AmsVoxelLoader(Dataset):
         # Distance from ground as extra context
         extra_context = inverse['mean'][2] - ground_height
         extra_context = extra_context.unsqueeze(-1)
+
         return tensor_0, tensor_1,extra_context
+
+    def all_getter(self,idx):
+
+
+
+        combination = self.all_valid_combs[idx]
+        save_id,cloud_ind_0,cloud_ind_1,common_voxel = combination
+        clouds = self.save_dict[save_id]['clouds']
+        ground_height = self.save_dict[save_id]['ground_height']
+
+        clouds = [clouds[cloud_ind_0],clouds[cloud_ind_1]]
+
+        cluster_min = clouds[0].min(axis=0)[0][:3]
+        cluster_max = clouds[0].max(axis=0)[0][:3]
+        clusters = [torch_cluster.grid_cluster(
+            x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size) for x in clouds]
+        
+        
+        indices = clusters[cloud_ind_1] == common_voxel
+        
+        voxel_1 = clouds[cloud_ind_1][indices, :]
+        voxel_center = get_voxel_center(voxel_1[0,:3],cluster_min,self.final_voxel_size)
+        
+        voxel_0 = get_voxel(clouds[cloud_ind_0],voxel_center,self.context_voxel_size)
+
+        voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
+        ), ratio=self.n_samples/voxel_1.shape[0], random_start=False), :]
+        voxel_1 = voxel_1[:self.n_samples, :]
+
+        are_same = (cloud_ind_1 == cloud_ind_0)
+        
+    
+        voxel_0 = voxel_0[fps(voxel_0, torch.zeros(voxel_0.shape[0]).long(
+        ), ratio=self.n_samples_context/voxel_0.shape[0], random_start=False), :]
+        voxel_0 = voxel_0[:self.n_samples_context,:]
+        
+        if are_same:
+            voxel_1 = voxel_1.clone()
+            if self.mode == 'train':
+                voxel_0[:, :3] += torch.rand_like(voxel_0[:, :3])*0.01
+        
+
+        tensor_0, tensor_1,inverse  = self.last_processing(voxel_0, voxel_1)
+
+        if self.mode == 'train':
+            rads = torch.rand((1))*math.pi*2
+
+            if self.rotation_augment:
+                rot_mat = rotate_xy(rads)
+                tensor_0[:, :2] = torch.matmul(tensor_0[:, :2], rot_mat)
+                tensor_1[:, :2] = torch.matmul(tensor_1[:, :2], rot_mat)
+        
+        # Distance from ground as extra context
+        extra_context = inverse['mean'][2] - ground_height
+        extra_context = extra_context.unsqueeze(-1)
+
+        return tensor_0, tensor_1,extra_context
+
+
+    def last_processing(self, tensor_0, tensor_1):
+        return co_unit_sphere(tensor_0, tensor_1,return_inverse=True)
+
+    def __getitem__(self, idx):
+
+        if self.getter_mode == 'sample':
+            return self.sample_voxel_pairs(idx)
+        elif self.getter_mode == 'all':
+            return self.all_getter(idx)
+        
+        

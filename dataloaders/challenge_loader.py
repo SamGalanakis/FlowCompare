@@ -1,7 +1,7 @@
 from numpy.lib.function_base import extract
 import torch
 import os
-from utils import (load_las,extract_area,co_unit_sphere,get_voxel,get_voxel)
+from utils import (load_las,extract_area,co_unit_sphere,get_voxel,get_voxel_center)
 from torch.utils.data import Dataset
 from torch_geometric.nn import fps
 from tqdm import tqdm
@@ -74,10 +74,10 @@ class ChallengeDataset(Dataset):
         voxel_mask_1 = get_voxel(cloud,vox_center,self.final_voxel_size,return_mask=True)
         voxel_1 = cloud[voxel_mask_1]
         
-        voxel_center_0 = context_voxel_center(voxel_1)
+        voxel_center_0 = vox_center
         voxel_0 = get_voxel(context_cloud,voxel_center_0,self.context_voxel_size)
 
-
+        
         voxel_1_1 = get_voxel(cloud,voxel_center_0,self.context_voxel_size)
 
         voxel_1_1 = voxel_1_1[fps(voxel_1_1, torch.zeros(voxel_1_1.shape[0]).long(
