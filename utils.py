@@ -17,7 +17,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
 import open3d as o3d
-
+import einops
 
 
 
@@ -582,6 +582,25 @@ def rotate_xy(rad):
 def is_valid(tensor):
     assert not torch.logical_or(
         tensor.isnan(), tensor.isinf()).any(), 'Invalid values!'
+
+def get_voxel_index(point,min,max,sizes):
+    axis_size = torch.ceil((max-min) / sizes)
+    n_total_per_axis = torch.Tensor([axis_size[0:index].prod() for index in range(len(axis_size))])
+    n_per_axis = ((point - min)//sizes).long()
+    index =  (n_total_per_axis*n_per_axis).sum()
+    return index
+
+def get_voxel_center(point,min,sizes):
+    n_per_axis = ((point - min)//sizes)
+    min_side = min + (n_per_axis * sizes)
+    center  = min_side + sizes/2
+    return center
+
+def get_all_voxel_centers(start,end,size):
+    n_dims = len(size)
+    axis_centers = [torch.arange(start[i] + size[i] / 2, end[i] + size[i] / 2, size[i]) for i in range(n_dims)]
+    centers = torch.stack(torch.meshgrid(*axis_centers[::-1])).reshape((n_dims,-1)).T.flip(-1)
+    return centers 
 
 
 if __name__ == '__main__':

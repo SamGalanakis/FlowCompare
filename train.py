@@ -271,8 +271,9 @@ def main():
         raise Exception('Invalid optimizer type!')
 
 
-    scheduler = Scheduler(optimizer, config['mem_iter_scheduler'], factor=config['lr_factor'],
-                              threshold=config['threshold_scheduler'], min_lr=config["min_lr"])
+    #scheduler = Scheduler(optimizer, config['mem_iter_scheduler'], factor=config['lr_factor'],threshold=config['threshold_scheduler'], min_lr=config["min_lr"])
+
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,patience=  config['mem_iter_scheduler'], factor=config['lr_factor'],threshold=config['threshold_scheduler'], min_lr=config["min_lr"],verbose=True)
 
 
     save_model_path = r'save/conditional_flow_compare'
@@ -325,7 +326,7 @@ def main():
                 models_dict['parameters'], max_norm=config['grad_clip_val'])
             scaler.step(optimizer)
             scaler.update()
-            scheduler.step(loss)
+            scheduler.step(loss) 
 
             optimizer.zero_grad(set_to_none=True)
             current_lr = optimizer.param_groups[0]['lr']

@@ -9,7 +9,7 @@ from .dataset_utils import registration_pipeline, context_voxel_center
 from utils import (load_las,
                    co_unit_sphere,
                    extract_area,
-                   rotate_xy,get_voxel)
+                   rotate_xy,get_voxel,get_all_voxel_centers,get_voxel_center)
 
 from itertools import combinations
 from torch_cluster import fps
@@ -207,6 +207,9 @@ class AmsVoxelLoader(Dataset):
         clusters = [torch_cluster.grid_cluster(
             x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size) for x in clouds]
 
+
+        
+       
         valid_voxels = []
         for cluster in clusters:
             cluster_indices, counts = cluster.unique(return_counts=True)
@@ -237,9 +240,10 @@ class AmsVoxelLoader(Dataset):
             
             cloud_ind_1 = draw[1]
             indices = clusters[cloud_ind_1] == draw[2]
+            
             voxel_1 = clouds[cloud_ind_1][indices, :]
+            voxel_center = get_voxel_center(voxel_1[0,:3],cluster_min,self.final_voxel_size)
             cloud_ind_0 = draw[0]
-            voxel_center = context_voxel_center(voxel_1)
             voxel_0 = get_voxel(clouds[cloud_ind_0],voxel_center,self.context_voxel_size)
             if not voxel_0.shape[0]>=self.n_samples_context:
                 continue
