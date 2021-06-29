@@ -244,7 +244,7 @@ class AmsVoxelLoader(Dataset):
                         cloud_ind_0 = combination[0]
                         voxel_0 = get_voxel(clouds[cloud_ind_0],voxel_center,self.context_voxel_size)
                         if voxel_0.shape[0]>=self.n_samples_context:
-                            self.all_valid_combs.append((save_id,)+combination)
+                            self.all_valid_combs.append({'combination':(save_id,)+combination,'cluster_min':cluster_min,'cluster_max':cluster_max})
                         
                     
                     if not found_valid:
@@ -374,12 +374,12 @@ class AmsVoxelLoader(Dataset):
             x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size) for x in clouds]
         
         
-        indices = clusters[cloud_ind_1] == common_voxel
+        indices = clusters[1] == common_voxel
         
-        voxel_1 = clouds[cloud_ind_1][indices, :]
+        voxel_1 = clouds[1][indices, :]
         voxel_center = get_voxel_center(voxel_1[0,:3],cluster_min,self.final_voxel_size)
         
-        voxel_0 = get_voxel(clouds[cloud_ind_0],voxel_center,self.context_voxel_size)
+        voxel_0 = get_voxel(clouds[0],voxel_center,self.context_voxel_size)
 
         voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
         ), ratio=self.n_samples/voxel_1.shape[0], random_start=False), :]
@@ -391,7 +391,7 @@ class AmsVoxelLoader(Dataset):
         voxel_0 = voxel_0[fps(voxel_0, torch.zeros(voxel_0.shape[0]).long(
         ), ratio=self.n_samples_context/voxel_0.shape[0], random_start=False), :]
         voxel_0 = voxel_0[:self.n_samples_context,:]
-        
+        #Only augment in train
         if are_same:
             voxel_1 = voxel_1.clone()
             if self.mode == 'train':
