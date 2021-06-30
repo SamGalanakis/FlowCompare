@@ -15,13 +15,6 @@ def default(val, d):
     return val if exists(val) else d
 
 
-
-
-
-
-
-
-
 class PreNorm(nn.Module):
     def __init__(self, dim, fn, context_dim=None):
         super().__init__()
@@ -104,9 +97,9 @@ class AttentionControlledOut(nn.Module):
 
 
 class AttentionMine(nn.Module):
-    def __init__(self, query_dim, context_dim, heads, dim_head):
+    def __init__(self, query_dim, context_dim, heads, dim_head,save_attn_weights = True):
         super().__init__()
-
+        self.save_attn_weights = save_attn_weights
         self.inner_dim = dim_head * heads
         self.scale = self.inner_dim ** -0.5
         self.to_q = nn.Linear(query_dim, self.inner_dim, bias=False)
@@ -115,8 +108,11 @@ class AttentionMine(nn.Module):
     def forward(self, x, context=None, mask=None):
         q = self.to_q(x)
         k, v = self.to_kv(context).chunk(2, dim=-1)
-        attn = torch.matmul(F.softmax(torch.matmul(
-            q, k.transpose(1, 2))*self.scale, dim=-1), v)
+        attn_weights = F.softmax(torch.matmul(
+            q, k.transpose(1, 2))*self.scale, dim=-1)
+        attn = torch.matmul(attn_weights, v)
+        if self.save_attn_weights:
+            self.last_attn_weights = attn_weights.cpu()
         return attn
 
 
