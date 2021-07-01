@@ -5,6 +5,7 @@ import open3d as o3d
 
 
 def context_voxel_center(voxel):
+    """Gives voxel center by taking center of min max for each axis"""
     voxel = voxel[:,:3]
     _min = voxel.min(dim=0)[0]
     _max = voxel.max(dim=0)[0]
@@ -13,6 +14,7 @@ def context_voxel_center(voxel):
 
 
 def icp_reg_precomputed_target(source_cloud, target, voxel_size=0.05, max_it=2000):
+    """Perform icp of target with source_cloud where source_cloud already has normals"""
     source_cloud = source_cloud.cpu().numpy()
     
     threshold = voxel_size * 0.4

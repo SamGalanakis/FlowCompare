@@ -5,7 +5,6 @@ from models.nets import MLP
 from models import Transform
 from torch.nn import functional as F
 import numpy as np
-import einops
 from utils import sum_except_batch
 import math
 # Adapted from https://github.com/bayesiains/nsf/blob/master/nde/transforms/splines/rational_quadratic_test.py
@@ -19,7 +18,7 @@ def searchsorted(bin_locations, inputs, eps=1e-6):
     bin_locations[..., -1] += eps
     return torch.sum(inputs[..., None] >= bin_locations, dim=-1) - 1
 
- # Changed tail bound to 3
+
 
 
 def unconstrained_rational_quadratic_spline(inputs,
@@ -204,11 +203,7 @@ class RationalQuadraticSplineCoupling(Transform):
                                                     unnormalized_heights,
                                                     unnormalized_derivatives,
                                                     preserve_rng_state=False)
-        # y2, ldj = unconstrained_rational_quadratic_spline(x2,
-        #                                                 unnormalized_widths=unnormalized_widths,
-        #                                                 unnormalized_heights=unnormalized_heights,
-        #                                                 unnormalized_derivatives=unnormalized_derivatives,
-        #                                                 inverse=False)
+      
         ldj = sum_except_batch(ldj, num_dims=2)
 
         y1 = x1

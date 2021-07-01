@@ -48,6 +48,7 @@ def get_graph_feature(x, k=20, idx=None):
 
 
 class DGCNNembedder(nn.Module):
+    """DGCNN embedder with n_points x embedding dim as output"""
     def __init__(self, out_mlp_dims, emb_dim=22, dropout=0, n_neighbors=20):
         super().__init__()
 
@@ -107,6 +108,7 @@ class DGCNNembedder(nn.Module):
 
 
 class DGCNNembedderGlobal(nn.Module):
+    """DGCNN embedder with single embedding vector as output"""
     def __init__(self, input_dim, out_mlp_dims, emb_dim=22, n_neighbors=20):
         super().__init__()
 

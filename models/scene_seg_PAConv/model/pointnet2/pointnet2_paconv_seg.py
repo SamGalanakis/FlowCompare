@@ -7,6 +7,9 @@ from .pointnet2_paconv_modules import PointNet2FPModule
 from models.scene_seg_PAConv.util import block
 from models import MLP
 
+
+# Code adapted from : https://github.com/CVMI-Lab/PAConv
+
 class PointNet2SSGSeg(nn.Module):
     r"""
         PointNet2 with single-scale grouping
@@ -30,7 +33,6 @@ class PointNet2SSGSeg(nn.Module):
         self.sa_mlps = args.get('sa_mlps', [[c, 32, 32, 64], [64, 64, 64, 128], [128, 128, 128, 256], [256, 256, 256, 512]])
         self.fp_mlps = args.get('fp_mlps', [[128 + c, 128, 128, 128], [256 + 64, 256, 128], [256 + 128, 256, 256], [512 + 256, 256, 256]])
         self.paconv = args.get('pointnet2_paconv', [True, True, True, True, False, False, False, False])
-        #self.fc = args.get('fc', 128)
         
 
         if args.get('cuda', False):
@@ -52,7 +54,6 @@ class PointNet2SSGSeg(nn.Module):
         self.FP_modules.append(PointNet2FPModule(mlp=self.fp_mlps[1], use_paconv=self.paconv[5], args=args))
         self.FP_modules.append(PointNet2FPModule(mlp=self.fp_mlps[2], use_paconv=self.paconv[6], args=args))
         self.FP_modules.append(PointNet2FPModule(mlp=self.fp_mlps[3], use_paconv=self.paconv[7], args=args))
-        #self.FC_layer = nn.Sequential(block.Conv2d(self.fc, self.fc, bn=True), nn.Dropout(), block.Conv2d(self.fc, k, activation=None))
         self.out_mlp = MLP(128, out_mlp_dims, k, torch.nn.GELU())
     def _break_up_pc(self, pc):
         xyz = pc[..., 0:3].contiguous()
@@ -79,11 +80,5 @@ class PointNet2SSGSeg(nn.Module):
         for i in range(-1, -(len(self.FP_modules) + 1), -1):
             l_features[i - 1] = self.FP_modules[i](l_xyz[i - 1], l_xyz[i], l_features[i - 1], l_features[i])
         return self.out_mlp(l_features[0].permute((0,2,1)))
-        #return self.FC_layer(l_features[0].unsqueeze(-1)).squeeze(-1).permute((0,2,1))
 
-
-
-if __name__ == "__main__":
-    
-    pass
     

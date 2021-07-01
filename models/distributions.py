@@ -201,6 +201,7 @@ class StandardNormal(Distribution):
 
 
 class Normal(Distribution):
+    """Normal distribution of given loc and scale"""
     def __init__(self, loc, scale, shape):
         super().__init__()
         self.std_normal = StandardNormal(shape)

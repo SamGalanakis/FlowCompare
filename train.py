@@ -13,6 +13,7 @@ from utils import Scheduler, is_valid
 import einops
 
 def load_flow(load_dict, models_dict):
+    """Load flow given initialized mdoel_dict and load_dict checkpoint"""
 
     models_dict['input_embedder'].load_state_dict(load_dict['input_embedder'])
     models_dict['flow'].load_state_dict(load_dict['flow'])
@@ -20,6 +21,7 @@ def load_flow(load_dict, models_dict):
 
 
 def initialize_flow(config, device='cuda', mode='train'):
+    """Initialize full model with given config and mode, returns a model_dict"""
 
     extra_context_dim = 0
     if config['extra_z_value_context']:
@@ -192,7 +194,7 @@ def initialize_flow(config, device='cuda', mode='train'):
 def inner_loop(batch, models_dict, config):
 
     
-    
+    """Computes forward pass of given batch through model, returns mean negative log likelihood loss,log likelihood and bits per dim"""   
     extract_0, extract_1,extra_context = batch
 
     if extra_context!=None:
@@ -215,6 +217,7 @@ def inner_loop(batch, models_dict, config):
 
 
 def make_sample(n_points, extract_0,models_dict, config, sample_distrib=None,extra_context=None):
+    """Computes inverse/generative pass of given model generating n_points given context extract_0,extra_context"""
 
     input_embeddings = models_dict["input_embedder"](extract_0)
 
@@ -271,7 +274,6 @@ def main():
         raise Exception('Invalid optimizer type!')
 
 
-    #scheduler = Scheduler(optimizer, config['mem_iter_scheduler'], factor=config['lr_factor'],threshold=config['threshold_scheduler'], min_lr=config["min_lr"])
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,patience=  config['mem_iter_scheduler'], factor=config['lr_factor'],threshold=config['threshold_scheduler'], min_lr=config["min_lr"],verbose=True)
 

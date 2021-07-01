@@ -4,10 +4,8 @@ import torch
 import numpy as np
 from torch_geometric.nn import fps
 from utils import (
-grid_split,
 config_loader,
 extract_area,
-knn_relator,
 random_subsample,
 save_las,
 log_prob_to_color,

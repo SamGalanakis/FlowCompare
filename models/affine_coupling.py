@@ -3,11 +3,11 @@ import torch
 from torch import nn
 from models.nets import MLP
 from models import Transform
-import einops
 
 
 class AffineCoupling(Transform):
     def __init__(self, input_dim, hidden_dims, nonlinearity, context_dim=0, event_dim=-1, scale_fn_type='exp', eps=1E-8,split_dim=None):
+        """Implements affine coupling transform according to https://arxiv.org/abs/1605.08803 with choice between exponential and sigmoid scaling"""
         super().__init__()
         self.event_dim = event_dim
         self.input_dim = input_dim

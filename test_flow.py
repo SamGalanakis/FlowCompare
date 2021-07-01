@@ -2,7 +2,7 @@ import torch
 from train import initialize_flow, load_flow, inner_loop, make_sample
 from dataloaders import ChallengeDataset
 import os
-from utils import view_cloud_plotly
+from utils import view_cloud_plotly,log_prob_to_color
 from visualize_change_map import visualize_change
 from tqdm import tqdm
 import models

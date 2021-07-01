@@ -37,6 +37,7 @@ class Transform(torch.nn.Module):
 
 
 class PreConditionApplier(Transform):
+    """Transform wrapper, applies given pre_conditioner to contesxt before forwarding context to transform"""
     def __init__(self,transform,pre_conditioner):
         super().__init__()
         self.pre_conditioner = pre_conditioner
