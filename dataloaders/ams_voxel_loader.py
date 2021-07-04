@@ -169,10 +169,6 @@ class AmsVoxelLoader(Dataset):
                 save_entry = {'clouds': clouds_per_time,
                               'ground_height': scan.ground_height}
 
-                save_id += 1
-                save_entry = {'clouds': clouds_per_time,
-                              'ground_height': scan.ground_height}
-
                 self.save_dict[save_id] = save_entry
                 if scene_number % 100 == 0 and scene_number != 0:
                     print(f"Progressbackup: {scene_number}!")
@@ -361,15 +357,14 @@ class AmsVoxelLoader(Dataset):
 
 
 
-        combination = self.all_valid_combs[idx]
-        save_id,cloud_ind_0,cloud_ind_1,common_voxel = combination
+        save_id,cloud_ind_0,cloud_ind_1,common_voxel = self.all_valid_combs[idx]['combination']
         clouds = self.save_dict[save_id]['clouds']
         ground_height = self.save_dict[save_id]['ground_height']
 
         clouds = [clouds[cloud_ind_0],clouds[cloud_ind_1]]
 
-        cluster_min = clouds[0].min(axis=0)[0][:3]
-        cluster_max = clouds[0].max(axis=0)[0][:3]
+        cluster_min = self.all_valid_combs[idx]['cluster_min']
+        cluster_max = self.all_valid_combs[idx]['cluster_max']
         clusters = [torch_cluster.grid_cluster(
             x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size) for x in clouds]
         

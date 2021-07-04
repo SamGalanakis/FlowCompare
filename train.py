@@ -235,7 +235,7 @@ def main():
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+    print(f'Using device: {device}')
     config_path = r"config/config.yaml"
     wandb.init(project="flow_change", config=config_path)
     config = wandb.config

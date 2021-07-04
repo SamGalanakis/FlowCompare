@@ -29,9 +29,6 @@ early_stop_margin:
 input_dim:
   desc: Dimension of pointcloud data
   value: 6
-grid_square_size:
-  desc: Size of grid square or circle diameter
-  value: 2 # was 2 !!!
 clearance:
   desc: clearance
   value: 10
@@ -79,7 +76,7 @@ normalization:
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: save/conditional_flow_compare/vocal-galaxy-2667_e75_model_dict.pt
+  value: False
 dirs_challenge_csv:
   desc: Paths to label csv folder
   value: save/2016-2020-train/
@@ -211,5 +208,5 @@ extra_z_value_context:
   value: True
 dataset_get_mode:
   desc: All or sample for getter in dataloader
-  value: 'all'
+  value: 'sample'
 

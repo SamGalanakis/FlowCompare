@@ -1,4 +1,4 @@
-from .nets import DenseNN, ConditionalDenseNN, MLP
+from .nets import MLP
 from .permuters import  ExponentialCombiner, Permuter,FullCombiner,Reverse,LinearLU
 from .perceiver import get_cross_attn
 from .pytorch_gcn import DGCNNembedder,DGCNNembedderGlobal
