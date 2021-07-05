@@ -46,7 +46,7 @@ n_epochs:
   value: 500
 batch_size:
   desc: Batch size
-  value: 24  #16
+  value: 20 #16
 lr:
   desc: Initial learning rate for optimizer
   value: 1.0E-4 # was  1.0E-4
@@ -106,7 +106,7 @@ amp:
   value: false
 input_embedder: 
   desc: input_embedder type
-  value: PAConv # 
+  value: PAConv #PAConv # 
 grad_clip_val:
   desc: What value to clip grad norms to
   value: 1.0 # was 1.0
