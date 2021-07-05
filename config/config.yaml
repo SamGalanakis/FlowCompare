@@ -43,10 +43,10 @@ preload:
   value: true
 n_epochs:
   desc: Number of epochs to train for
-  value: 500
+  value: 1
 batch_size:
   desc: Batch size
-  value: 20 #16
+  value: 25 #16
 lr:
   desc: Initial learning rate for optimizer
   value: 1.0E-4 # was  1.0E-4
@@ -55,7 +55,7 @@ save_model_path:
   value: save/conditional_flow_compare/
 num_workers:
   desc: num_workers
-  value: 4
+  value: 0
 optimizer_type:
   desc: optimizer type
   value: Adam #was Adam
@@ -208,5 +208,5 @@ extra_z_value_context:
   value: True
 dataset_get_mode:
   desc: All or sample for getter in dataloader
-  value: 'sample'
+  value: 'all'
 

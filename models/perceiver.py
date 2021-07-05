@@ -97,7 +97,7 @@ class AttentionControlledOut(nn.Module):
 
 
 class AttentionMine(nn.Module):
-    def __init__(self, query_dim, context_dim, heads, dim_head,save_attn_weights = True):
+    def __init__(self, query_dim, context_dim, heads, dim_head,save_attn_weights = False):
         super().__init__()
         self.save_attn_weights = save_attn_weights
         self.inner_dim = dim_head * heads
