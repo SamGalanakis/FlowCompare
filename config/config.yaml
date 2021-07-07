@@ -55,7 +55,7 @@ save_model_path:
   value: save/conditional_flow_compare/
 num_workers:
   desc: num_workers
-  value: 0
+  value: 4
 optimizer_type:
   desc: optimizer type
   value: Adam #was Adam

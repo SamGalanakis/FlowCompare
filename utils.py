@@ -11,6 +11,7 @@ import math
 import laspy
 import torch
 import torch.nn.functional as F
+import torch_cluster
 import yaml
 import dash
 import dash_core_components as dcc
@@ -18,8 +19,8 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 import open3d as o3d
 import einops
-
-
+from torch_cluster import grid_cluster
+from knn import get_knn
 
 # Losses from original repo
 
@@ -478,7 +479,7 @@ def get_voxel_index(point,min,max,sizes):
 
 def get_voxel_center(point,min,sizes):
     """Get voxel center given start of voxel,a point from the voxel and the voxel sizes"""
-    n_per_axis = ((point - min)//sizes)
+    n_per_axis = torch.abs((point - min)//sizes)
     min_side = min + (n_per_axis * sizes)
     center  = min_side + sizes/2
     return center
@@ -486,9 +487,22 @@ def get_voxel_center(point,min,sizes):
 def get_all_voxel_centers(start,end,size):
     """Get all voxel centers given start end (min-max) and voxel sizes"""
     n_dims = len(size)
+    num_voxels = ((end - start) / size).long() + 1
+
     axis_centers = [torch.arange(start[i] + size[i] / 2, end[i] + size[i] / 2, size[i]) for i in range(n_dims)]
+
     centers = torch.stack(torch.meshgrid(*axis_centers[::-1])).reshape((n_dims,-1)).T.flip(-1)
     return centers 
+
+def voxelize(pos,start,end,size):
+    """Get all voxel centers given start end (min-max) and voxel sizes"""
+    n_dims = len(size)
+    axis_centers = [torch.arange(start[i] + size[i] / 2, end[i] + size[i] / 2, size[i]) for i in range(n_dims)]
+
+    centers = torch.stack(torch.meshgrid(*axis_centers[::-1])).reshape((n_dims,-1)).T.flip(-1)
+
+    labels = get_knn(pos,centers,1)
+    return labels ,centers
 
 
 

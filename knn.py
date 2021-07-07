@@ -1,13 +1,7 @@
 
 import time
-import laspy
-import numpy as np
 import torch
-from matplotlib import pyplot as plt
 from pykeops.torch import Vi, Vj
-from pykeops.torch import LazyTensor
-from utils import load_las, random_oversample,save_las,random_subsample,extract_area,view_cloud_plotly
-from models import DGCNNembedder 
 
 def KNN_KeOps(K, metric="euclidean"):
     def fit(x_train):

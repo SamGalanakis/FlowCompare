@@ -11,7 +11,7 @@ from utils import (load_las,
                    extract_area,
                    rotate_xy,get_voxel,get_all_voxel_centers,get_voxel_center)
 
-from itertools import combinations
+from itertools import combinations, combinations_with_replacement,product
 from torch_cluster import fps
 from tqdm import tqdm
 from torch.utils.data import Dataset
@@ -20,7 +20,7 @@ from datetime import datetime
 import random
 import open3d as o3d
 import torch_cluster
-
+from utils import voxelize
 eps = 1e-8
 
 
@@ -183,38 +183,38 @@ class AmsVoxelLoader(Dataset):
         if self.getter_mode == 'all':
             
             if os.path.isfile(self.all_valid_combs_path):
-                with open(self.all_valid_combs_path, "rb") as fp:
-                    self.all_valid_combs = pickle.load(fp)
+                self.all_valid_combs = torch.load(self.all_valid_combs_path)
             else:
                 self.all_valid_combs = []
                 for idx, (save_id,save_entry) in enumerate(tqdm(self.save_dict.items())):
-                    clouds = save_entry['clouds']
-                    ground_height = save_entry['ground_height']
-           
-                    clouds = [x for x in clouds if x.shape[0] > 5000]
+                    clouds = save_entry['clouds']     
+                    clouds = {index:x for index,x in enumerate(clouds) if x.shape[0] > 5000}
+                    
                     if len(clouds) < 2:
                         if self.verbose:
                             print(f'Not enough clouds {idx}, skipping ')
                         continue
-                    cluster_min = clouds[0].min(axis=0)[0][:3]
-                    cluster_max = clouds[0].max(axis=0)[0][:3]
-                    clusters = [torch_cluster.grid_cluster(
-                        x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size) for x in clouds]
-
-
                     
-                
-                    valid_voxels = []
-                    for cluster in clusters:
+                    cluster_min = torch.stack([torch.min(x,dim=0)[0][:3] for x in clouds.values()]).min(dim=0)[0]
+                    cluster_max = torch.stack([torch.max(x,dim=0)[0][:3] for x in clouds.values()]).max(dim=0)[0]
+                    clusters = {}
+                    for index,x in clouds.items():
+                        labels,voxel_centers = voxelize(x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size)
+                        clusters[index] = labels
+    
+                   
+
+                  
+                    valid_voxels = {}
+                    for ind,cluster in clusters.items():
                         cluster_indices, counts = cluster.unique(return_counts=True)
                         valid_indices = cluster_indices[counts > self.n_samples_context]
-                        valid_voxels.append(valid_indices)
+                        valid_voxels[ind] = valid_indices
                     common_voxels = []
-                    for ind_0, ind_1 in combinations(range(0, len(clouds)), 2):
+                    for ind_0, ind_1 in combinations(valid_voxels.keys(), 2):
                         if ind_0 == ind_1:
                             continue
-                        common_voxels.append([ind_0, ind_1, np.intersect1d(
-                            valid_voxels[ind_0], valid_voxels[ind_1]).tolist()])
+                        common_voxels.append([ind_0, ind_1,[x.item() for x in valid_voxels[ind_0] if x in valid_voxels[ind_1]]  ])
                     valid_combs = []
                     for val in common_voxels:
                         valid_combs.extend([(val[0], val[1], x) for x in val[2]])
@@ -223,32 +223,39 @@ class AmsVoxelLoader(Dataset):
 
                     if len(valid_combs) < 1:
                         # If not enough recursively give other index from dataset
-                        if self.verbose:
-                            print(f"Couldn't find combinations for index: {idx}")
                         continue
                     
 
+                 
                     
-                    found_valid = False
-                    for comb_ind,combination in enumerate(valid_combs):
+                    for draw_ind,draw in enumerate(valid_combs):
                         
-                        cloud_ind_1 = combination[1]
-                        indices = clusters[cloud_ind_1] == combination[2]
-                        
-                        voxel_1 = clouds[cloud_ind_1][indices, :]
-                        voxel_center = get_voxel_center(voxel_1[0,:3],cluster_min,self.final_voxel_size)
-                        cloud_ind_0 = combination[0]
+                       
+                        voxel_center = voxel_centers[draw[2]]
+                        cloud_ind_0 = draw[0]
                         voxel_0 = get_voxel(clouds[cloud_ind_0],voxel_center,self.context_voxel_size)
                         if voxel_0.shape[0]>=self.n_samples_context:
-                            self.all_valid_combs.append({'combination':(save_id,)+combination,'cluster_min':cluster_min,'cluster_max':cluster_max})
+                            final_comb = (save_id,draw[0],draw[1],draw[2])
+                            self.all_valid_combs.append({'combination':final_comb,'voxel_center':voxel_center})
+                        else:
+                            print('Invalid')
+                            continue
                         
+                
                     
-                    if not found_valid:
-                        if self.verbose:
-                            print(f"Couldn't find valid context for any tile: {idx}, skipping")
-                        continue
-                with open(self.all_valid_combs_path, "wb") as fp:
-                    pickle.dump(self.all_valid_combs, fp)
+                        
+                
+                n_same =0
+                n_dif = 0
+                for comb_dict in self.all_valid_combs:
+                    if comb_dict['combination'][1] == comb_dict['combination'][2]:
+                        n_same+=1
+                    else:
+                        n_dif +=1
+                print(f"n_same/n_dif: {n_same/n_dif}")
+
+                
+                torch.save(self.all_valid_combs,self.all_valid_combs_path)
                         
                     
 
@@ -358,29 +365,28 @@ class AmsVoxelLoader(Dataset):
 
 
         save_id,cloud_ind_0,cloud_ind_1,common_voxel = self.all_valid_combs[idx]['combination']
-        clouds = self.save_dict[save_id]['clouds']
         ground_height = self.save_dict[save_id]['ground_height']
+        clouds = self.save_dict[save_id]['clouds']
+        center = self.all_valid_combs[idx]['voxel_center']
+        are_same = (cloud_ind_1 == cloud_ind_0)
+        
+        
+        cloud_0,cloud_1 = clouds[cloud_ind_0],clouds[cloud_ind_1]
 
-        clouds = [clouds[cloud_ind_0],clouds[cloud_ind_1]]
-
-        cluster_min = self.all_valid_combs[idx]['cluster_min']
-        cluster_max = self.all_valid_combs[idx]['cluster_max']
-        clusters = [torch_cluster.grid_cluster(
-            x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size) for x in clouds]
+    
+        voxel_1 = get_voxel(cloud_1,center,self.final_voxel_size)
+        voxel_0 = get_voxel(cloud_0,center,self.context_voxel_size)
         
         
-        indices = clusters[1] == common_voxel
         
-        voxel_1 = clouds[1][indices, :]
-        voxel_center = get_voxel_center(voxel_1[0,:3],cluster_min,self.final_voxel_size)
         
-        voxel_0 = get_voxel(clouds[0],voxel_center,self.context_voxel_size)
+     
 
         voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
         ), ratio=self.n_samples/voxel_1.shape[0], random_start=False), :]
         voxel_1 = voxel_1[:self.n_samples, :]
 
-        are_same = (cloud_ind_1 == cloud_ind_0)
+        
         
     
         voxel_0 = voxel_0[fps(voxel_0, torch.zeros(voxel_0.shape[0]).long(
