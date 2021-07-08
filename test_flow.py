@@ -1,11 +1,14 @@
 import torch
 from train import initialize_flow, load_flow, inner_loop, make_sample
-from dataloaders import ChallengeDataset
+from dataloaders import ChallengeDataset, AmsVoxelLoader
 import os
-from utils import view_cloud_plotly,log_prob_to_color
+from utils import view_cloud_plotly,log_prob_to_color,is_valid
 from visualize_change_map import visualize_change
 from tqdm import tqdm
 import models
+from torch.utils.data import DataLoader
+import numpy as np
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -18,7 +21,7 @@ save_dict = torch.load(load_path, map_location=device)
 config = save_dict['config']
 model_dict = initialize_flow(config, device, mode='test')
 model_dict = load_flow(save_dict, model_dict)
-mode = 'train'
+mode = 'test'
 
 
 one_up_path = os.path.dirname(__file__)
@@ -31,7 +34,37 @@ dirs = ['save/challenge_data/Shrec_change_detection_dataset_public/' +
 dataset = ChallengeDataset(csv_path, dirs, out_path, n_samples=config['sample_size'], preload=preload, device=device, final_voxel_size=config[
                            'final_voxel_size'], n_samples_context=config['n_samples_context'], context_voxel_size=config['context_voxel_size'])
 
+def evaluate_on_test(model_path,batch_size = None):
+    device = 'cuda'
+    save_dict = torch.load(model_path, map_location=device)
+    config = save_dict['config']
+    batch_size = config['batch_size'] if batch_size == None else batch_size
+    model_dict = initialize_flow(config, device, mode='test')
+    model_dict = load_flow(save_dict, model_dict)
+    dataset = AmsVoxelLoader(config['directory_path_train'],config['directory_path_test'], out_path='save/processed_dataset', preload=True,
+        n_samples = config['sample_size'],final_voxel_size = config['final_voxel_size'],device=device,
+         n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size'],mode='test',
+         getter_mode = 'all')
+    dataloader = DataLoader(dataset,batch_size=batch_size,workers=config['num_workers'],pin_memory=True,prefetch_factor=2, drop_last=True)
 
+    print(f'Evaluating on test')
+    nats_avg = 0
+    for batch_ind, batch in enumerate(tqdm(dataloader)):
+        batch = [x.to(device) for x in batch]
+
+        if not config['using_extra_context']:
+            batch[-1] = None
+        loss, _, nats = inner_loop(
+            batch, model_dict, config)
+        is_valid(loss)
+
+        nats = nats.item()
+        nats_avg = (
+        nats_avg*(batch_ind) + nats)/(batch_ind+1)
+    print(f'Nats: {nats_avg}')
+    return nats_avg
+
+    
 def calc_change(batch, model_dict, config):
 
     loss, log_prob_1_given_0, _ = inner_loop(batch, model_dict, config)

@@ -57,7 +57,7 @@ class Scan:
 
 class AmsVoxelLoader(Dataset):
     def __init__(self, directory_path_train,directory_path_test, out_path, clearance=10, preload=False,
-                 height_min_dif=0.5, max_height=15.0, device="cpu", ground_keep_perc=1/40, n_samples=2048, n_voxels=10, final_voxel_size=[3., 3., 4.],
+                 height_min_dif=0.5, max_height=15.0, device="cpu", ground_keep_perc=1/40, n_samples=2048,final_voxel_size=[3., 3., 4.],
                  rotation_augment = True,n_samples_context=2048, context_voxel_size = [3., 3., 4.],
                 mode='train',verbose=False,voxel_size_final_downsample=0.07,getter_mode='sample'):
 
@@ -93,7 +93,6 @@ class AmsVoxelLoader(Dataset):
         
         self.n_samples = n_samples
         self.final_voxel_size = torch.tensor(final_voxel_size)
-        self.n_voxels = n_voxels
         save_path = os.path.join(self.out_path, self.save_name)
         voxel_size_icp = 0.05
 
