@@ -218,7 +218,8 @@ class AmsVoxelLoader(Dataset):
                     for val in common_voxels:
                         valid_combs.extend([(val[0], val[1], x) for x in val[2]])
                         # Self predict (only on index,since clouds shuffled and 1:1 other to same)
-                        valid_combs.extend([(val[0], val[0], x) for x in val[2]])
+                        if self.mode == 'train':
+                            valid_combs.extend([(val[0], val[0], x) for x in val[2]])
 
                     if len(valid_combs) < 1:
                         # If not enough recursively give other index from dataset

@@ -172,7 +172,7 @@ threshold_scheduler:
   value: 0.01 
 lr_factor:
   desc: Multiplication factor for lr scheduler]
-  value: 0.5
+  value: 0.8
 affine_scale_fn:
   desc: Scaling function to use for affine coupling
   value: sigmoid

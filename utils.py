@@ -78,6 +78,8 @@ def view_cloud_plotly(points, rgb=None, fig=None, point_size=5, show=True, axes=
         rgb = rgb.cpu().detach().numpy()
     if rgb is None:
         rgb = np.zeros_like(points)
+    elif rgb.shape[-1] == 1:
+        rgb = rgb.squeeze()
     else:
         divide_by = np.maximum(rgb.max(axis=0), eps)
         rgb = np.rint(np.divide(rgb, divide_by)*255).astype(np.uint8)

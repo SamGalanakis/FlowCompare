@@ -1,5 +1,5 @@
+from models.augmenter import Augment
 import torch
-from train import initialize_flow, load_flow, inner_loop, make_sample
 from dataloaders import ChallengeDataset, AmsVoxelLoader
 import os
 from utils import view_cloud_plotly,log_prob_to_color,is_valid
@@ -8,61 +8,54 @@ from tqdm import tqdm
 import models
 from torch.utils.data import DataLoader
 import numpy as np
+from model_initialization import inner_loop,initialize_flow,make_sample,load_flow
 
 
+        
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def inverse_map(cloud,inverse_dict):
     device = cloud.device
     return cloud*inverse_dict['furthest_distance'].to(device) + inverse_dict['mean'].to(device)
 
-load_path = 'save/conditional_flow_compare/silver-salad-2635_e300_model_dict.pt'
-save_dict = torch.load(load_path, map_location=device)
-config = save_dict['config']
-model_dict = initialize_flow(config, device, mode='test')
-model_dict = load_flow(save_dict, model_dict)
-mode = 'test'
 
 
-one_up_path = os.path.dirname(__file__)
-out_path = os.path.join(one_up_path, r"save/processed_dataset")
+def evaluate_on_test(model_dict,config,batch_size = None):
+    with torch.no_grad():
+        device = 'cuda'
+        # if isinstance(model_path,str):
+        #     save_dict = torch.load(model_path, map_location=device)
+        # else:
+        #     save_dict = model_path
+        # config = save_dict['config']
+        batch_size = config['batch_size'] if batch_size == None else batch_size
+        # model_dict = initialize_flow(config, device, mode='test')
+        # model_dict = load_flow(save_dict, model_dict)
+        dataset = AmsVoxelLoader(config['directory_path_train'],config['directory_path_test'], out_path='save/processed_dataset', preload=True,
+            n_samples = config['sample_size'],final_voxel_size = config['final_voxel_size'],device=device,
+            n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size'],mode='test',
+            getter_mode = 'all')
+        dataloader = DataLoader(dataset,batch_size=batch_size,num_workers=config['num_workers'],pin_memory=True,prefetch_factor=2, drop_last=True,shuffle=False)
 
-preload = True
-csv_path = 'save/challenge_data/Shrec_change_detection_dataset_public/new_final.csv'
-dirs = ['save/challenge_data/Shrec_change_detection_dataset_public/' +
-        year for year in ["2016", "2020"]]
-dataset = ChallengeDataset(csv_path, dirs, out_path, n_samples=config['sample_size'], preload=preload, device=device, final_voxel_size=config[
-                           'final_voxel_size'], n_samples_context=config['n_samples_context'], context_voxel_size=config['context_voxel_size'])
+        print(f'Evaluating on test')
+        nats_avg = 0
+        
+        for batch_ind, batch in enumerate(tqdm(dataloader)):
+            batch = [x.to(device) for x in batch]
 
-def evaluate_on_test(model_path,batch_size = None):
-    device = 'cuda'
-    save_dict = torch.load(model_path, map_location=device)
-    config = save_dict['config']
-    batch_size = config['batch_size'] if batch_size == None else batch_size
-    model_dict = initialize_flow(config, device, mode='test')
-    model_dict = load_flow(save_dict, model_dict)
-    dataset = AmsVoxelLoader(config['directory_path_train'],config['directory_path_test'], out_path='save/processed_dataset', preload=True,
-        n_samples = config['sample_size'],final_voxel_size = config['final_voxel_size'],device=device,
-         n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size'],mode='test',
-         getter_mode = 'all')
-    dataloader = DataLoader(dataset,batch_size=batch_size,workers=config['num_workers'],pin_memory=True,prefetch_factor=2, drop_last=True)
+            if not config['using_extra_context']:
+                batch[-1] = None
+            loss, _, nats = inner_loop(
+                batch, model_dict, config)
+            is_valid(loss)
 
-    print(f'Evaluating on test')
-    nats_avg = 0
-    for batch_ind, batch in enumerate(tqdm(dataloader)):
-        batch = [x.to(device) for x in batch]
+            nats = nats.item()
+            nats_avg = (
+            nats_avg*(batch_ind) + nats)/(batch_ind+1)
+        print(f'Nats: {nats_avg}')
+        return nats_avg
 
-        if not config['using_extra_context']:
-            batch[-1] = None
-        loss, _, nats = inner_loop(
-            batch, model_dict, config)
-        is_valid(loss)
 
-        nats = nats.item()
-        nats_avg = (
-        nats_avg*(batch_ind) + nats)/(batch_ind+1)
-    print(f'Nats: {nats_avg}')
-    return nats_avg
 
     
 def calc_change(batch, model_dict, config):
@@ -162,11 +155,29 @@ def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False):
 
 
 if __name__ == '__main__':
+    
     #name = load_path.split('/')[-1].split('_')[0]
     #dataset_out = f"save/processed_dataset/{name}_{mode}_probs_dataset.pt"
     #create_dataset(dataset,model_dict,dataset_out = dataset_out)
     # score_on_test(dataset,model_dict,n_bins=12)
+    load_path = 'save/conditional_flow_compare/good-surf-2733_e1_b13000_model_dict.pt'
+    save_dict = torch.load(load_path, map_location=device)
+    config = save_dict['config']
+    model_dict = initialize_flow(config, device, mode='test')
+    model_dict = load_flow(save_dict, model_dict)
+    mode = 'test'
 
+    #nats = evaluate_on_test(model_dict,config)
+
+    one_up_path = os.path.dirname(__file__)
+    out_path = os.path.join(one_up_path, r"save/processed_dataset")
+
+    preload = True
+    csv_path = 'save/challenge_data/Shrec_change_detection_dataset_public/new_final.csv'
+    dirs = ['save/challenge_data/Shrec_change_detection_dataset_public/' +
+            year for year in ["2016", "2020"]]
+    dataset = ChallengeDataset(csv_path, dirs, out_path, n_samples=config['sample_size'], preload=preload, device=device, final_voxel_size=config[
+                            'final_voxel_size'], n_samples_context=config['n_samples_context'], context_voxel_size=config['context_voxel_size'])
     #dataset_view(dataset,0,multiple = 3.,show=False)
     pass
     #dataset_view(dataset,0,multiple = 3.,gen_std=0.6)
