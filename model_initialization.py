@@ -164,7 +164,7 @@ def initialize_flow(config, device='cuda', mode='train'):
         input_embedder = models.DGCNNembedder(
             emb_dim=config['input_embedding_dim'], n_neighbors=config['n_neighbors'], out_mlp_dims=config['hidden_dims_embedder_out'])
     elif config['input_embedder'] == 'PAConv':
-        input_embedder = models.PointNet2SSGSeg( c=3,k=config['input_embedding_dim'],out_mlp_dims=config['hidden_dims_embedder_out'])
+        input_embedder = models.PointNet2SSGSeg( c=config['input_dim']-3,k=config['input_embedding_dim'],out_mlp_dims=config['hidden_dims_embedder_out'])
     elif config['input_embedder'] == 'DGCNNembedderGlobal':
         input_embedder = models.DGCNNembedderGlobal(
             input_dim=config['input_dim'], out_mlp_dims=config['hidden_dims_embedder_out'],
@@ -208,7 +208,7 @@ def inner_loop(batch, models_dict, config):
     
     """Computes forward pass of given batch through model, returns mean negative log likelihood loss,log likelihood and bits per dim"""   
     extract_0, extract_1,extra_context = batch
-
+    extract_0,extract_1 = extract_0[:,:,:config['input_dim']],extract_1[:,:,:config['input_dim']]
     if extra_context!=None:
         extra_context = einops.repeat(extra_context,'b c-> b n c',n = config['sample_size'])
     
@@ -230,9 +230,10 @@ def inner_loop(batch, models_dict, config):
 
 def make_sample(n_points, extract_0,models_dict, config, sample_distrib=None,extra_context=None):
     """Computes inverse/generative pass of given model generating n_points given context extract_0,extra_context"""
-
+    
+    extract_0 = extract_0[:,:,:config['input_dim']]
     input_embeddings = models_dict["input_embedder"](extract_0)
-
+   
     if extra_context!=None:
         extra_context = einops.repeat(extra_context,'b c-> b n c',n = n_points)
 

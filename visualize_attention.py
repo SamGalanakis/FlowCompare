@@ -32,7 +32,7 @@ for batch_ind in range(batch_size):
 
         for weight_name,w in zip(weight_names,weights):
             w_ = w[index]
-            w_ = 1 - (w_-w_.min())/(w_.max()-w_.min())
+            w_ = (w_-w_.min())/(w_.max()-w_.min())
             point_1 = c_1[index].unsqueeze(0)
             c_0 = torch.cat((c_0[:,:3],w_.unsqueeze(-1)),dim=-1)
             point_1 = torch.cat((point_1[:,:3],torch.tensor([1]).unsqueeze(0).float()),dim=-1)

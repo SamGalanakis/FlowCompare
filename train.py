@@ -146,8 +146,12 @@ def train(config_path):
                 with torch.no_grad():
                     
                     cond_nump = extract_0[0].cpu().numpy()
+                    if config['using_extra_context']:
+                        sample_extra_context = extra_context[0].unsqueeze(0)
+                    else : 
+                        sample_extra_context = None
                     sample_points = make_sample(
-                        4000, extract_0[0].unsqueeze(0), models_dict, config,extra_context=extra_context[0].unsqueeze(0))
+                        4000, extract_0[0].unsqueeze(0), models_dict, config,sample_extra_context)
                     cond_nump[:, 3:6] = np.clip(
                     cond_nump[:, 3:6]*255, 0, 255)
                     sample_points = sample_points.cpu().numpy().squeeze()
@@ -169,7 +173,7 @@ def train(config_path):
 
 
 if __name__ == "__main__":
-    config_path = r"config/extra_300_.yaml"
+    config_path = r"config/extra_300_no_extra_context.yaml"
     train(config_path)
      
     

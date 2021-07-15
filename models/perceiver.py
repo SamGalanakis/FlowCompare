@@ -99,13 +99,13 @@ class AttentionControlledOut(nn.Module):
 class AttentionMine(nn.Module):
     def __init__(self, query_dim, context_dim, heads, dim_head):
         super().__init__()
-        
+    
         self.inner_dim = dim_head * heads
         self.scale = self.inner_dim ** -0.5
         self.to_q = nn.Linear(query_dim, self.inner_dim, bias=False)
         self.to_kv = nn.Linear(context_dim, self.inner_dim * 2, bias=False)
 
-    def forward(self, x, context=None):
+    def forward(self, x, context=None, mask=None):
         q = self.to_q(x)
         k, v = self.to_kv(context).chunk(2, dim=-1)
         attn_weights = F.softmax(torch.matmul(

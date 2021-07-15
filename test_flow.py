@@ -68,7 +68,7 @@ def calc_change(batch, model_dict, config):
 def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple=3.):
     base_mean = log_prob_0_given_0.mean()
     base_std = log_prob_0_given_0.std()
-    print(f'Base  mean: {base_mean.item()}, base_std: {{base_std.item()}}')
+    print(f'Base  mean: {base_mean.item()}, base_std: {base_std.item()}')
     changed_mask_1 = torch.abs(
         log_prob_1_given_0-base_mean) > multiple*base_std
     log_prob_1_given_0 += torch.abs(log_prob_1_given_0.min())
@@ -77,7 +77,7 @@ def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple=3.):
 
 
 
-def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False):
+def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False,save=True):
     with torch.no_grad():
         sample_distrib = models.Normal(torch.zeros(1), torch.ones(
             1)*gen_std, shape=(2000, config['latent_dim'])).to(device)
@@ -132,6 +132,11 @@ def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False):
             procesed_dict['change_0_given_1'].append(log_prob_to_color(
                 log_prob_0_given_1, log_prob_1_given_1, multiple=multiple).cpu())
 
+            if save:
+                view_cloud_plotly(gen_given_0[:,:3],gen_given_0[:,3:],show=False).write_html(f'save/examples/{index}_{key}_gen_given_0.html')
+                view_cloud_plotly(voxel_0[:,:3],voxel_0[:,3:],show=False).write_html(f'save/examples/{index}_{key}_voxel_0.html')
+                view_cloud_plotly(gen_given_1[:,:3],gen_given_1[:,3:],show=False).write_html(f'save/examples/{index}_{key}_gen_given_1.html')
+                view_cloud_plotly(voxel_1[:,:3],voxel_1[:,3:],show=False).write_html(f'save/examples/{index}_{key}_voxel_1.html')
             # voxel_0[:, :3] =  inverse_map(voxel_0[:, :3],inverse_1).cpu()
             # voxel_1[:, :3] = inverse_map(voxel_1[:, :3],inverse_0).cpu()
             procesed_dict['voxel_0'].append(voxel_0.cpu())
@@ -180,5 +185,6 @@ if __name__ == '__main__':
                             'final_voxel_size'], n_samples_context=config['n_samples_context'], context_voxel_size=config['context_voxel_size'])
     #dataset_view(dataset,0,multiple = 3.,show=False)
     pass
-    #dataset_view(dataset,0,multiple = 3.,gen_std=0.6)
-    visualize_change(lambda index, multiple, gen_std: dataset_view(dataset, index, multiple=multiple, gen_std=gen_std), range(len(dataset)))
+    for x in range(0,10):
+        dataset_view(dataset,x,multiple = 3.,gen_std=0.6,save=True)
+    #visualize_change(lambda index, multiple, gen_std: dataset_view(dataset, index, multiple=multiple, gen_std=gen_std), range(len(dataset)))

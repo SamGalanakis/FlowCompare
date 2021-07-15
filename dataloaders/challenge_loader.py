@@ -77,11 +77,22 @@ class ChallengeDataset(Dataset):
         voxel_center_0 = vox_center
         voxel_0 = get_voxel(context_cloud,voxel_center_0,self.context_voxel_size)
 
-        
+        if voxel_1.shape[0] == 0:
+            voxel_1 = voxel_0.mean(dim=-0).unsqueeze(0)
+            print('Empty voxel,placing dummy point')
+        else:
+            voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
+            ), ratio=self.n_samples/voxel_1.shape[0], random_start=False), :]
+            voxel_1 = voxel_1[:self.n_samples,:]
+                
         voxel_1_1 = get_voxel(cloud,voxel_center_0,self.context_voxel_size)
 
-        voxel_1_1 = voxel_1_1[fps(voxel_1_1, torch.zeros(voxel_1_1.shape[0]).long(
-        ), ratio=self.n_samples_context/voxel_1_1.shape[0], random_start=False), :]
+        if voxel_1_1.shape[0] == 0:
+            voxel_1_1 = voxel_1_1.mean(dim=-0).unsqueeze(0)
+            print('Empty voxel,placing dummy point')
+        else:
+            voxel_1_1 = voxel_1_1[fps(voxel_1_1, torch.zeros(voxel_1_1.shape[0]).long(
+            ), ratio=self.n_samples_context/voxel_1_1.shape[0], random_start=False), :]
 
         if voxel_0.shape[0]==0:
             voxel_0 = voxel_1.mean(dim=-0).unsqueeze(0)
@@ -91,9 +102,7 @@ class ChallengeDataset(Dataset):
             ), ratio=self.n_samples_context/voxel_0.shape[0], random_start=False), :]
             voxel_0 = voxel_0[:self.n_samples_context,:]
 
-        voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
-        ), ratio=self.n_samples/voxel_1.shape[0], random_start=False), :]
-        voxel_1 = voxel_1[:self.n_samples,:]
+       
 
         return voxel_0,voxel_1,voxel_1_1
     def voxel_center_heights(self,z_min,z_max):

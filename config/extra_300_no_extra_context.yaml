@@ -25,7 +25,7 @@ permuter_type:
   value: LinearLU #ExponentialCombiner #FullCombiner # ExponentialCombiner # random_permute, LinearLU 
 input_dim:
   desc: Dimension of pointcloud data
-  value: 6 
+  value: 6
 clearance:
   desc: clearance
   value: 10
@@ -172,7 +172,7 @@ threshold_scheduler:
   value: 0.01 
 lr_factor:
   desc: Multiplication factor for lr scheduler]
-  value: 0.5
+  value: 0.8
 affine_scale_fn:
   desc: Scaling function to use for affine coupling
   value: sigmoid
@@ -193,7 +193,7 @@ use_attn_augment:
   value: True
 extra_z_value_context:
   desc: Use z value of center voxel as extra context
-  value: True
+  value: False
 dataset_get_mode:
   desc: All or sample for getter in dataloader
   value: 'all'
