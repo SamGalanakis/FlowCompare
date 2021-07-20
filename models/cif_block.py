@@ -36,6 +36,8 @@ def cif_helper(config,flow, attn,pre_attention_mlp, event_dim=-1):
         else:
             return CIFblock(config,flow,attn,event_dim)
     elif config['latent_dim'] == config['cif_latent_dim']:
+        if config['using_extra_context']:
+            raise Exception('Not implemented extra context with cif')
         if not config['global']:
             return models.PreConditionApplier(flow(config['latent_dim'], config['attn_dim']+ config['extra_context_dim']), CouplingPreconditionerAttn(attn(), pre_attention_mlp(config['latent_dim']//2), config['latent_dim']//2, event_dim=event_dim))
         else:
@@ -67,10 +69,8 @@ class CIFblock(models.Transform):
         self.reverse = models.Reverse(config['cif_latent_dim'],dim=-1)
         
 
-    def forward(self, x, context=None):
+    def forward(self, x, context=None,extra_context=None):
         ldj_cif = torch.zeros(x.shape[:-1], device=x.device, dtype=x.dtype)
-
-       
 
         x, ldj = self.augmenter(x, context=None)
         ldj_cif += ldj
@@ -100,7 +100,7 @@ class CIFblock(models.Transform):
 
         return x, ldj_cif
 
-    def inverse(self, y, context=None):
+    def inverse(self, y, context=None,extra_context=None):
         y = self.flow.inverse(y,context=context)
         y = self.slicer.inverse(y)
         y = self.reverse.inverse(y)

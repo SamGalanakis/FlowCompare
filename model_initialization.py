@@ -216,7 +216,7 @@ def inner_loop(batch, models_dict, config):
 
 
     if config['global']:
-        input_embeddings = input_embeddings.unsqueeze(1)
+        input_embeddings = einops.repeat(input_embeddings,'b e -> b p e',p=extract_1.shape[1])
 
     x = extract_1
 
@@ -237,7 +237,8 @@ def make_sample(n_points, extract_0,models_dict, config, sample_distrib=None,ext
     if extra_context!=None:
         extra_context = einops.repeat(extra_context,'b c-> b n c',n = n_points)
 
-    
+    if config['global']:
+        input_embeddings = einops.repeat(input_embeddings,'b e -> b p e',p=n_points)
 
     x = models_dict['flow'].sample(num_samples=1, n_points=n_points,
                                    context=input_embeddings, sample_distrib=sample_distrib,extra_context=extra_context).squeeze()

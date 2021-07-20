@@ -91,7 +91,8 @@ def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False,save=True)
 
         def get_lob_prob(voxel,context_voxel):
             voxel,context_voxel,inverse = dataset.last_processing(voxel,context_voxel)
-            extra_context = inverse['mean'][2].reshape(-1,1)
+            extra_context = inverse['mean'][2].reshape(-1,1) if config['using_extra_context'] else None
+            
             log_prob_1_given_0 = calc_change(
                 [context_voxel.unsqueeze(0), voxel.unsqueeze(0),extra_context], model_dict, config).cpu()
             return voxel,context_voxel,inverse,log_prob_1_given_0
@@ -165,14 +166,14 @@ if __name__ == '__main__':
     #dataset_out = f"save/processed_dataset/{name}_{mode}_probs_dataset.pt"
     #create_dataset(dataset,model_dict,dataset_out = dataset_out)
     # score_on_test(dataset,model_dict,n_bins=12)
-    load_path = 'save/conditional_flow_compare/good-surf-2733_e1_b13000_model_dict.pt'
+    load_path = 'save/conditional_flow_compare/happy-cosmos-2781_e1_b500_model_dict.pt'
     save_dict = torch.load(load_path, map_location=device)
     config = save_dict['config']
     model_dict = initialize_flow(config, device, mode='test')
     model_dict = load_flow(save_dict, model_dict)
     mode = 'test'
 
-    #nats = evaluate_on_test(model_dict,config)
+    nats = evaluate_on_test(model_dict,config)
 
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path, r"save/processed_dataset")
@@ -185,6 +186,6 @@ if __name__ == '__main__':
                             'final_voxel_size'], n_samples_context=config['n_samples_context'], context_voxel_size=config['context_voxel_size'])
     #dataset_view(dataset,0,multiple = 3.,show=False)
     pass
-    for x in range(0,10):
-        dataset_view(dataset,x,multiple = 3.,gen_std=0.6,save=True)
+    #for x in range(0,12):
+    #    dataset_view(dataset,x,multiple = 3.,gen_std=0.6,save=True)
     #visualize_change(lambda index, multiple, gen_std: dataset_view(dataset, index, multiple=multiple, gen_std=gen_std), range(len(dataset)))

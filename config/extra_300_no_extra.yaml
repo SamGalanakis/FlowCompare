@@ -169,7 +169,7 @@ linear_lu_eps:
   value: 1.0E-5
 threshold_scheduler:
   desc: Threshold to change lr at for scheduler
-  value: 0.01 
+  value: 0.005 
 lr_factor:
   desc: Multiplication factor for lr scheduler]
   value: 0.8
@@ -193,7 +193,7 @@ use_attn_augment:
   value: True
 extra_z_value_context:
   desc: Use z value of center voxel as extra context
-  value: True
+  value: False
 dataset_get_mode:
   desc: All or sample for getter in dataloader
   value: 'all'

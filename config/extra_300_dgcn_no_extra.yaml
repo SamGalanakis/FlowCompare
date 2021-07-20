@@ -34,7 +34,7 @@ subsample:
   value: 'fps'
 patience:
   desc: patience (number of batches not epochs!)
-  value: 1000
+  value: 2000
 preload:
   desc: Preload_dataset
   value: true
@@ -43,7 +43,7 @@ n_epochs:
   value: 2
 batch_size:
   desc: Batch size
-  value: 25 #16
+  value: 20 #down from 25 due to dgcnn extra mem
 lr:
   desc: Initial learning rate for optimizer
   value: 1.0E-4 # was  1.0E-4
@@ -103,7 +103,7 @@ amp:
   value: false
 input_embedder: 
   desc: input_embedder type
-  value: PAConv #PAConv # 
+  value: DGCNNembedder #PAConv # 
 grad_clip_val:
   desc: What value to clip grad norms to
   value: 1.0 # was 1.0
@@ -169,7 +169,7 @@ linear_lu_eps:
   value: 1.0E-5
 threshold_scheduler:
   desc: Threshold to change lr at for scheduler
-  value: 0.01 
+  value: 0.005 
 lr_factor:
   desc: Multiplication factor for lr scheduler]
   value: 0.8
@@ -193,7 +193,7 @@ use_attn_augment:
   value: True
 extra_z_value_context:
   desc: Use z value of center voxel as extra context
-  value: True
+  value: False
 dataset_get_mode:
   desc: All or sample for getter in dataloader
   value: 'all'

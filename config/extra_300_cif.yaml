@@ -3,7 +3,7 @@ sample_size:
   value: 1024 #2048
 n_flow_layers:
   desc: Number of flow layers
-  value: 115 # was 46 for 64 latent
+  value: 200 # was 46 for 64 latent
 data_loader:
   desc: What loader to use
   value: AmsVoxelLoader 
@@ -43,10 +43,10 @@ n_epochs:
   value: 2
 batch_size:
   desc: Batch size
-  value: 25 #16
+  value: 18 #16
 lr:
   desc: Initial learning rate for optimizer
-  value: 1.0E-4 # was  1.0E-4
+  value: 5.0E-5 # was  1.0E-4
 save_model_path:
   desc: Where to save models (before wandb upload)
   value: save/conditional_flow_compare/
@@ -82,7 +82,7 @@ attn_dim:
   value: 512
 latent_dim:
   desc: Latent dim for main flow - output of first augment
-  value: 300
+  value: 48
 attn_input_dim:
   desc: dim of input to attn
   value: 256
@@ -109,7 +109,7 @@ grad_clip_val:
   value: 1.0 # was 1.0
 batches_per_sample:
   desc: Every how many batches to create a sample
-  value: 15
+  value: 25
 batches_per_save:
   desc: Every how many batches to checkpoint
   value: 500
@@ -136,7 +136,7 @@ net_cif_dist_hidden_dims:
   value: [64,64]
 cif_latent_dim:
   desc: Latent dim in flow of cif blocks
-  value: 300
+  value: 48
 coupling_expm_algo:
   desc: What algorithm to use for expm 'original' or 'torch'
   value: torch 
@@ -193,7 +193,7 @@ use_attn_augment:
   value: True
 extra_z_value_context:
   desc: Use z value of center voxel as extra context
-  value: True
+  value: False
 dataset_get_mode:
   desc: All or sample for getter in dataloader
   value: 'all'

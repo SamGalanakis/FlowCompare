@@ -66,8 +66,10 @@ def train(config_path):
     # Load checkpoint params if specified path
     if config['load_checkpoint']:
         print(f"Loading from checkpoint: {config['load_checkpoint']}")
-        checkpoint_dict = torch.load(config['load_checkpoint'])
+        checkpoint_dict = torch.load(config['load_checkpoint'],map_location='cpu') #Map to cpu to avoid weird pytorch extra gpu mem usage
         models_dict = load_flow(checkpoint_dict, models_dict)
+        optimizer.load_state_dict(checkpoint_dict['optimizer'])
+        scheduler.load_state_dict(checkpoint_dict['scheduler'])
 
     else:
         print("Starting training from scratch!")
@@ -151,7 +153,7 @@ def train(config_path):
                     else : 
                         sample_extra_context = None
                     sample_points = make_sample(
-                        4000, extract_0[0].unsqueeze(0), models_dict, config,sample_extra_context)
+                        n_points = 4000, extract_0 = extract_0[0].unsqueeze(0), models_dict = models_dict, config = config,sample_distrib = None,extra_context = sample_extra_context)
                     cond_nump[:, 3:6] = np.clip(
                     cond_nump[:, 3:6]*255, 0, 255)
                     sample_points = sample_points.cpu().numpy().squeeze()
@@ -173,7 +175,7 @@ def train(config_path):
 
 
 if __name__ == "__main__":
-    config_path = r"config/extra_300_no_extra_context.yaml"
+    config_path = r"config/extra_300_dgcn_no_extra.yaml"
     train(config_path)
      
     

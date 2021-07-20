@@ -9,7 +9,7 @@ from .dataset_utils import registration_pipeline, context_voxel_center
 from utils import (load_las,
                    co_unit_sphere,
                    extract_area,
-                   rotate_xy,get_voxel,get_all_voxel_centers,get_voxel_center)
+                   rotate_xy,get_voxel,get_all_voxel_centers,get_voxel_center, view_cloud_plotly)
 
 from itertools import combinations, combinations_with_replacement,product
 from torch_cluster import fps
@@ -359,7 +359,12 @@ class AmsVoxelLoader(Dataset):
         extra_context = extra_context.unsqueeze(-1)
 
         return tensor_0, tensor_1,extra_context
-
+    def view(self,idx):
+        tensor_0, tensor_1,extra_context = self.all_getter(idx)
+        fig_0 = view_cloud_plotly(tensor_0[:,:3],tensor_0[:,3:],point_size=10,show=False)
+        fig_1 = view_cloud_plotly(tensor_1[:,:3],tensor_1[:,3:],point_size=10,show=False)
+        
+        return fig_0,fig_1
     def all_getter(self,idx):
 
 

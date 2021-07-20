@@ -16,10 +16,10 @@ flow_type:
   value:  AffineCoupling #RationalQuadraticSplineCoupling #AffineCoupling
 hidden_dims:
   desc: linear layers for flow coupling
-  value: [512,512,512] # was [512,512,512]
+  value: [512,512,512,512,512,512] # was [512,512,512]
 hidden_dims_embedder_out:
   desc: Hidden dims on embedder output mlp
-  value: [512,512,512,512,512,512] # was [512,512,512]
+  value: [512,512,512,512] # was [512,512,512]
 permuter_type:
   desc: 'How to permute between coupling blocks'
   value: LinearLU #ExponentialCombiner #FullCombiner # ExponentialCombiner # random_permute, LinearLU 
@@ -88,7 +88,7 @@ attn_input_dim:
   value: 256
 input_embedding_dim:
   desc: Dimension of input embeddings, part of input for attention (feature dim for each point in cloud t0)
-  value: 64 #was 512 
+  value: 124 #was 64 
 cross_heads:
   desc: Number of attn heads
   value: 1
@@ -103,7 +103,7 @@ amp:
   value: false
 input_embedder: 
   desc: input_embedder type
-  value: PAConv #PAConv # 
+  value: DGCNNembedderGlobal #PAConv # 
 grad_clip_val:
   desc: What value to clip grad norms to
   value: 1.0 # was 1.0
@@ -193,7 +193,7 @@ use_attn_augment:
   value: True
 extra_z_value_context:
   desc: Use z value of center voxel as extra context
-  value: True
+  value: False
 dataset_get_mode:
   desc: All or sample for getter in dataloader
   value: 'all'
