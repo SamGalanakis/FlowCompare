@@ -506,5 +506,16 @@ def voxelize(pos,start,end,size):
     labels = get_knn(pos,centers,1)
     return labels ,centers
 
+def calculate_double_mad(x,c=1.4826):
+    median = x.median()
+    abs_dev = (x-median).abs()
+    left_mad_mask = x<=median
+    left_median = c*abs_dev[left_mad_mask].median()
+    right_median = c*abs_dev[~left_mad_mask].median()
+    x[left_mad_mask] =  c * (x - left_median).abs()/left_median
+    x[~left_mad_mask] = c * (x - right_median).abs()/right_median
+    return x
+
+
 
 
