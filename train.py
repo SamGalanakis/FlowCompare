@@ -9,7 +9,7 @@ import wandb
 from dataloaders import AmsVoxelLoader
 from utils import is_valid
 from model_initialization import inner_loop,initialize_flow,make_sample,load_flow,save_flow
-from test_flow import evaluate_on_test
+
 
 
 
@@ -30,11 +30,11 @@ def train(config_path):
     if config['data_loader'] == 'AmsVoxelLoader':
         dataset = AmsVoxelLoader(config['directory_path_train'],config['directory_path_test'], out_path='save/processed_dataset', preload=config['preload'],
         n_samples = config['sample_size'],final_voxel_size = config['final_voxel_size'],device=device,
-        n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size'],mode='train',getter_mode = config['dataset_get_mode']
+        n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size'],mode='train',
         )
      
     else:
-        raise Exception('Invalid dataloader type!')
+        raise Exception('Invalid dataset type!')
 
 
   

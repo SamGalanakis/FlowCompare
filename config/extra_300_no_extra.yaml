@@ -194,7 +194,5 @@ use_attn_augment:
 extra_z_value_context:
   desc: Use z value of center voxel as extra context
   value: False
-dataset_get_mode:
-  desc: All or sample for getter in dataloader
-  value: 'all'
+
 
