@@ -58,7 +58,7 @@ class AmsVoxelLoader(Dataset):
     def __init__(self, directory_path_train,directory_path_test, out_path, clearance=10, preload=False,
                  height_min_dif=0.5, max_height=15.0, device="cpu",n_samples=2048,final_voxel_size=[3., 3., 4.],
                  rotation_augment = True,n_samples_context=2048, context_voxel_size = [3., 3., 4.],
-                mode='train',verbose=False,voxel_size_final_downsample=0.07):
+                mode='train',verbose=False,voxel_size_final_downsample=0.07,include_self=False):
 
         print(f'Dataset mode: {mode}')
         self.mode = mode
@@ -70,6 +70,7 @@ class AmsVoxelLoader(Dataset):
         else:
             raise Exception('Invalid mode')
         self.verbose = verbose 
+        self.include_self = include_self
         self.voxel_size_final_downsample = voxel_size_final_downsample
         self.n_samples_context = n_samples_context
         self.context_voxel_size = torch.tensor(context_voxel_size)
@@ -288,7 +289,6 @@ class AmsVoxelLoader(Dataset):
         
         
         
-        
      
 
         voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
@@ -301,6 +301,15 @@ class AmsVoxelLoader(Dataset):
         voxel_0 = voxel_0[fps(voxel_0, torch.zeros(voxel_0.shape[0]).long(
         ), ratio=self.n_samples_context/voxel_0.shape[0], random_start=False), :]
         voxel_0 = voxel_0[:self.n_samples_context,:]
+
+        if self.include_self:
+            voxel_0_small = get_voxel(cloud_0,center,self.final_voxel_size)
+            voxel_0_small = voxel_0_small[fps(voxel_0_small, torch.zeros(voxel_0_small.shape[0]).long(
+            ), ratio=self.n_samples/voxel_0_small.shape[0], random_start=False), :]
+            voxel_0_small = voxel_0_small[:self.n_samples,:]
+            voxel_0_small, voxel_0_self,inverse = self.last_processing(voxel_0_small,voxel_0)
+
+
         #Only augment in train
         if are_same:
             voxel_1 = voxel_1.clone()
@@ -321,8 +330,10 @@ class AmsVoxelLoader(Dataset):
         # Distance from ground as extra context
         extra_context = inverse['mean'][2] - ground_height
         extra_context = extra_context.unsqueeze(-1)
-
-        return tensor_0, tensor_1,extra_context
+        if self.include_self:
+            return tensor_0,tensor_1,extra_context,voxel_0_small, voxel_0_self
+        else:
+            return tensor_0, tensor_1,extra_context
 
 
     def last_processing(self, tensor_0, tensor_1):

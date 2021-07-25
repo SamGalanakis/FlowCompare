@@ -43,7 +43,7 @@ n_epochs:
   value: 2
 batch_size:
   desc: Batch size
-  value: 20 #down from 25 due to dgcnn extra mem
+  value: 25 #down from 25 due to dgcnn extra mem
 lr:
   desc: Initial learning rate for optimizer
   value: 1.0E-4 # was  1.0E-4

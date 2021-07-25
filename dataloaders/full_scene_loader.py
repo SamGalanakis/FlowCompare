@@ -30,8 +30,8 @@ eps = 1e-8
 
 class FullSceneLoader(Dataset):
     def __init__(self, directory_path_train,directory_path_test, out_path, clearance=10, 
-                  device="cpu", n_samples=2048,final_voxel_size=[3., 3., 4.],
-                 n_samples_context=2048, context_voxel_size = [3., 3., 4.],
+                  device="cpu", n_samples=1024,final_voxel_size=[3., 3., 4.],
+                 n_samples_context=1250, context_voxel_size = [3., 3., 4.],
                 mode='train'):
 
         print(f'Dataset mode: {mode}')
@@ -87,91 +87,92 @@ class FullSceneLoader(Dataset):
         
         return fig_0,fig_1
     def get_scene(self,idx):
-
-
-        save_entry = self.save_dict[idx]
-        clouds = save_entry['clouds']
-        ground_height = save_entry['ground_height']
-
-
-
-
-        
-        
-        clouds = clouds[:2]
-        cluster_min = torch.stack([torch.min(x,dim=0)[0][:3] for x in clouds]).min(dim=0)[0]
-        cluster_max = torch.stack([torch.max(x,dim=0)[0][:3] for x in clouds]).max(dim=0)[0]
-        cloud_0,cloud_1 = clouds
-        clusters = []
-        
-        for index,x in enumerate(clouds):
-                labels,voxel_centers = voxelize(x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size)
-                clusters.append(labels)
-        voxel_indexes = torch.cat(clusters).unique()
-        voxel_0_list = []
-        voxel_0_context_list = []
-        voxel_1_list = []
-        voxel_1_context_list = []
-        extra_context_list = []
-        for voxel_index in tqdm(voxel_indexes.tolist()):
-            center = voxel_centers[index]
-            voxel_1_context = get_voxel(cloud_1,center,self.context_voxel_size)
-            voxel_0_context = get_voxel(cloud_0,center,self.context_voxel_size)
-        
-            voxel_1 = cloud_1[(clusters[1]==voxel_index).squeeze(),:]
-            voxel_0 = cloud_0[(clusters[0]==voxel_index).squeeze(),:]
-
-            if voxel_0.shape[0]<2:
-                voxel_1_mean = voxel_1.mean(dim=0)
-                voxel_0 = torch.stack([voxel_1_mean,voxel_1_mean],dim=0)
-
-            if voxel_1.shape[0]<2:
-                voxel_0_mean = voxel_0.mean(dim=0)
-                voxel_1 = torch.stack([voxel_0_mean,voxel_0_mean],dim=0)
-
-            if voxel_0_context.shape[0]<2:
-                voxel_0_context = voxel_0
-
-            if voxel_1_context.shape[0]<2:
-                voxel_1_context = voxel_1
-
+        file_path = f'save/processed_dataset/preprocessed_scenes/processed_scene_{idx}.pt'
+        if os.path.exists(file_path):
+            out_list = torch.load(file_path)
             
+        else:
+            save_entry = self.save_dict[idx]
+            clouds = save_entry['clouds']
+            ground_height = save_entry['ground_height']
 
 
-            voxel_0_context = voxel_0_context[fps(voxel_0_context, torch.zeros(voxel_0_context.shape[0]).long(
-            ), ratio=self.n_samples_context/voxel_0_context.shape[0], random_start=False), :]
-            voxel_0_context = voxel_0_context[:self.n_samples_context, :]
-
-
-            voxel_1_context = voxel_1_context[fps(voxel_1_context, torch.zeros(voxel_1_context.shape[0]).long(
-            ), ratio=self.n_samples_context/voxel_1_context.shape[0], random_start=False), :]
-            voxel_1_context = voxel_1_context[:self.n_samples_context, :]
-
-
-            voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
-            ), ratio=self.n_samples/voxel_1.shape[0], random_start=False), :]
-            voxel_1 = voxel_1[:self.n_samples, :]
-
+            clouds = clouds[:2]
+            cluster_min = torch.stack([torch.min(x,dim=0)[0][:3] for x in clouds]).min(dim=0)[0]
+            cluster_max = torch.stack([torch.max(x,dim=0)[0][:3] for x in clouds]).max(dim=0)[0]
+            cloud_0,cloud_1 = clouds
+            clusters = []
             
+            for index,x in enumerate(clouds):
+                    labels,voxel_centers = voxelize(x[:, :3],start= cluster_min,end=cluster_max,size= self.final_voxel_size)
+                    clusters.append(labels)
+            voxel_indexes = torch.cat(clusters).unique()
+            voxel_0_list = []
+            voxel_0_context_list = []
+            voxel_1_list = []
+            voxel_1_context_list = []
+            extra_context_list = []
+            for voxel_index in tqdm(voxel_indexes.tolist()):
+                center = voxel_centers[index]
+                voxel_1_context = get_voxel(cloud_1,center,self.context_voxel_size)
+                voxel_0_context = get_voxel(cloud_0,center,self.context_voxel_size)
             
-        
-            voxel_0 = voxel_0[fps(voxel_0, torch.zeros(voxel_0.shape[0]).long(
-            ), ratio=self.n_samples_context/voxel_0.shape[0], random_start=False), :]
-            voxel_0 = voxel_0[:self.n_samples_context,:]
-        
+                voxel_1 = cloud_1[(clusters[1]==voxel_index).squeeze(),:]
+                voxel_0 = cloud_0[(clusters[0]==voxel_index).squeeze(),:]
+
+                if voxel_0.shape[0]<2:
+                    voxel_1_mean = voxel_1.mean(dim=0)
+                    voxel_0 = torch.stack([voxel_1_mean,voxel_1_mean],dim=0)
+
+                if voxel_1.shape[0]<2:
+                    voxel_0_mean = voxel_0.mean(dim=0)
+                    voxel_1 = torch.stack([voxel_0_mean,voxel_0_mean],dim=0)
+
+                if voxel_0_context.shape[0]<2:
+                    voxel_0_context = voxel_0
+
+                if voxel_1_context.shape[0]<2:
+                    voxel_1_context = voxel_1
+
+                
+
+
+                voxel_0_context = voxel_0_context[fps(voxel_0_context, torch.zeros(voxel_0_context.shape[0]).long(
+                ), ratio=self.n_samples_context/voxel_0_context.shape[0], random_start=False), :]
+                voxel_0_context = voxel_0_context[:self.n_samples_context, :]
+
+
+                voxel_1_context = voxel_1_context[fps(voxel_1_context, torch.zeros(voxel_1_context.shape[0]).long(
+                ), ratio=self.n_samples_context/voxel_1_context.shape[0], random_start=False), :]
+                voxel_1_context = voxel_1_context[:self.n_samples_context, :]
+
+
+                voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
+                ), ratio=self.n_samples/voxel_1.shape[0], random_start=False), :]
+                voxel_1 = voxel_1[:self.n_samples, :]
+
+                
+                
             
-
-            voxel_0_context_list.append(voxel_0_context)
-            voxel_1_context_list.append(voxel_1_context)
-            voxel_0_list.append(voxel_0)
-            voxel_1_list.append(voxel_1)
-
+                voxel_0 = voxel_0[fps(voxel_0, torch.zeros(voxel_0.shape[0]).long(
+                ), ratio=self.n_samples_context/voxel_0.shape[0], random_start=False), :]
+                voxel_0 = voxel_0[:self.n_samples_context,:]
             
-            # Distance from ground as extra context
-            extra_context = center[2] - ground_height
-            extra_context = extra_context.unsqueeze(-1)
-            extra_context_list.append(extra_context)
+                
 
+                voxel_0_context_list.append(voxel_0_context)
+                voxel_1_context_list.append(voxel_1_context)
+                voxel_0_list.append(voxel_0)
+                voxel_1_list.append(voxel_1)
+
+                
+                # Distance from ground as extra context
+                extra_context = center[2] - ground_height
+                extra_context = extra_context.unsqueeze(-1)
+                extra_context_list.append(extra_context)
+                out_list = [voxel_0_list, voxel_1_list,voxel_0_context_list,voxel_1_context_list,extra_context_list]
+                torch.save(out_list,file_path)
+        voxel_0_list, voxel_1_list,voxel_0_context_list,voxel_1_context_list,extra_context_list = out_list
         return voxel_0_list, voxel_1_list,voxel_0_context_list,voxel_1_context_list,extra_context_list
 
 

@@ -68,6 +68,7 @@ def train(config_path):
         print(f"Loading from checkpoint: {config['load_checkpoint']}")
         checkpoint_dict = torch.load(config['load_checkpoint'],map_location='cpu') #Map to cpu to avoid weird pytorch extra gpu mem usage
         models_dict = load_flow(checkpoint_dict, models_dict)
+        models_dict['flow'].train()
         optimizer.load_state_dict(checkpoint_dict['optimizer'])
         scheduler.load_state_dict(checkpoint_dict['scheduler'])
 

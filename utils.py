@@ -261,6 +261,10 @@ def co_min_max(tensor_list):
         tensor_list = [x.numpy() for x in tensor_list]
     return tensor_list
 
+def min_max_norm(tensor):
+    min_ = tensor.min()
+    max_ = tensor.max()
+    return (tensor - min_)/(max_ - min_)
 
 def unit_sphere(points, return_inverse=False):
     """Normalize cloud to zero mean and within unit ball"""
@@ -469,8 +473,10 @@ def rotate_xy(rad):
 
 
 def is_valid(tensor):
-    assert not torch.logical_or(
-        tensor.isnan(), tensor.isinf()).any(), 'Invalid values!'
+    valid = not torch.logical_or(
+        tensor.isnan(), tensor.isinf()).any()
+
+    return valid
 
 def get_voxel_index(point,min,max,sizes):
     axis_size = torch.ceil((max-min) / sizes)
