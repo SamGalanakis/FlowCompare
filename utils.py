@@ -430,42 +430,6 @@ def mean_except_batch(x, num_dims=1):
 
 
 
-class Scheduler:
-    def __init__(self, optimizer, mem_iter, factor, threshold, min_lr, verbose=True):
-        self.mem_iter = mem_iter
-        self.factor = factor
-        self.threshold = threshold
-        self.current_average = 0
-        self.prev_average = Inf  # Don't go down in lr on first check
-        self.step_counter = 0
-        self.optimizer = optimizer
-        self.verbose = verbose
-        self.min_lr = min_lr
-
-    def set_lr(self):
-        for g in self.optimizer.param_groups:
-            g['lr'] = max(g['lr'] * self.factor, self.min_lr)
-
-    def threshold_val(self):
-        return self.prev_average - abs(self.prev_average)*(self.threshold)
-
-    def step(self, loss):
-        loss = loss.item()
-        self.step_counter += 1
-
-        self.current_average = self.current_average * \
-            (self.step_counter-1)/self.step_counter + loss / self.step_counter
-
-        if self.step_counter >= self.mem_iter:
-            self.step_counter = 0
-            if self.threshold_val() <= self.current_average:  # If within threshold or higher loss than b4, change lr
-                self.set_lr()
-                if self.verbose:
-                    print(
-                        f"Updating lr as prev: {self.prev_average} new: {self.current_average} ")
-            self.prev_average = self.current_average
-
-
 def rotate_xy(rad):
     matrix = torch.tensor(
         [[math.cos(rad), -math.sin(rad)], [math.sin(rad), math.cos(rad)]])

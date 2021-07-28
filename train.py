@@ -176,7 +176,7 @@ def train(config_path):
 
 
 if __name__ == "__main__":
-    config_path = r"config/extra_300_dgcn_no_extra.yaml"
+    config_path = r"config/extra_300_paconv_no_extra.yaml"
     train(config_path)
      
     

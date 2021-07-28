@@ -73,7 +73,7 @@ normalization:
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: save/conditional_flow_compare/swept-energy-2784_e1_b500_model_dict.pt
+  value: False
 dirs_challenge_csv:
   desc: Paths to label csv folder
   value: save/2016-2020-train/
@@ -103,7 +103,7 @@ amp:
   value: false
 input_embedder: 
   desc: input_embedder type
-  value: DGCNNembedder #PAConv # 
+  value: PAConv #PAConv # 
 grad_clip_val:
   desc: What value to clip grad norms to
   value: 1.0 # was 1.0

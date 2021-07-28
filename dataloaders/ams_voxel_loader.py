@@ -58,7 +58,7 @@ class AmsVoxelLoader(Dataset):
     def __init__(self, directory_path_train,directory_path_test, out_path, clearance=10, preload=False,
                  height_min_dif=0.5, max_height=15.0, device="cpu",n_samples=2048,final_voxel_size=[3., 3., 4.],
                  rotation_augment = True,n_samples_context=2048, context_voxel_size = [3., 3., 4.],
-                mode='train',verbose=False,voxel_size_final_downsample=0.07,include_self=False):
+                mode='train',verbose=False,voxel_size_final_downsample=0.07,include_all=False):
 
         print(f'Dataset mode: {mode}')
         self.mode = mode
@@ -70,7 +70,7 @@ class AmsVoxelLoader(Dataset):
         else:
             raise Exception('Invalid mode')
         self.verbose = verbose 
-        self.include_self = include_self
+        self.include_all = include_all
         self.voxel_size_final_downsample = voxel_size_final_downsample
         self.n_samples_context = n_samples_context
         self.context_voxel_size = torch.tensor(context_voxel_size)
@@ -284,56 +284,70 @@ class AmsVoxelLoader(Dataset):
         cloud_0,cloud_1 = clouds[cloud_ind_0],clouds[cloud_ind_1]
 
     
-        voxel_1 = get_voxel(cloud_1,center,self.final_voxel_size)
-        voxel_0 = get_voxel(cloud_0,center,self.context_voxel_size)
+        voxel_1_small = get_voxel(cloud_1,center,self.final_voxel_size)
+        voxel_0_large = get_voxel(cloud_0,center,self.context_voxel_size)
         
         
         
      
 
-        voxel_1 = voxel_1[fps(voxel_1, torch.zeros(voxel_1.shape[0]).long(
-        ), ratio=self.n_samples/voxel_1.shape[0], random_start=False), :]
-        voxel_1 = voxel_1[:self.n_samples, :]
+        voxel_1_small = voxel_1_small[fps(voxel_1_small, torch.zeros(voxel_1_small.shape[0]).long(
+        ), ratio=self.n_samples/voxel_1_small.shape[0], random_start=False), :]
+        voxel_1_small = voxel_1_small[:self.n_samples, :]
 
         
         
     
-        voxel_0 = voxel_0[fps(voxel_0, torch.zeros(voxel_0.shape[0]).long(
-        ), ratio=self.n_samples_context/voxel_0.shape[0], random_start=False), :]
-        voxel_0 = voxel_0[:self.n_samples_context,:]
+        voxel_0_large = voxel_0_large[fps(voxel_0_large, torch.zeros(voxel_0_large.shape[0]).long(
+        ), ratio=self.n_samples_context/voxel_0_large.shape[0], random_start=False), :]
+        voxel_0_large = voxel_0_large[:self.n_samples_context,:]
 
-        if self.include_self:
+        if self.include_all:
+            
+
             voxel_0_small = get_voxel(cloud_0,center,self.final_voxel_size)
+            
+            voxel_1_small_original = voxel_1_small.clone()
+
             voxel_0_small = voxel_0_small[fps(voxel_0_small, torch.zeros(voxel_0_small.shape[0]).long(
             ), ratio=self.n_samples/voxel_0_small.shape[0], random_start=False), :]
             voxel_0_small = voxel_0_small[:self.n_samples,:]
-            voxel_0_small, voxel_0_self,inverse = self.last_processing(voxel_0_small,voxel_0)
+
+            voxel_0_small_original = voxel_0_small.clone()
+            voxel_0_small_self, voxel_0_large_self,inverse = self.last_processing(voxel_0_small,voxel_0_large)
 
 
+            voxel_1_large = get_voxel(cloud_1,center,self.context_voxel_size)
+            voxel_1_large = voxel_1_large[fps(voxel_1_large, torch.zeros(voxel_1_large.shape[0]).long(
+            ), ratio=self.n_samples/voxel_1_large.shape[0], random_start=False), :]
+            voxel_1_large = voxel_1_large[:self.n_samples,:]
+            voxel_1_large_self, voxel_1_small_self,inverse = self.last_processing(voxel_1_large,voxel_1_small)
+            voxel_1_large_self, voxel_1_small_self,inverse = self.last_processing(voxel_1_large,voxel_1_small)
+            voxel_opposite_small , voxel_opposite_large, inverse  = self.last_processing(voxel_0_small,voxel_1_large)
         #Only augment in train
         if are_same:
-            voxel_1 = voxel_1.clone()
+            voxel_1_small = voxel_1_small.clone()
             if self.mode == 'train':
                 voxel_0[:, :3] += torch.rand_like(voxel_0[:, :3])*0.01
         
 
-        tensor_0, tensor_1,inverse  = self.last_processing(voxel_0, voxel_1)
+        voxel_0_large, voxel_1_small,inverse  = self.last_processing(voxel_0_large, voxel_1_small)
 
         if self.mode == 'train':
             rads = torch.rand((1))*math.pi*2
 
             if self.rotation_augment:
                 rot_mat = rotate_xy(rads)
-                tensor_0[:, :2] = torch.matmul(tensor_0[:, :2], rot_mat)
-                tensor_1[:, :2] = torch.matmul(tensor_1[:, :2], rot_mat)
+                voxel_0_large[:, :2] = torch.matmul(voxel_0_large[:, :2], rot_mat)
+                voxel_1_small[:, :2] = torch.matmul(voxel_1_small[:, :2], rot_mat)
         
         # Distance from ground as extra context
         extra_context = inverse['mean'][2] - ground_height
         extra_context = extra_context.unsqueeze(-1)
-        if self.include_self:
-            return tensor_0,tensor_1,extra_context,voxel_0_small, voxel_0_self
+        if self.include_all:
+            return voxel_0_large, voxel_1_small,extra_context, voxel_1_large_self, voxel_1_small_self, voxel_opposite_small , voxel_opposite_large,  voxel_0_small_self, voxel_0_large_self, voxel_0_small_original ,voxel_1_small_original
         else:
-            return tensor_0, tensor_1,extra_context
+            return voxel_0_large, voxel_1_small,extra_context
 
 
     def last_processing(self, tensor_0, tensor_1):

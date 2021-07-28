@@ -28,44 +28,79 @@ def evaluate_on_test(model_dict,config,batch_size = None,generate_samples=True):
         
         dataset = AmsVoxelLoader(config['directory_path_train'],config['directory_path_test'], out_path='save/processed_dataset', preload=True,
             n_samples = config['sample_size'],final_voxel_size = config['final_voxel_size'],device=device,
-            n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size'],mode='test',include_self=True)
+            n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size'],mode='test',include_all=True)
         dataloader = DataLoader(dataset,batch_size=batch_size,num_workers=config['num_workers'],pin_memory=True,prefetch_factor=2, drop_last=True,shuffle=False)
         change_mean_list = []
         print(f'Evaluating on test')
         nats_avg = 0
         
         for batch_ind, batch in enumerate(tqdm(dataloader)):
-            tensor_0,tensor_1,extra_context,voxel_0_small, voxel_0_self = [x.to(device) for x in batch]
+            
+            voxel_0_large, voxel_1_small,extra_context, voxel_1_large_self, voxel_1_small_self, voxel_opposite_small , voxel_opposite_large,  voxel_0_small_self, voxel_0_large_self,voxel_0_small_original ,voxel_1_small_original = [x.to(device) for x in batch]
             if not config['using_extra_context']:
                 extra_context = None
-            batch_0_1 = [tensor_0,tensor_1,extra_context]
+            batch_1_0 = [voxel_0_large,voxel_1_small,extra_context]
+            batch_0_1 = [voxel_opposite_large,voxel_opposite_small,extra_context]
             
-            batch_0_0 = [voxel_0_small, voxel_0_self,extra_context]
+            batch_0_0 = [voxel_0_large_self,voxel_0_small_self,extra_context]
+            batch_1_1 = [voxel_1_large_self,voxel_1_small_self,extra_context]
 
-            loss, log_prob, nats = inner_loop(
-                batch_0_1, model_dict, config)
+            loss, log_prob_1_0, nats = inner_loop(
+                batch_1_0, model_dict, config)
             
             _,log_prob_0_0,_ = inner_loop(
                 batch_0_0, model_dict, config)
-            change = log_prob_to_color(log_prob,log_prob_0_0,multiple=3.3)
+            change_1_0 = log_prob_to_color(log_prob_1_0,log_prob_0_0,multiple=3.3)
+
+            
+            assert is_valid(log_prob_1_0)
+
+
+
             if generate_samples:
-                sample_points = make_sample(
-                    n_points = 4000, extract_0 = tensor_0[0].unsqueeze(0), models_dict = model_dict, config = config,sample_distrib = None,extra_context = extra_context)
-                cond_nump =  tensor_0[0].cpu().numpy()
+                loss, log_prob_0_1, nats = inner_loop(
+                batch_0_1, model_dict, config)
+            
+                _,log_prob_1_1,_ = inner_loop(
+                    batch_1_1, model_dict, config)
+                change_0_1 = log_prob_to_color(log_prob_0_1,log_prob_1_1,multiple=3.3)
+
+                assert is_valid(log_prob_0_1)
+
+                sample_points_given_0 = make_sample(
+                    n_points = 4000, extract_0 = voxel_0_large[0].unsqueeze(0), models_dict = model_dict, config = config,sample_distrib = None,extra_context = extra_context)
+                cond_nump =  voxel_0_large[0].cpu().numpy()
                 cond_nump[:, 3:6] = np.clip(
                 cond_nump[:, 3:6]*255, 0, 255)
-                sample_points = sample_points.cpu().numpy().squeeze()
-                sample_points[:, 3:6] = np.clip(
-                sample_points[:, 3:6]*255, 0, 255)
-                fig = view_cloud_plotly(sample_points[:,:3],sample_points[:,3:],show=False)
-                fig.write_html(f'save/examples/examples_gen/{batch_ind}_gen.html')
-                fig = view_cloud_plotly(batch[0][0][:,:3],batch[0][0][:,3:],show=False)
-                fig.write_html(f'save/examples/examples_gen/{batch_ind}_condition.html')
+                sample_points_given_0 = sample_points_given_0.cpu().numpy().squeeze()
+                sample_points_given_0[:, 3:6] = np.clip(
+                sample_points_given_0[:, 3:6]*255, 0, 255)
 
+                fig_gen_given_0 = view_cloud_plotly(sample_points_given_0[:,:3],sample_points_given_0[:,3:],show=False)
+                fig_gen_given_0.write_html(f'save/examples/examples_gen/{batch_ind}_gen_given_0.html')
+                fig_0 = view_cloud_plotly(voxel_0_small_original[0][:,:3],voxel_0_small_original[0][:,3:],show=False)
+                fig_0.write_html(f'save/examples/examples_gen/{batch_ind}_0_small.html')
+                fig_1 = view_cloud_plotly(voxel_1_small_original[0][:,:3],voxel_1_small_original[0][:,3:],show=False)
+                fig_1.write_html(f'save/examples/examples_gen/{batch_ind}_1_small.html')
+
+
+
+                sample_points_given_1 = make_sample(
+                    n_points = 4000, extract_0 = voxel_opposite_large[0].unsqueeze(0), models_dict = model_dict, config = config,sample_distrib = None,extra_context = extra_context)
+                sample_points_given_1 = sample_points_given_1.cpu().numpy().squeeze()
+                sample_points_given_1[:, 3:6] = np.clip(
+                sample_points_given_1[:, 3:6]*255, 0, 255)
+                fig_gen_given_1 = view_cloud_plotly(sample_points_given_1[:,:3],sample_points_given_1[:,3:],show=False)
+                fig_gen_given_1.write_html(f'save/examples/examples_gen/{batch_ind}_gen_given_1.html')
+
+                combined_points = torch.cat((voxel_0_small_original[0][:,:3],voxel_1_small_original[0][:,:3]),dim=-1)
+                combined_change = torch.cat((change_0_1[0],change_1_0[0]),dim=-1)
+                combined_fig = view_cloud_plotly(combined_points,combined_change,show=False,colorscale='Bluered')
+                combined_fig.write_html(f'save/examples/examples_gen/{batch_ind}_change.html')
 
             
             is_valid(loss)
-            change_means=change.mean(dim=-1).tolist()
+            change_means=change_1_0.mean(dim=-1).tolist()
             change_mean_list.extend(change_means)
             nats = nats.item()
             nats_avg = (
@@ -93,7 +128,7 @@ def clamp_infs(tensor):
 def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple=3.):
     base_mean = log_prob_0_given_0.mean()
     base_std = log_prob_0_given_0.std()
-    print(f'Base  mean: {base_mean.item()}, base_std: {base_std.item()}')
+    #print(f'Base  mean: {base_mean.item()}, base_std: {base_std.item()}')
      
     changed_mask_1 = (base_mean - log_prob_1_given_0) > multiple*base_std
     log_prob_1_given_0 += torch.abs(log_prob_1_given_0.min())
@@ -285,8 +320,8 @@ if __name__ == '__main__':
     mode = 'test'
     
 
-    
-    nats,log_probs_list = evaluate_on_test(model_dict,config)
+        
+    nats,log_probs_list = evaluate_on_test(model_dict,config,generate_samples=True)
     values,indices = torch.sort(torch.tensor(log_probs_list),descending=False) 
     torch.save({'values':values,'indices':indices},f'save/most_changed/{os.path.basename(load_path)}')
     one_up_path = os.path.dirname(__file__)
