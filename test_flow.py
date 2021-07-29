@@ -144,7 +144,7 @@ def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple=3.):
     # Check that there are at least a minimum amount of changed points else return zeros
     if changed_mask_1.sum()>5:
         max_change = log_prob_1_given_0[changed_mask_1].max()
-        # Set non change valus to the max so they get set to 0 in the end
+        # Set non change values to the max so they get set to 0 in the end
         log_prob_1_given_0[~changed_mask_1] = max_change
         # Reverse order so most changed have largest vals
         log_prob_1_given_0 = max_change - log_prob_1_given_0
