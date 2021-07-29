@@ -328,7 +328,7 @@ class AmsVoxelLoader(Dataset):
         if are_same:
             voxel_1_small = voxel_1_small.clone()
             if self.mode == 'train':
-                voxel_0[:, :3] += torch.rand_like(voxel_0[:, :3])*0.01
+                voxel_0_large[:, :3] += torch.rand_like(voxel_0_large[:, :3])*0.01
         
 
         voxel_0_large, voxel_1_small,inverse  = self.last_processing(voxel_0_large, voxel_1_small)

@@ -35,7 +35,7 @@ def evaluate_on_test(model_dict,config,batch_size = None,generate_samples=True):
         nats_avg = 0
         
         for batch_ind, batch in enumerate(tqdm(dataloader)):
-            
+
             voxel_0_large, voxel_1_small,extra_context, voxel_1_large_self, voxel_1_small_self, voxel_opposite_small , voxel_opposite_large,  voxel_0_small_self, voxel_0_large_self,voxel_0_small_original ,voxel_1_small_original = [x.to(device) for x in batch]
             if not config['using_extra_context']:
                 extra_context = None
@@ -50,14 +50,16 @@ def evaluate_on_test(model_dict,config,batch_size = None,generate_samples=True):
             
             _,log_prob_0_0,_ = inner_loop(
                 batch_0_0, model_dict, config)
+            assert is_valid(log_prob_1_0)
             change_1_0 = log_prob_to_color(log_prob_1_0,log_prob_0_0,multiple=3.3)
 
             
-            assert is_valid(log_prob_1_0)
+            assert is_valid(change_1_0)
 
 
 
             if generate_samples:
+
                 loss, log_prob_0_1, nats = inner_loop(
                 batch_0_1, model_dict, config)
             
@@ -121,22 +123,34 @@ def calc_change(batch, model_dict, config):
 
 def clamp_infs(tensor):
     inf_mask = tensor.isinf()
-    min_non_inf = tensor[~inf_mask].min()
-    tensor[inf_mask] = min_non_inf
+    if inf_mask.any():
+        min_non_inf = tensor[~inf_mask].min()
+        tensor[inf_mask] = min_non_inf
+        print(f'Clamping infs!')
     return tensor
 
 def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple=3.):
+    '''NLL to  change scaled from 0 to 1'''
+    #Clamp rare -infs to min non inf val
+    log_prob_1_given_0 = clamp_infs(log_prob_1_given_0)
+    log_prob_0_given_0 = clamp_infs(log_prob_1_given_0)
+    # Get statistics of 0 given 0 for comparison
     base_mean = log_prob_0_given_0.mean()
     base_std = log_prob_0_given_0.std()
-    #print(f'Base  mean: {base_mean.item()}, base_std: {base_std.item()}')
-     
+    
+    # Minimum change criterion (all values smaller than base_mean by more than multiple*base_std)
     changed_mask_1 = (base_mean - log_prob_1_given_0) > multiple*base_std
-    log_prob_1_given_0 += torch.abs(log_prob_1_given_0.min())
-    log_prob_1_given_0[~changed_mask_1] = 0
+    
+    # Check that there are at least a minimum amount of changed points else return zeros
     if changed_mask_1.sum()>5:
-        max_change = log_prob_1_given_0[changed_mask_1].max() 
-        log_prob_1_given_0[changed_mask_1] = max_change - log_prob_1_given_0[changed_mask_1] 
+        max_change = log_prob_1_given_0[changed_mask_1].max()
+        # Set non change valus to the max so they get set to 0 in the end
+        log_prob_1_given_0[~changed_mask_1] = max_change
+        # Reverse order so most changed have largest vals
+        log_prob_1_given_0 = max_change - log_prob_1_given_0
+        # Min max norm to scale to 0-1
         log_prob_1_given_0 = min_max_norm(log_prob_1_given_0)
+
     else:
         log_prob_1_given_0 = torch.zeros_like(log_prob_1_given_0)
     assert is_valid(log_prob_1_given_0)
@@ -321,9 +335,9 @@ if __name__ == '__main__':
     
 
         
-    nats,log_probs_list = evaluate_on_test(model_dict,config,generate_samples=True)
-    values,indices = torch.sort(torch.tensor(log_probs_list),descending=False) 
-    torch.save({'values':values,'indices':indices},f'save/most_changed/{os.path.basename(load_path)}')
+    #nats,log_probs_list = evaluate_on_test(model_dict,config,generate_samples=True)
+    #values,indices = torch.sort(torch.tensor(log_probs_list),descending=False) 
+    #torch.save({'values':values,'indices':indices},f'save/most_changed/{os.path.basename(load_path)}')
     one_up_path = os.path.dirname(__file__)
     out_path = os.path.join(one_up_path, r"save/processed_dataset")
 
@@ -347,4 +361,4 @@ if __name__ == '__main__':
     # # pass
     # for x in range(0,12):
     #    dataset_view(dataset,x,multiple = 3.,gen_std=0.6,save=True)
-    #visualize_change(lambda index, multiple, gen_std: dataset_view(dataset, index, multiple=multiple, gen_std=gen_std,save=False), range(len(dataset)))
+    visualize_change(lambda index, multiple, gen_std: dataset_view(dataset, index, multiple=multiple, gen_std=gen_std,save=False), range(len(dataset)))
