@@ -42,7 +42,7 @@ def visualize_change(fig_getter,index_range):
         dcc.Slider(
             id='gen_std',
             min=0.,
-            max=1.,
+            max=3.,
             step=0.05,
             value=0.6),
             ] ,style ={'width':'20%'}),

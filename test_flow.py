@@ -39,7 +39,7 @@ class DatasetViewer:
         if not self.config['using_extra_context']:
             extra_context = None
         batch_1_0 = [voxel_0_large,voxel_1_small,extra_context]
-        batch_0_1 = [voxel_opposite_large,voxel_opposite_small,extra_context]
+        batch_0_1 = [voxel_opposite_large,voxel_opposite_small,extra_context] #voxel_1_large,voxel_0_small
         
         batch_0_0 = [voxel_0_large_self,voxel_0_small_self,extra_context]
         batch_1_1 = [voxel_1_large_self,voxel_1_small_self,extra_context]
@@ -64,12 +64,12 @@ class DatasetViewer:
     
         _,log_prob_1_1,_ = inner_loop(
             batch_1_1, self.model_dict, config)
-        change_0_1 = log_prob_to_color(log_prob_0_1,log_prob_1_1,multiple=3.3)
+        change_0_1 = log_prob_to_color(log_prob_0_1,log_prob_1_1,multiple=multiple)
 
         assert is_valid(log_prob_0_1)
 
         sample_points_given_0 = make_sample(
-            n_points = 4000, extract_0 = voxel_0_large[0].unsqueeze(0), models_dict = self.model_dict, config = config,sample_distrib = sample_distrib,extra_context = extra_context[0].unsqueeze(0))
+            n_points = 4000, extract_0 = voxel_0_large[0].unsqueeze(0), models_dict = self.model_dict, config = config,sample_distrib = sample_distrib,extra_context = extra_context)
         cond_nump =  voxel_0_large[0].cpu().numpy()
         cond_nump[:, 3:6] = np.clip(
         cond_nump[:, 3:6]*255, 0, 255)
@@ -87,7 +87,7 @@ class DatasetViewer:
 
 
         sample_points_given_1 = make_sample(
-            n_points = 4000, extract_0 = voxel_opposite_large[0].unsqueeze(0), models_dict = self.model_dict, config = config,sample_distrib = sample_distrib,extra_context = extra_context[0].unsqueeze(0))
+            n_points = 4000, extract_0 = voxel_opposite_large[0].unsqueeze(0), models_dict = self.model_dict, config = config,sample_distrib = sample_distrib,extra_context = extra_context)
         sample_points_given_1 = sample_points_given_1.cpu().numpy().squeeze()
         sample_points_given_1[:, 3:6] = np.clip(
         sample_points_given_1[:, 3:6]*255, 0, 255)
@@ -237,7 +237,7 @@ def clamp_infs(tensor):
         print(f'Clamping infs!')
     return tensor
 
-def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple=3.):
+def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0,multiple):
     '''NLL to  change scaled from 0 to 1'''
     #Clamp rare -infs to min non inf val
     print(f'Min self probs: {log_prob_0_given_0.min()}')
@@ -264,7 +264,15 @@ def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple=3.):
     return log_prob_1_given_0
 
 
-    
+def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple): #OLD
+    base_mean = log_prob_0_given_0.mean()
+    base_std = log_prob_0_given_0.std()
+    print(f'Base  mean: {base_mean.item()}, base_std: {base_std.item()}')
+    changed_mask_1 = torch.abs(
+        log_prob_1_given_0-base_mean) > multiple*base_std
+    log_prob_1_given_0 += torch.abs(log_prob_1_given_0.min())
+    log_prob_1_given_0[~changed_mask_1] = 0
+    return log_prob_1_given_0  
 
 def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False,save=True,return_figs=True):
     with torch.no_grad():
@@ -366,7 +374,8 @@ if __name__ == '__main__':
     #dataset_out = f"save/processed_dataset/{name}_{mode}_probs_dataset.pt"
     #create_dataset(dataset,model_dict,dataset_out = dataset_out)
     # score_on_test(dataset,model_dict,n_bins=12)
-    load_path = 'save/conditional_flow_compare/dulcet-universe-2795_e1_b500_model_dict.pt'
+    #load_path = 'save/conditional_flow_compare/dulcet-universe-2795_e1_b500_model_dict.pt'
+    load_path = 'save/conditional_flow_compare/swept-energy-2784_e1_b500_model_dict.pt'
     save_dict = torch.load(load_path, map_location=device)
     config = save_dict['config']
     model_dict = initialize_flow(config, device, mode='test')
