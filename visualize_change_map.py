@@ -50,8 +50,7 @@ def visualize_change(fig_getter,index_range):
         html.Div([
             dcc.Graph(id='graph_0', figure={},style ={'height':'45vh'}),
             dcc.Graph(id='graph_1', figure={},style ={'height':'45vh'}),
-            dcc.Graph(id='graph_1_given_0', figure={},style ={'height':'45vh'}),
-            dcc.Graph(id='graph_0_given_1', figure={},style ={'height':'45vh'}),
+            dcc.Graph(id='combined_change', figure={},style ={'height':'100vh'}),
             dcc.Graph(id='gen_given_0', figure={},style ={'height':'45vh'}),
             dcc.Graph(id='gen_given_1', figure={},style ={'height':'45vh'}),
      
@@ -71,10 +70,9 @@ def visualize_change(fig_getter,index_range):
     Output('gen-std-output-container', 'children'),
     Output(component_id='graph_0', component_property='figure'),
     Output(component_id='graph_1', component_property='figure'),
-    Output(component_id='graph_0_given_1', component_property='figure'),
-    Output(component_id='graph_1_given_0', component_property='figure'),
     Output(component_id='gen_given_1', component_property='figure'),
     Output(component_id='gen_given_0', component_property='figure')],
+     Output(component_id='combined_change', component_property='figure'),
     [Input(component_id='multiple_slider', component_property='value'),
     Input(component_id='gen_std', component_property='value'),
     Input(component_id='index_selector', component_property='value')])
@@ -87,10 +85,10 @@ def visualize_change(fig_getter,index_range):
         
         print(f'Loading index {index}!')
         print(multiple)
-        graph_0,graph_1,graph_0_given_1,graph_1_given_0,gen_given_1,gen_given_0 = fig_getter(index,float(multiple),float(gen_std))
-       
+        fig_0,fig_1,fig_gen_given_0,fig_gen_given_1,combined_fig,changed_percentage = fig_getter(index,float(multiple),float(gen_std))
+        
 
-        return f"Std multiple: {multiple}",f"Gen std: {gen_std}",graph_0,graph_1,graph_0_given_1,graph_1_given_0,gen_given_1,gen_given_0
+        return f"Std multiple: {multiple}",f"Gen std: {gen_std}",fig_0,fig_1,fig_gen_given_1,fig_gen_given_0,combined_fig
 
     
        

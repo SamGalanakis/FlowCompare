@@ -391,19 +391,6 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple=3.):
-    base_mean = log_prob_0_given_0.mean()
-    base_std = log_prob_0_given_0.std()
-    print(f'Base  mean: {base_mean.item()}, base_std: {{base_std.item()}}')
-    changed_mask_1 = torch.abs(
-        log_prob_1_given_0-base_mean) > multiple*base_std
-    log_prob_1_given_0 += torch.abs(log_prob_1_given_0.min())
-    log_prob_1_given_0[~changed_mask_1] = 0
-    return log_prob_1_given_0
-
-
-
-
 def sum_except_batch(x, num_dims=1):
     '''
     Sums all dimensions except the first.

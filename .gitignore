@@ -6,6 +6,7 @@ local_data/
 *.las
 *.laz
 *.zip
+*.html
 
 
 
