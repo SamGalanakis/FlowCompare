@@ -243,7 +243,7 @@ def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0, multiple=3.):
     print(f'Min self probs: {log_prob_0_given_0.min()}')
     
     log_prob_1_given_0 = clamp_infs(log_prob_1_given_0)
-    log_prob_0_given_0 = clamp_infs(log_prob_1_given_0)
+    log_prob_0_given_0 = clamp_infs(log_prob_0_given_0)
     # Get statistics of 0 given 0 for comparison
     base_mean = log_prob_0_given_0.mean(dim=-1).unsqueeze(-1)
     base_std = log_prob_0_given_0.std(dim=-1).unsqueeze(-1)
