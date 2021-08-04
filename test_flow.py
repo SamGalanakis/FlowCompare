@@ -24,7 +24,7 @@ class DatasetViewer:
         device = 'cuda'
         
         self.model_dict = model_dict
-        self.dataset = AmsVoxelLoader(config['directory_path_train'],config['directory_path_test'], out_path='save/processed_dataset', preload=True,
+        self.dataset = AmsVoxelLoader(config['directory_path_train'],config['directory_path_test'], out_path='save/processed_dataset', preload=False,
             n_samples = config['sample_size'],final_voxel_size = config['final_voxel_size'],device=device,
             n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size'],mode=mode
              ,include_all=True)
@@ -380,7 +380,7 @@ if __name__ == '__main__':
     config = save_dict['config']
     model_dict = initialize_flow(config, device, mode='test')
     model_dict = load_flow(save_dict, model_dict)
-    mode = 'train'
+    mode = 'test'
     
 
     dataset_viewer = DatasetViewer(model_dict,config,mode=mode)
@@ -412,4 +412,4 @@ if __name__ == '__main__':
     # # pass
     # for x in range(0,12):
     #    dataset_view(dataset,x,multiple = 3.,gen_std=0.6,save=True)
-    visualize_change(lambda index, multiple, gen_std: dataset_viewer.view_index(index, multiple=multiple, gen_std=gen_std), range(len(dataset_viewer.dataset)))
+    #visualize_change(lambda index, multiple, gen_std: dataset_viewer.view_index(index, multiple=multiple, gen_std=gen_std), range(len(dataset_viewer.dataset)))
