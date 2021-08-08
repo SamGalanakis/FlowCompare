@@ -58,7 +58,7 @@ class AmsVoxelLoader(Dataset):
     def __init__(self, directory_path_train,directory_path_test, out_path, clearance=10, preload=False,
                  height_min_dif=0.5, max_height=15.0, device="cpu",n_samples=2048,final_voxel_size=[3., 3., 4.],
                  rotation_augment = True,n_samples_context=2048, context_voxel_size = [3., 3., 4.],
-                mode='train',verbose=False,voxel_size_final_downsample=0.07,include_all=False):
+                mode='train',verbose=False,voxel_size_final_downsample=0.07,include_all=False,self_pairs_train=True):
 
         print(f'Dataset mode: {mode}')
         self.mode = mode
@@ -76,7 +76,7 @@ class AmsVoxelLoader(Dataset):
         self.context_voxel_size = torch.tensor(context_voxel_size)
         self.directory_path = directory_path
         self.clearance = clearance
-        
+        self.self_pairs_train = self_pairs_train
         self.out_path = out_path
         self.height_min_dif = height_min_dif
         self.max_height = max_height
@@ -85,8 +85,12 @@ class AmsVoxelLoader(Dataset):
         name_insert = self.save_name.split('.')[0]
         self.filtered_scan_path = os.path.join  (
             out_path, f'{name_insert}_filtered_scans.pt')
-        self.all_valid_combs_path = os.path.join  (
-            out_path, f'{name_insert}_all_valid_combs.pt')
+        if self.mode == 'train':
+            self.all_valid_combs_path = os.path.join  (
+                out_path, f'{name_insert}_all_valid_combs_{self_pairs_train}.pt')
+        else:
+            self.all_valid_combs_path = os.path.join  (
+                out_path, f'{name_insert}_all_valid_combs.pt')
         self.years = [2019, 2020]
    
         
@@ -180,7 +184,7 @@ class AmsVoxelLoader(Dataset):
 
     
             
-        if os.path.isfile(self.all_valid_combs_path):
+        if  os.path.isfile(self.all_valid_combs_path):
             self.all_valid_combs = torch.load(self.all_valid_combs_path)
         else:
             self.all_valid_combs = []
@@ -217,7 +221,7 @@ class AmsVoxelLoader(Dataset):
                 for val in common_voxels:
                     valid_combs.extend([(val[0], val[1], x) for x in val[2]])
                     # Self predict (only on index,since clouds shuffled and 1:1 other to same)
-                    if self.mode == 'train':
+                    if self.mode == 'train' and self.self_pairs_train:
                         valid_combs.extend([(val[0], val[0], x) for x in val[2]])
 
                 if len(valid_combs) < 1:

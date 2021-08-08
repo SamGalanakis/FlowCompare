@@ -30,7 +30,7 @@ def train(config_path):
     if config['data_loader'] == 'AmsVoxelLoader':
         dataset = AmsVoxelLoader(config['directory_path_train'],config['directory_path_test'], out_path='save/processed_dataset', preload=config['preload'],
         n_samples = config['sample_size'],final_voxel_size = config['final_voxel_size'],device=device,
-        n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size'],mode='train',
+        n_samples_context = config['n_samples_context'], context_voxel_size = config['context_voxel_size'],mode='train',self_pairs_train = config['self_pairs_train'] if 'self_pairs_train' in config else None
         )
      
     else:
@@ -69,8 +69,10 @@ def train(config_path):
         checkpoint_dict = torch.load(config['load_checkpoint'],map_location='cpu') #Map to cpu to avoid weird pytorch extra gpu mem usage
         models_dict = load_flow(checkpoint_dict, models_dict)
         models_dict['flow'].train()
-        optimizer.load_state_dict(checkpoint_dict['optimizer'])
+        #optimizer.load_state_dict(checkpoint_dict['optimizer'])
         scheduler.load_state_dict(checkpoint_dict['scheduler'])
+        for g in optimizer.param_groups:
+            g['lr'] = checkpoint_dict['optimizer']['param_groups'][0]['lr']
 
     else:
         print("Starting training from scratch!")
@@ -176,7 +178,7 @@ def train(config_path):
 
 
 if __name__ == "__main__":
-    config_path = r"config/extra_300_dgcn.yaml"
+    config_path = r"config/extra_300_dgcn_no_extra_noself.yaml"
     train(config_path)
      
     

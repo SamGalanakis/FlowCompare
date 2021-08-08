@@ -28,6 +28,7 @@ def visualize_change(fig_getter,index_range):
         multi=False,
         value = '0',
         style ={'width':'20%'}),
+        dcc.Input(id="hard_cutoff", type="number", placeholder="hard cutoff", max=10),
          html.Div([
         html.Div(id='slider-output-container'),
         dcc.Slider(
@@ -51,12 +52,15 @@ def visualize_change(fig_getter,index_range):
             dcc.Graph(id='graph_0', figure={},style ={'height':'45vh'}),
             dcc.Graph(id='graph_1', figure={},style ={'height':'45vh'}),
             dcc.Graph(id='combined_change', figure={},style ={'height':'100vh'}),
-            dcc.Graph(id='gen_given_0', figure={},style ={'height':'45vh'}),
+            dcc.Graph(id='fig_0_given_1', figure={},style ={'height':'45vh'}),
+            dcc.Graph(id='fig_1_given_0', figure={},style ={'height':'45vh'}),
             dcc.Graph(id='gen_given_1', figure={},style ={'height':'45vh'}),
+            dcc.Graph(id='gen_given_0', figure={},style ={'height':'45vh'}),
+            
      
 
 
-        ],style={ "columnCount": 3,'rowCount': 2})
+        ],style={ "columnCount": 4,'rowCount': 2})
         
 
 
@@ -73,22 +77,29 @@ def visualize_change(fig_getter,index_range):
     Output(component_id='gen_given_1', component_property='figure'),
     Output(component_id='gen_given_0', component_property='figure')],
      Output(component_id='combined_change', component_property='figure'),
+     Output(component_id='fig_0_given_1', component_property='figure'),
+     Output(component_id='fig_1_given_0', component_property='figure'),
     [Input(component_id='multiple_slider', component_property='value'),
     Input(component_id='gen_std', component_property='value'),
+    Input(component_id='hard_cutoff', component_property='value'),
     Input(component_id='index_selector', component_property='value')])
    
     
-    def index_chooser(multiple,gen_std,index):
+    def index_chooser(multiple,gen_std,hard_cutoff,index):
    
         index = int(index)
         
         
         print(f'Loading index {index}!')
         print(multiple)
-        fig_0,fig_1,fig_gen_given_0,fig_gen_given_1,combined_fig,changed_percentage = fig_getter(index,float(multiple),float(gen_std))
+        try:
+            hard_cutoff = float(hard_cutoff)
+        except:
+            pass
+        fig_0,fig_1,fig_gen_given_0,fig_gen_given_1,combined_fig,fig_0_given_1,fig_1_given_0,changed_percentage = fig_getter(index,float(multiple),float(gen_std),hard_cutoff)
         
 
-        return f"Std multiple: {multiple}",f"Gen std: {gen_std}",fig_0,fig_1,fig_gen_given_1,fig_gen_given_0,combined_fig
+        return f"Std multiple: {multiple}",f"Gen std: {gen_std}",fig_0,fig_1,fig_gen_given_1,fig_gen_given_0,combined_fig,fig_0_given_1,fig_1_given_0
 
     
        
