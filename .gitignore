@@ -7,7 +7,7 @@ local_data/
 *.laz
 *.zip
 *.html
-
+*.txt
 
 
 # Byte-compiled / optimized / DLL files

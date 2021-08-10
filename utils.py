@@ -473,6 +473,16 @@ def calculate_double_mad(x,c=1.4826):
     x[~left_mad_mask] = c * (x - right_median).abs()/right_median
     return x
 
+def left_mad(x,source_distrib,c=1.4826,cutoff=2.):
+    median = source_distrib.median()
+    source_abs_dev = (source_distrib-median).abs()
+    source_left_mad_mask = source_distrib<=median
+    left_mad_mask = x<=median
+    left_mad = c*source_abs_dev[source_left_mad_mask].median()
+    x[~left_mad_mask] = 0.0
+    x[left_mad_mask] = (x-median).abs()[left_mad_mask]/left_mad
+    x[x<cutoff] = 0.0
+    return x
 
 
 

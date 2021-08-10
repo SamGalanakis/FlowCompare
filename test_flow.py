@@ -2,7 +2,7 @@ from models.augmenter import Augment
 import torch
 from dataloaders import ChallengeDataset, AmsVoxelLoader, FullSceneLoader
 import os
-from utils import view_cloud_plotly,is_valid,min_max_norm
+from utils import view_cloud_plotly,is_valid,min_max_norm,left_mad
 from visualize_change_map import visualize_change
 from tqdm import tqdm
 import models
@@ -30,7 +30,7 @@ class DatasetViewer:
              ,include_all=True)
         
     @torch.no_grad()
-    def view_index(self,index, multiple=3., gen_std=0.6,hard_cutoff=None):
+    def view_index(self,index, multiple=3., gen_std=0.6,hard_cutoff=None,point_size=5):
         sample_distrib = models.Normal(torch.zeros(1), torch.ones(
             1)*gen_std, shape=(2000, config['latent_dim'])).to(device)
         dataset_out = self.dataset[index]
@@ -50,8 +50,8 @@ class DatasetViewer:
         _,log_prob_0_0,_ = inner_loop(
             batch_0_0, self.model_dict, config)
         assert is_valid(log_prob_1_0)
-        change_1_0 = log_prob_to_color(log_prob_1_0,log_prob_0_0,multiple=multiple,hard_cutoff=hard_cutoff)
-
+        change_1_0 = log_prob_to_change(log_prob_1_0,log_prob_0_0,multiple=multiple,hard_cutoff=hard_cutoff)
+        #change_1_0 = left_mad(log_prob_1_0.squeeze(),log_prob_0_0.squeeze(),cutoff = hard_cutoff)
         
         assert is_valid(change_1_0)
 
@@ -64,8 +64,8 @@ class DatasetViewer:
     
         _,log_prob_1_1,_ = inner_loop(
             batch_1_1, self.model_dict, config)
-        change_0_1 = log_prob_to_color(log_prob_0_1,log_prob_1_1,multiple=multiple,hard_cutoff=hard_cutoff)
-
+        change_0_1 = log_prob_to_change(log_prob_0_1,log_prob_1_1,multiple=multiple,hard_cutoff=hard_cutoff)
+        #change_0_1 = left_mad(log_prob_0_1.squeeze(),log_prob_1_1.squeeze(),cutoff = hard_cutoff)
         assert is_valid(log_prob_0_1)
 
         sample_points_given_0 = make_sample(
@@ -77,11 +77,11 @@ class DatasetViewer:
         sample_points_given_0[:, 3:6] = np.clip(
         sample_points_given_0[:, 3:6]*255, 0, 255)
         
-        fig_gen_given_0 = view_cloud_plotly(sample_points_given_0[:,:3],sample_points_given_0[:,3:],show=False)
+        fig_gen_given_0 = view_cloud_plotly(sample_points_given_0[:,:3],sample_points_given_0[:,3:],show=False,point_size=point_size)
 
-        fig_0 = view_cloud_plotly(voxel_0_small_original[0][:,:3],voxel_0_small_original[0][:,3:],show=False)
+        fig_0 = view_cloud_plotly(voxel_0_small_original[0][:,:3],voxel_0_small_original[0][:,3:],show=False,point_size=point_size)
 
-        fig_1 = view_cloud_plotly(voxel_1_small_original[0][:,:3],voxel_1_small_original[0][:,3:],show=False)
+        fig_1 = view_cloud_plotly(voxel_1_small_original[0][:,:3],voxel_1_small_original[0][:,3:],show=False,point_size=point_size)
 
 
 
@@ -91,20 +91,29 @@ class DatasetViewer:
         sample_points_given_1 = sample_points_given_1.cpu().numpy().squeeze()
         sample_points_given_1[:, 3:6] = np.clip(
         sample_points_given_1[:, 3:6]*255, 0, 255)
-        fig_gen_given_1 = view_cloud_plotly(sample_points_given_1[:,:3],sample_points_given_1[:,3:],show=False)
+        fig_gen_given_1 = view_cloud_plotly(sample_points_given_1[:,:3],sample_points_given_1[:,3:],show=False,point_size=point_size)
         
 
         combined_points = torch.cat((voxel_0_small_original[0][:,:3],voxel_1_small_original[0][:,:3]),dim=0)
 
         change_0_1[change_0_1>0] = 1.0 
-
+        changes_0_1_count = change_0_1.sum()
         change_1_0 [change_1_0>0] = 1.0 
+        changes_1_0_count = change_1_0.sum()
         combined_change = torch.cat((change_0_1,change_1_0),dim=-1).squeeze()
-        fig_0_given_1 = view_cloud_plotly(voxel_0_small_original[0][:,:3],change_0_1.squeeze(),show=False,colorscale='Bluered')
-        fig_1_given_0 = view_cloud_plotly(voxel_1_small_original[0][:,:3],change_1_0.squeeze(),show=False,colorscale='Bluered')
+        
+        if changes_0_1_count>0:
+            fig_0_given_1 = view_cloud_plotly(voxel_0_small_original[0][:,:3],change_0_1.squeeze(),show=False,colorscale='Bluered',point_size=point_size)
+        else:
+            fig_0_given_1 = view_cloud_plotly(voxel_0_small_original[0][:,:3],torch.zeros_like(voxel_0_small_original[0][:,:3]) + torch.tensor([0,0,1]).to(device),show=False,point_size=point_size)
+        if changes_1_0_count>0:
+            fig_1_given_0 = view_cloud_plotly(voxel_1_small_original[0][:,:3],change_1_0.squeeze(),show=False,colorscale='Bluered',point_size=point_size)
+        else:
+            fig_1_given_0 = view_cloud_plotly(voxel_1_small_original[0][:,:3],torch.zeros_like(voxel_1_small_original[0][:,:3]) + torch.tensor([0,0,1]).to(device),show=False,point_size=point_size)
+
         changed_percentage = (combined_change.sum()/combined_change.numel()).item()
         print(f'Changed percentage: {changed_percentage:.2f}')
-        combined_fig = view_cloud_plotly(combined_points,combined_change,show=False,colorscale='Bluered')
+        combined_fig = view_cloud_plotly(combined_points,combined_change,show=False,colorscale='Bluered',point_size=point_size)
         
         return fig_0,fig_1,fig_gen_given_0,fig_gen_given_1,combined_fig,fig_0_given_1,fig_1_given_0,changed_percentage
 
@@ -156,13 +165,13 @@ def evaluate_on_test(model_dict,config,batch_size = None,generate_samples=True):
             _,log_prob_0_0,_ = inner_loop(
                 batch_0_0, model_dict, config)
             assert is_valid(log_prob_1_0)
-            change_1_0 = log_prob_to_color(log_prob_1_0,log_prob_0_0,multiple=3.3)
+            change_1_0 = log_prob_to_change(log_prob_1_0,log_prob_0_0,multiple=5.4)
 
             
             assert is_valid(change_1_0)
 
             is_valid(loss)
-            change_means=change_1_0.mean(dim=-1).tolist()
+            change_means=(change_1_0>0).float().mean(dim=-1).tolist()
             change_mean_list.extend(change_means)
 
             if generate_samples:
@@ -172,7 +181,7 @@ def evaluate_on_test(model_dict,config,batch_size = None,generate_samples=True):
             
                 _,log_prob_1_1,_ = inner_loop(
                     batch_1_1, model_dict, config)
-                change_0_1 = log_prob_to_color(log_prob_0_1,log_prob_1_1,multiple=3.3)
+                change_0_1 = log_prob_to_change(log_prob_0_1,log_prob_1_1,multiple=5.4)
 
                 assert is_valid(log_prob_0_1)
 
@@ -239,10 +248,10 @@ def clamp_infs(tensor):
         print(f'Clamping infs!')
     return tensor
 
-def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0,multiple,hard_cutoff=None):
+def log_prob_to_change(log_prob_1_given_0, log_prob_0_given_0,multiple,hard_cutoff=None):
     '''NLL to  change scaled from 0 to 1'''
     #Clamp rare -infs to min non inf val
-    print(f'Min self probs: {log_prob_0_given_0.min()}')
+    #print(f'Min self probs: {log_prob_0_given_0.min()}')
     
     log_prob_1_given_0 = clamp_infs(log_prob_1_given_0)
     log_prob_0_given_0 = clamp_infs(log_prob_0_given_0)
@@ -250,11 +259,11 @@ def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0,multiple,hard_cutof
     # Get statistics of 0 given 0 for comparison
         base_mean = log_prob_0_given_0.mean(dim=-1).unsqueeze(-1)
         base_std = log_prob_0_given_0.std(dim=-1).unsqueeze(-1)
-        print(f'Mean {base_mean.item()} std: {base_std.item()}')
+        #print(f'Mean {base_mean.item()} std: {base_std.item()}')
         # Minimum change criterion (all values smaller than base_mean by more than multiple*base_std)
         changed_mask = log_prob_1_given_0 < base_mean - multiple*base_std
         
-        # Check that there are at least a minimum amount of changed points else return zeros
+    
     else:
         changed_mask =  log_prob_1_given_0<hard_cutoff
     max_change = log_prob_1_given_0.max(dim=-1)[0].unsqueeze(-1)
@@ -268,7 +277,12 @@ def log_prob_to_color(log_prob_1_given_0, log_prob_0_given_0,multiple,hard_cutof
     return log_prob_1_given_0
 
 
+def change_to_color(change,mode='solid'):
+    color = torch.zeros(change.shape+(3,))
+    if mode == 'solid':
+        change[change>0] = 1.
 
+    return color
 
 def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False,save=True):
     with torch.no_grad():
@@ -327,9 +341,9 @@ def dataset_view(dataset, index, multiple=3., gen_std=0.6, show=False,save=True)
             procesed_dict['gen_given_0'].append(gen_given_0.cpu())
             procesed_dict['gen_given_1'].append(gen_given_1.cpu())
 
-            procesed_dict['change_1_given_0'].append(log_prob_to_color(
+            procesed_dict['change_1_given_0'].append(log_prob_to_change(
                 log_prob_1_given_0, log_prob_0_given_0, multiple=multiple).cpu())
-            procesed_dict['change_0_given_1'].append(log_prob_to_color(
+            procesed_dict['change_0_given_1'].append(log_prob_to_change(
                 log_prob_0_given_1, log_prob_1_given_1, multiple=multiple).cpu())
 
             if save:
@@ -370,13 +384,13 @@ if __name__ == '__main__':
     #dataset_out = f"save/processed_dataset/{name}_{mode}_probs_dataset.pt"
     #create_dataset(dataset,model_dict,dataset_out = dataset_out)
     # score_on_test(dataset,model_dict,n_bins=12)
-    #load_path = 'save/conditional_flow_compare/dulcet-universe-2795_e1_b500_model_dict.pt'
+    load_path = 'save/conditional_flow_compare/swept-energy-2784_e1_b500_model_dict.pt'
 
 
 
     
 
-    load_path = 'save/conditional_flow_compare/valiant-lion-2798_e1_b17000_model_dict.pt'
+    #load_path = 'save/conditional_flow_compare/valiant-lion-2798_e1_b17000_model_dict.pt'
     save_dict = torch.load(load_path, map_location=device)
     config = save_dict['config']
     model_dict = initialize_flow(config, device, mode='test')
@@ -385,13 +399,31 @@ if __name__ == '__main__':
     dataset_viewer = DatasetViewer(model_dict,config,mode=mode)
 
     
-    #dataset_viewer.calc_change_vals('save/change_vals_1.9.pyc', multiple = 1.9)
-    # dataset_viewer.view_index(16)
-    #nats,log_probs_list = evaluate_on_test(model_dict,config,generate_samples=True)
-    #values,indices = torch.sort(torch.tensor(log_probs_list),descending=False) 
-    #torch.save({'values':values,'indices':indices},f'save/most_changed/{os.path.basename(load_path)}')
-    one_up_path = os.path.dirname(__file__)
-    out_path = os.path.join(one_up_path, r"save/processed_dataset")
+    index_for_figs_list = [19857,63146,3092,152672,20579,133479,101532,182617,76605,46078,76115,49989,24434,76034]
+    save_path = 'save/examples/figs_thesis'
+    
+    for index in index_for_figs_list:
+        for hard_cutoff in [0,1.5,5,9]:
+        
+            out_list = dataset_viewer.view_index(index, multiple=3.3, gen_std=0.6,hard_cutoff=hard_cutoff,point_size=7)
+            out_names = ["fig_0","fig_1","fig_gen_given_0","fig_gen_given_1","combined_fig","fig_0_given_1","fig_1_given_0"]
+            for out_name,fig in zip(out_names,out_list[:-1]):
+                out_path = os.path.join(save_path,f'{index}_{hard_cutoff}_{out_name}.html')
+                fig.write_html(out_path)
+
+
+
+    # nats,log_probs_list = evaluate_on_test(model_dict,config,generate_samples=False)
+    # values,indices = torch.sort(torch.tensor(log_probs_list),descending=False) 
+    # torch.save({'values':values,'indices':indices},f'save/most_changed/{os.path.basename(load_path)}')
+
+
+    # textfile = open("a_file.txt", "w")
+    # for val,index in zip(values.tolist() ,indices.tolist()):
+    #     textfile.write(f"{str(val)},{str(index)}" + "\n")
+    # textfile.close()
+    # one_up_path = os.path.dirname(__file__)
+    # out_path = os.path.join(one_up_path, r"save/processed_dataset")
 
     # dataset = AmsVoxelLoader(config['directory_path_train'],config['directory_path_test'], out_path='save/processed_dataset', preload=True,
     #         n_samples = config['sample_size'],final_voxel_size = config['final_voxel_size'],device=device,
@@ -413,4 +445,4 @@ if __name__ == '__main__':
     # # pass
     # for x in range(0,12):
     #    dataset_view(dataset,x,multiple = 3.,gen_std=0.6,save=True)
-    visualize_change(lambda index, multiple, gen_std, hard_cutoff: dataset_viewer.view_index(index, multiple=multiple, gen_std=gen_std,hard_cutoff=hard_cutoff), range(len(dataset_viewer.dataset)))
+    visualize_change(lambda index, multiple, gen_std, hard_cutoff,point_size: dataset_viewer.view_index(index, multiple=multiple, gen_std=gen_std,hard_cutoff=hard_cutoff,point_size=point_size), range(len(dataset_viewer.dataset)))

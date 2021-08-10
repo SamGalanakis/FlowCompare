@@ -29,6 +29,7 @@ def visualize_change(fig_getter,index_range):
         value = '0',
         style ={'width':'20%'}),
         dcc.Input(id="hard_cutoff", type="number", placeholder="hard cutoff", max=10),
+        dcc.Input(id="point_size", type="number", placeholder="point size",min=1, max=15),
          html.Div([
         html.Div(id='slider-output-container'),
         dcc.Slider(
@@ -52,10 +53,10 @@ def visualize_change(fig_getter,index_range):
             dcc.Graph(id='graph_0', figure={},style ={'height':'45vh'}),
             dcc.Graph(id='graph_1', figure={},style ={'height':'45vh'}),
             dcc.Graph(id='combined_change', figure={},style ={'height':'100vh'}),
-            dcc.Graph(id='fig_0_given_1', figure={},style ={'height':'45vh'}),
-            dcc.Graph(id='fig_1_given_0', figure={},style ={'height':'45vh'}),
-            dcc.Graph(id='gen_given_1', figure={},style ={'height':'45vh'}),
-            dcc.Graph(id='gen_given_0', figure={},style ={'height':'45vh'}),
+            dcc.Graph(id='fig_0_given_1', figure={},style ={'height':'50vh'}),
+            dcc.Graph(id='fig_1_given_0', figure={},style ={'height':'50vh'}),
+            dcc.Graph(id='gen_given_1', figure={},style ={'height':'50vh'}),
+            dcc.Graph(id='gen_given_0', figure={},style ={'height':'50vh'}),
             
      
 
@@ -74,18 +75,19 @@ def visualize_change(fig_getter,index_range):
     Output('gen-std-output-container', 'children'),
     Output(component_id='graph_0', component_property='figure'),
     Output(component_id='graph_1', component_property='figure'),
-    Output(component_id='gen_given_1', component_property='figure'),
-    Output(component_id='gen_given_0', component_property='figure')],
+    Output(component_id='gen_given_0', component_property='figure'),
+    Output(component_id='gen_given_1', component_property='figure')],
      Output(component_id='combined_change', component_property='figure'),
      Output(component_id='fig_0_given_1', component_property='figure'),
      Output(component_id='fig_1_given_0', component_property='figure'),
     [Input(component_id='multiple_slider', component_property='value'),
     Input(component_id='gen_std', component_property='value'),
     Input(component_id='hard_cutoff', component_property='value'),
+    Input(component_id='point_size', component_property='value'),
     Input(component_id='index_selector', component_property='value')])
    
     
-    def index_chooser(multiple,gen_std,hard_cutoff,index):
+    def index_chooser(multiple,gen_std,hard_cutoff,point_size,index):
    
         index = int(index)
         
@@ -93,10 +95,14 @@ def visualize_change(fig_getter,index_range):
         print(f'Loading index {index}!')
         print(multiple)
         try:
+            point_size = float(point_size)
+        except:
+            point_size = 5
+        try:
             hard_cutoff = float(hard_cutoff)
         except:
             pass
-        fig_0,fig_1,fig_gen_given_0,fig_gen_given_1,combined_fig,fig_0_given_1,fig_1_given_0,changed_percentage = fig_getter(index,float(multiple),float(gen_std),hard_cutoff)
+        fig_0,fig_1,fig_gen_given_0,fig_gen_given_1,combined_fig,fig_0_given_1,fig_1_given_0,changed_percentage = fig_getter(index,float(multiple),float(gen_std),hard_cutoff,point_size)
         
 
         return f"Std multiple: {multiple}",f"Gen std: {gen_std}",fig_0,fig_1,fig_gen_given_1,fig_gen_given_0,combined_fig,fig_0_given_1,fig_1_given_0
