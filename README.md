@@ -2,12 +2,13 @@
 
 Msc Thesis - S.J. Galanakis Utrecht University 2021
 
+## Associated report
 
 
 ## Installation
 
 
-All dependencies are listed in the environment.yml file in the root directory. Code has only been tested on linux.
+All dependencies are listed in the environment.yml file in the root directory and can be loaded through anaconda. Code has only been tested on linux.
 Training was performed on an A100-40GB GPU so lower memory gpu's will likely require changing the at least the batch size in the configs.
 
 
@@ -38,11 +39,11 @@ Copy one of the existing configs, change parameter values and run the train func
 
 
 ## Calculating nats on test set
-Run function evaluate_test of test_flow.py given the initialized as show in the file. The function returns average nats and mean change list which gives the change for each index, so highest change values can be inspected through the dataset_viewer
+Run function evaluate_test of test_flow.py given the initialized model_dict as show in the file. The function returns average nats and mean change list which gives the percentage of change points as each index, so highest change values can be inspected through the dataset_viewer
 
 ## Viewing results on test/train dataset
 
-Run visualize_change of test_flow.py as shown in the file. Open the local server link and then use the provided interface. By default the relative std based change values are shown and can be controlled by the multiplier slider.
+Run visualize_change of test_flow.py as shown in the file. Open the local dash server link and then use the provided interface. By default the relative std based change values are shown and can be controlled by the multiplier slider.
 If hard_cutoff value is inserted (set to 5 to reproduce examples from report) the multiplier parameter is ignored. Gen std does controls the standard deviation used for the generated point clouds.
 
 
@@ -51,4 +52,4 @@ If hard_cutoff value is inserted (set to 5 to reproduce examples from report) th
 
 ### Code resources used
 
-This project includes code adapted from various helpful resources (as noted in the files themselves) but chielfy from: [survae_flows](https://github.com/didriknielsen/survae_flows/), [perceiver-pytorch](https://github.com/lucidrains/perceiver-pytorch)] and (torch-geometric)[https://github.com/rusty1s/pytorch_geometric].
+This project includes code adapted from various helpful resources (as noted in the files themselves) but chielfy from: [survae_flows](https://github.com/didriknielsen/survae_flows/), [perceiver-pytorch](https://github.com/lucidrains/perceiver-pytorch)] and [torch-geometric](https://github.com/rusty1s/pytorch_geometric).
