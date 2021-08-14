@@ -8,7 +8,7 @@ local_data/
 *.zip
 *.html
 *.txt
-*.png
+
 
 
 # Byte-compiled / optimized / DLL files
