@@ -6,6 +6,7 @@ channels:
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=1_gnu
+  - autopep8=1.5.7=pyhd8ed1ab_0
   - blas=1.0=mkl
   - ca-certificates=2021.5.30=ha878542_0
   - certifi=2021.5.30=py38h578d9bd_0
@@ -30,6 +31,8 @@ dependencies:
   - libdeflate=1.7=h7f98852_5
   - libffi=3.2.1=he1b5a44_1007
   - libgcc-ng=9.3.0=h2828fa1_19
+  - libgfortran-ng=7.5.0=h14aa051_19
+  - libgfortran4=7.5.0=h14aa051_19
   - libgomp=9.3.0=h2828fa1_19
   - libiconv=1.16=h516909a_0
   - libpng=1.6.37=h21135ba_2
@@ -60,6 +63,8 @@ dependencies:
   - pip=21.1.2=pyhd8ed1ab_0
   - plotly=4.14.3=pyh44b312d_0
   - pthread-stubs=0.4=h36c2ea0_1001
+  - pycodestyle=2.7.0=pyhd8ed1ab_0
+  - pyntcloud=0.1.4=pyhd8ed1ab_0
   - pyparsing=2.4.7=pyh9f0ad1d_0
   - pyqt=5.9.2=py38h05f1152_4
   - python=3.8.0=h357f687_5
@@ -74,6 +79,7 @@ dependencies:
   - six=1.16.0=pyh6c4a22f_0
   - sqlite=3.35.5=h74cdb3f_0
   - tk=8.6.10=h21135ba_1
+  - toml=0.10.2=pyhd8ed1ab_0
   - tornado=6.1=py38h497a2fe_1
   - typing_extensions=3.7.4.3=py_0
   - wheel=0.36.2=pyhd3deb0d_0
@@ -149,6 +155,7 @@ dependencies:
     - pickleshare==0.7.5
     - plyfile==0.7.4
     - pointnet2-ops==3.0.0
+    - pointops==0.0.0
     - prometheus-client==0.11.0
     - promise==2.3
     - prompt-toolkit==3.0.18
