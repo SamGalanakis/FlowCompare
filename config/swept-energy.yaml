@@ -73,7 +73,7 @@ normalization:
   value: co_unit_sphere
 load_checkpoint:
   desc: Path to checkpoint or false for new training
-  value: save/conditional_flow_compare/valiant-lion-2798_e1_b17000_model_dict.pt
+  value: save/conditional_flow_compare/swept-energy-2784_e1_b500_model_dict.pt
 dirs_challenge_csv:
   desc: Paths to label csv folder
   value: save/2016-2020-train/
@@ -195,7 +195,7 @@ extra_z_value_context:
   desc: Use z value of center voxel as extra context
   value: False
 self_pairs_train:
-  desc: Use self pairs in train
+  desc: Use self pairs in training
   value: False
 
 

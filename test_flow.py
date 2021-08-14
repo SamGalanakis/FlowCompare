@@ -9,7 +9,6 @@ import models
 from torch.utils.data import DataLoader
 import numpy as np
 from model_initialization import inner_loop,initialize_flow,make_sample,load_flow
-import matplotlib.pyplot as plt
 import pickle
         
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -133,7 +132,7 @@ class DatasetViewer:
         return change_vals
 
         
-def evaluate_on_test(model_dict,config,batch_size = None,generate_samples=True):
+def evaluate_on_test(model_dict,config,batch_size = None,generate_samples=False):
     with torch.no_grad():
         device = 'cuda'
       
@@ -290,7 +289,7 @@ if __name__ == '__main__':
     mode = 'test'
     dataset_viewer = DatasetViewer(model_dict,config,mode=mode)
 
-    
+    evaluate_on_test(model_dict,config,batch_size = config['batch_size'],generate_samples=False)
     #index_for_figs_list = [19857,63146,3092,152672,20579,133479,101532,182617,76605,46078,76115,49989,24434,76034]
   
     

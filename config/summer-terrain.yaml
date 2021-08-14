@@ -34,7 +34,7 @@ subsample:
   value: 'fps'
 patience:
   desc: patience (number of batches not epochs!)
-  value: 1000
+  value: 2000
 preload:
   desc: Preload_dataset
   value: true
@@ -43,7 +43,7 @@ n_epochs:
   value: 2
 batch_size:
   desc: Batch size
-  value: 25 #16
+  value: 25 #down from 25 due to dgcnn extra mem
 lr:
   desc: Initial learning rate for optimizer
   value: 1.0E-4 # was  1.0E-4
@@ -193,6 +193,9 @@ use_attn_augment:
   value: True
 extra_z_value_context:
   desc: Use z value of center voxel as extra context
+  value: False
+self_pairs_train:
+  desc: Use self pairs in training
   value: False
 
 

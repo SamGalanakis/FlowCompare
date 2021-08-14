@@ -37,7 +37,7 @@ def visualize_change(fig_getter,index_range):
             min=0.,
             max=10.,
             step=0.1,
-            value=3.)
+            value=5.4)
             ] ,style ={'width':'20%'}),
           html.Div([
             html.Div(id='gen-std-output-container'),
