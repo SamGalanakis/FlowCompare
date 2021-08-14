@@ -1,6 +1,6 @@
 # Flow Compare: Conditional Normalizing Flows for Point Cloud Change Detection
 
-Msc Thesis - S.J. Galanakis Utrecht University 2021
+Msc Thesis - S.J. Galanakis, Utrecht University 2021
 In collaboration with [Cyclomedia](https://www.cyclomedia.com/en).
 
 For any questions you can contact me at [samme.galanakis6@gmail.com](mailto:samme.galanakis6@gmail.com)
@@ -30,11 +30,11 @@ being robust to common semantically unimportant change.
 
 
 All dependencies are listed in the environment.yml file in the root directory and can be loaded through anaconda. Code has only been tested on linux.
-Training was performed on an A100-40GB GPU so lower memory gpu's will likely require changing the at least the batch size in the configs.
+Training was performed on an A100-40GB GPU so lower memory gpu's will likely require changing at least the batch size in the configs.
 
-For the pretrained models, preprocessed data the following folder must be [downloaded](https://drive.google.com/drive/folders/1nF8r-ij3aJ-MQGxJa7b3mrcjofDq40LU?usp=sharing) and put in a 'save' folder in the root directory. Html files that render full 3D versions of the examples
-found in the report can be found in the examples folder.
-The original data is provided by Cyclomedia and is not made available, the provided data is a significantly downsampled version as detailed in the accompanying report.
+For the pretrained models and preprocessed data the following folder must be [downloaded](https://drive.google.com/drive/folders/1nF8r-ij3aJ-MQGxJa7b3mrcjofDq40LU?usp=sharing) and put in a 'save' folder in the root directory. Html files that render full 3D versions of the examples
+found in the report are in the examples folder.
+The original data was provided by Cyclomedia and is not made available. The provided data is what was used for training and is a significantly downsampled version as detailed in the accompanying report.
 
 
 ## Pretrained models - configs
