@@ -1,7 +1,9 @@
 # Flow Compare: Conditional Normalizing Flows for Point Cloud Change Detection
 
 Msc Thesis - S.J. Galanakis Utrecht University 2021
+In collaboration with [Cyclomedia](https://www.cyclomedia.com/en).
 
+For any questions you can contact me at [samme.galanakis6@gmail.com](mailto:samme.galanakis6@gmail.com)
 ## Associated report
 
 
@@ -11,9 +13,9 @@ Msc Thesis - S.J. Galanakis Utrecht University 2021
 All dependencies are listed in the environment.yml file in the root directory and can be loaded through anaconda. Code has only been tested on linux.
 Training was performed on an A100-40GB GPU so lower memory gpu's will likely require changing the at least the batch size in the configs.
 
-
-
-
+For the pretrained models, preprocessed data the following folder must be [downloaded](https://drive.google.com/drive/folders/1nF8r-ij3aJ-MQGxJa7b3mrcjofDq40LU?usp=sharing) and put in a 'save' folder in the root directory. Html files that render full 3D versions of the examples
+found in the report can be found in the examples folder.
+The original data is provided by Cyclomedia and is not made available, the provided data is a significantly downsampled version as detailed in the accompanying report.
 
 
 ## Pretrained models - configs
@@ -47,9 +49,6 @@ Run visualize_change of test_flow.py as shown in the file. Open the local dash s
 If hard_cutoff value is inserted (set to 5 to reproduce examples from report) the multiplier parameter is ignored. Gen std does controls the standard deviation used for the generated point clouds.
 
 
-
-
-
-### Code resources used
+## Code resources used
 
 This project includes code adapted from various helpful resources (as noted in the files themselves) but chielfy from: [survae_flows](https://github.com/didriknielsen/survae_flows/), [perceiver-pytorch](https://github.com/lucidrains/perceiver-pytorch)] and [torch-geometric](https://github.com/rusty1s/pytorch_geometric).
