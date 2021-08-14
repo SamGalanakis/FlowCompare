@@ -5,8 +5,8 @@ In collaboration with [Cyclomedia](https://www.cyclomedia.com/en).
 
 For any questions you can contact me at [samme.galanakis6@gmail.com](mailto:samme.galanakis6@gmail.com)
 
-![Flow Compare Poster](./poster_svg.svg)
-<img src="./poster_svg.svg">
+![Flow Compare Poster](./poster.png)
+<!-- <img src="./poster_svg.svg"> -->
 
 ## Associated report
 
