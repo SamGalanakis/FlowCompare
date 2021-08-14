@@ -4,8 +4,27 @@ Msc Thesis - S.J. Galanakis Utrecht University 2021
 In collaboration with [Cyclomedia](https://www.cyclomedia.com/en).
 
 For any questions you can contact me at [samme.galanakis6@gmail.com](mailto:samme.galanakis6@gmail.com)
+
+
+
 ## Associated report
 
+## Abstract
+
+Despite significant progress in 3D deep learning for tasks such as classification and semantic segmentation, robust change detection techniques for complex, coloured environments have not been developed.
+This is in part due to the absence of labelled change detection datasets
+and the inherent difficulty of constructing such datasets despite the
+abundance of unlabeled data. Flow Compare is a fully unsupervised
+approach that leverages expressive generative models with iterative
+attention trained on multi-temporal coloured point clouds. Change
+detection is achieved by reframing the problem as anomaly detection given a learnt conditional distribution. Training pairs are formed
+by co-registered multi-temporal extracts from coloured point cloud
+scenes. The inherent class imbalance due to the rarity of semantically
+important change, which is problematic for supervised approaches,
+is here harnessed to guarantee that relevant changes are considered
+anomalies under the learnt distribution. This approach shows promise
+in detecting not only geometric change but also colour change whilst
+being robust to common semantically unimportant change.
 
 ## Installation
 
@@ -36,7 +55,7 @@ Here name refers to the saved parameters file name (save/conditional_flow_compar
 
 ## Training from scratch
 
-Copy one of the existing configs, change parameter values and run the train function of train.py given the correct config path. Logging is done with wandb and also logs generatd point clouds at certain intervals as set in the config.
+Copy one of the existing configs, change parameter values and run the train function of train.py given the correct config path. Logging is done with [wandb](https://wandb.ai/) and also logs generatd point clouds at certain intervals as set in the config.
 
 
 
