@@ -1,6 +1,7 @@
 # Flow Compare: Conditional Normalizing Flows for Point Cloud Change Detection
 
 Msc Thesis - S.J. Galanakis, Utrecht University 2021
+Report [download](https://drive.google.com/file/d/1QVmg3fy74uPK73fdfGQNzA0bxnbJgUeu/view?usp=sharing) (to be replaced by library link)
 In collaboration with [Cyclomedia](https://www.cyclomedia.com/en).
 
 For any questions you can contact me at [samme.galanakis6@gmail.com](mailto:samme.galanakis6@gmail.com)
