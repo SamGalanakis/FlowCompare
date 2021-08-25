@@ -12,7 +12,7 @@ For any questions you can contact me at [samme.galanakis6@gmail.com](mailto:samm
 ![Flow Compare Poster](./poster.png)
 <!-- <img src="./poster_svg.svg"> -->
 
-## Associated report
+
 
 ## Abstract
 

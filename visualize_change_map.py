@@ -12,6 +12,7 @@ from plotly.subplots import make_subplots
 
 
 def visualize_change(fig_getter,index_range):
+    """Dash server for visualizing outputs"""
 
     app = dash.Dash(__name__,suppress_callback_exceptions = False)
 
