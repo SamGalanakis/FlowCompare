@@ -4,7 +4,7 @@ Msc Thesis - S.J. Galanakis, Utrecht University 2021
 
 In collaboration with [Cyclomedia](https://www.cyclomedia.com/en).
 
-Report [download](https://drive.google.com/file/d/1QVmg3fy74uPK73fdfGQNzA0bxnbJgUeu/view?usp=sharing) (to be replaced by library link)
+Report [download](https://dspace.library.uu.nl/handle/1874/404960)
 
 
 For any questions you can contact me at [samme.galanakis6@gmail.com](mailto:samme.galanakis6@gmail.com)
