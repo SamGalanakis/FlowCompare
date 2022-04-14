@@ -4,7 +4,7 @@ Msc Thesis - S.J. Galanakis, Utrecht University 2021
 
 In collaboration with [Cyclomedia](https://www.cyclomedia.com/en).
 
-Report [download](https://dspace.library.uu.nl/handle/1874/404960)
+Report [download](https://studenttheses.uu.nl/bitstream/handle/20.500.12932/41253/master_thesis_SJ_Galanakis_FlowCompare.pdf?sequence=1&isAllowed=y)
 
 
 For any questions you can contact me at [samme.galanakis6@gmail.com](mailto:samme.galanakis6@gmail.com)
